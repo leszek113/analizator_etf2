@@ -228,21 +228,57 @@ class APIService:
     
     def _determine_frequency_from_dividends(self, dividends: List[Dict]) -> str:
         """
-        Określa częstotliwość dywidend na podstawie danych FMP
+        Określa częstotliwość dywidend na podstawie analizy wzorca czasowego
         """
         if not dividends or len(dividends) < 2:
             return 'unknown'
         
-        # Analiza ostatnich 12 miesięcy
-        recent_dividends = dividends[:12]  # FMP zwraca od najnowszych
-        
-        if len(recent_dividends) >= 10:
-            return 'monthly'
-        elif len(recent_dividends) >= 3:
-            return 'quarterly'
-        elif len(recent_dividends) >= 1:
-            return 'annual'
-        else:
+        try:
+            # Analiza ostatnich 12 miesięcy
+            recent_dividends = dividends[:12]  # FMP zwraca od najnowszych
+            
+            if len(recent_dividends) < 2:
+                return 'unknown'
+            
+            # Analiza wzorca czasowego - sprawdzamy odstępy między dywidendami
+            dates = []
+            for dividend in recent_dividends:
+                if 'date' in dividend:
+                    try:
+                        dividend_date = datetime.strptime(dividend['date'], '%Y-%m-%d')
+                        dates.append(dividend_date)
+                    except (ValueError, TypeError):
+                        continue
+            
+            if len(dates) < 2:
+                return 'unknown'
+            
+            # Sortowanie dat od najstarszej do najnowszej
+            dates.sort()
+            
+            # Obliczanie średnich odstępów między dywidendami
+            intervals = []
+            for i in range(1, len(dates)):
+                interval = (dates[i] - dates[i-1]).days
+                intervals.append(interval)
+            
+            if not intervals:
+                return 'unknown'
+            
+            avg_interval = sum(intervals) / len(intervals)
+            
+            # Określanie częstotliwości na podstawie średniego odstępu
+            if avg_interval <= 35:  # ~1 miesiąc
+                return 'monthly'
+            elif avg_interval <= 100:  # ~3 miesiące
+                return 'quarterly'
+            elif avg_interval <= 400:  # ~1 rok
+                return 'annual'
+            else:
+                return 'unknown'
+                
+        except Exception as e:
+            logger.warning(f"Error determining dividend frequency: {str(e)}")
             return 'unknown'
     
     def get_historical_prices(self, ticker: str, years: int = 15) -> List[Dict]:
@@ -337,18 +373,35 @@ class APIService:
             if dividend_response and dividend_response.status_code == 200:
                 dividend_data = dividend_response.json()
                 if 'historical' in dividend_data:
+                    # Debug logging
+                    total_dividends = len(dividend_data['historical'])
+                    logger.info(f"FMP API returned {total_dividends} total dividends for {ticker}")
+                    
                     cutoff_date = datetime.now() - timedelta(days=years*365)
+                    logger.info(f"Filtering dividends from {cutoff_date.date()} onwards")
                     
                     dividend_list = []
+                    filtered_count = 0
                     for dividend in dividend_data['historical']:
-                        dividend_date = datetime.strptime(dividend['date'], '%Y-%m-%d')
-                        if dividend_date >= cutoff_date:
-                            dividend_list.append({
-                                'payment_date': dividend_date.date(),
-                                'amount': float(dividend['amount']),
-                                'ex_date': None  # FMP nie ma ex-date
-                            })
+                        try:
+                            dividend_date = datetime.strptime(dividend['date'], '%Y-%m-%d')
+                            if dividend_date >= cutoff_date:
+                                # FMP API zwraca 'dividend' a nie 'amount'
+                                dividend_amount = dividend.get('dividend') or dividend.get('amount', 0)
+                                if dividend_amount:
+                                    dividend_list.append({
+                                        'payment_date': dividend_date.date(),
+                                        'amount': float(dividend_amount),
+                                        'ex_date': None,  # FMP nie ma ex-date
+                                        'record_date': dividend.get('recordDate'),
+                                        'declaration_date': dividend.get('declarationDate')
+                                    })
+                                    filtered_count += 1
+                        except (KeyError, ValueError) as e:
+                            logger.warning(f"Error parsing dividend data for {ticker}: {str(e)}")
+                            continue
                     
+                    logger.info(f"After filtering: {filtered_count} dividends for {ticker} (from {total_dividends} total)")
                     return dividend_list
             
         except Exception as e:

@@ -263,23 +263,24 @@ class DatabaseService:
         Sprawdza czy są nowe dywidendy do dodania
         """
         try:
-            # Pobieranie ostatniej dywidendy z bazy
-            last_db_dividend = ETFDividend.query.filter_by(etf_id=etf_id).order_by(ETFDividend.payment_date.desc()).first()
-            
-            # Pobieranie aktualnych dywidend z API
-            current_dividends = self.api_service.get_dividend_history(ticker, years=1)
+            # Pobieranie wszystkich dostępnych dywidend z FMP API (15 lat)
+            current_dividends = self.api_service.get_dividend_history(ticker, years=15)
             
             if not current_dividends:
+                logger.warning(f"No dividends returned from API for {ticker}")
                 return False
+            
+            # Pobieranie istniejących dywidend z bazy
+            existing_dividends = ETFDividend.query.filter_by(etf_id=etf_id).all()
+            existing_dates = {div.payment_date for div in existing_dividends}
+            
+            logger.info(f"ETF {ticker}: {len(current_dividends)} from API, {len(existing_dividends)} in database")
             
             # Sprawdzanie nowych dywidend
             new_dividends = []
-            if last_db_dividend:
-                for dividend_data in current_dividends:
-                    if dividend_data['payment_date'] > last_db_dividend.payment_date:
-                        new_dividends.append(dividend_data)
-            else:
-                new_dividends = current_dividends
+            for dividend_data in current_dividends:
+                if dividend_data['payment_date'] not in existing_dates:
+                    new_dividends.append(dividend_data)
             
             # Dodawanie nowych dywidend
             for dividend_data in new_dividends:
@@ -294,8 +295,9 @@ class DatabaseService:
             if new_dividends:
                 logger.info(f"Added {len(new_dividends)} new dividends for ETF {ticker}")
                 return True
-            
-            return False
+            else:
+                logger.info(f"No new dividends for ETF {ticker}")
+                return False
             
         except Exception as e:
             logger.error(f"Error checking new dividends for ETF {ticker}: {str(e)}")
