@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF Analyzer - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 10px 0;
+        }
+        .search-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .table th {
+            background: #f8f9fa;
+            border-top: none;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+        .table th:hover {
+            background: #e9ecef;
+        }
+        .sort-icon {
+            margin-left: 5px;
+            opacity: 0.5;
+        }
+        .sort-icon.active {
+            opacity: 1;
+            color: #007bff;
+        }
+        .yield-high { color: #28a745; font-weight: 600; }
+        .yield-medium { color: #ffc107; font-weight: 600; }
+        .yield-low { color: #dc3545; font-weight: 600; }
+        .yield-unknown { color: #6c757d; font-weight: 600; }
+        .frequency-badge {
+            font-size: 0.8em;
+            padding: 2px 8px;
+        }
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1 class="h3 mb-0">
+                        <i class="bi bi-graph-up text-primary"></i>
+                        ETF Analyzer Dashboard
+                    </h1>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary" onclick="refreshData()">
+                            <i class="bi bi-arrow-clockwise"></i> Odśwież
+                        </button>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEtfModal">
+                            <i class="bi bi-plus"></i> Dodaj ETF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="mb-1">Łącznie ETF</h6>
+                            <h3 class="mb-0" id="totalEtfs">-</h3>
+                        </div>
+                        <i class="bi bi-collection display-6"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="mb-1">Średni Yield</h6>
+                            <h3 class="mb-0" id="avgYield">-</h3>
+                        </div>
+                        <i class="bi bi-percent display-6"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="mb-1">Ostatnia aktualizacja</h6>
+                            <h6 class="mb-0" id="lastUpdate">-</h6>
+                        </div>
+                        <i class="bi bi-clock display-6"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="mb-1">Status systemu</h6>
+                            <h6 class="mb-0" id="systemStatus">-</h6>
+                        </div>
+                        <i class="bi bi-server display-6"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="search-box">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="Szukaj po tickerze lub nazwie...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="frequencyFilter">
+                        <option value="">Wszystkie częstotliwości</option>
+                        <option value="monthly">Miesięczne</option>
+                        <option value="quarterly">Kwartalne</option>
+                        <option value="annual">Roczne</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="yieldFilter">
+                        <option value="">Wszystkie yield</option>
+                        <option value="high">Wysoki (>5%)</option>
+                        <option value="medium">Średni (2-5%)</option>
+                        <option value="low">Niski (<2%)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- ETF Table -->
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-hover" id="etfTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable(0, 'ticker')">
+                                Ticker <i class="bi bi-arrow-down-up sort-icon" id="sort-0"></i>
+                            </th>
+                            <th onclick="sortTable(1, 'name')">
+                                Nazwa <i class="bi bi-arrow-down-up sort-icon" id="sort-1"></i>
+                            </th>
+                            <th onclick="sortTable(2, 'current_price')">
+                                Cena <i class="bi bi-arrow-down-up sort-icon" id="sort-2"></i>
+                            </th>
+                            <th onclick="sortTable(3, 'current_yield')">
+                                Yield <i class="bi bi-arrow-down-up sort-icon" id="sort-3"></i>
+                            </th>
+                            <th onclick="sortTable(4, 'frequency')">
+                                Częstotliwość <i class="bi bi-arrow-down-up sort-icon" id="sort-4"></i>
+                            </th>
+                            <th onclick="sortTable(5, 'last_updated')">
+                                Ostatnia aktualizacja <i class="bi bi-arrow-down-up sort-icon" id="sort-5"></i>
+                            </th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="etfTableBody">
+                        <!-- Data will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Ładowanie...</span>
+            </div>
+            <p class="mt-2">Ładowanie danych...</p>
+        </div>
+
+        <!-- No Data Message -->
+        <div id="noDataMessage" class="text-center d-none">
+            <i class="bi bi-inbox display-1 text-muted"></i>
+            <h4 class="text-muted mt-3">Brak danych</h4>
+            <p class="text-muted">Dodaj swój pierwszy ETF, aby rozpocząć analizę.</p>
+        </div>
+    </div>
+
+    <!-- Add ETF Modal -->
+    <div class="modal fade" id="addEtfModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj nowy ETF</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addEtfForm">
+                        <div class="mb-3">
+                            <label for="tickerInput" class="form-label">Ticker ETF</label>
+                            <input type="text" class="form-control" id="tickerInput" 
+                                   placeholder="np. SPY, QQQ, VTI" required>
+                            <div class="form-text">Wprowadź ticker ETF (np. SPY, QQQ, VTI)</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-primary" onclick="addEtf()">
+                        <span id="addEtfBtnText">Dodaj ETF</span>
+                        <span id="addEtfBtnSpinner" class="spinner-border spinner-border-sm d-none"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alertContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let etfData = [];
+        let currentSort = { column: 0, direction: 'asc' };
+        let filteredData = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboard();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Search input
+            document.getElementById('searchInput').addEventListener('input', filterData);
+            
+            // Filters
+            document.getElementById('frequencyFilter').addEventListener('change', filterData);
+            document.getElementById('yieldFilter').addEventListener('change', filterData);
+        }
+
+        async function loadDashboard() {
+            showLoading(true);
+            try {
+                const response = await fetch('/api/etfs');
+                const result = await response.json();
+                
+                if (result.success) {
+                    etfData = result.data;
+                    filteredData = [...etfData];
+                    renderTable();
+                    updateStats();
+                } else {
+                    showAlert('Błąd podczas ładowania danych: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Błąd połączenia: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('etfTableBody');
+            
+            if (filteredData.length === 0) {
+                document.getElementById('noDataMessage').classList.remove('d-none');
+                document.getElementById('etfTable').classList.add('d-none');
+                return;
+            }
+            
+            document.getElementById('noDataMessage').classList.add('d-none');
+            document.getElementById('etfTable').classList.remove('d-none');
+            
+            tbody.innerHTML = filteredData.map(etf => `
+                <tr>
+                    <td><strong>${etf.ticker}</strong></td>
+                    <td>${etf.name || 'N/A'}</td>
+                    <td>${etf.current_price ? '$' + etf.current_price.toFixed(2) : 'N/A'}</td>
+                    <td>
+                        ${etf.current_yield ? 
+                            `<span class="yield-${getYieldClass(etf.current_yield)}">${etf.current_yield.toFixed(2)}%</span>` : 
+                            '<span class="yield-unknown">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${etf.frequency ? 
+                            `<span class="badge bg-secondary frequency-badge">${getFrequencyLabel(etf.frequency)}</span>` : 
+                            '<span class="badge bg-light text-dark frequency-badge">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${etf.last_updated ? 
+                            new Date(etf.last_updated).toLocaleString('pl-PL') : 
+                            'N/A'
+                        }
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="viewDetails('${etf.ticker}')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-success" onclick="updateEtf('${etf.ticker}')">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="deleteEtf('${etf.ticker}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterData() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const frequencyFilter = document.getElementById('frequencyFilter').value;
+            const yieldFilter = document.getElementById('yieldFilter').value;
+            
+            filteredData = etfData.filter(etf => {
+                // Search filter
+                const matchesSearch = !searchTerm || 
+                    etf.ticker.toLowerCase().includes(searchTerm) ||
+                    (etf.name && etf.name.toLowerCase().includes(searchTerm));
+                
+                // Frequency filter
+                const matchesFrequency = !frequencyFilter || etf.frequency === frequencyFilter;
+                
+                // Yield filter
+                let matchesYield = true;
+                if (yieldFilter && etf.current_yield && etf.current_yield > 0) {
+                    switch (yieldFilter) {
+                        case 'high': matchesYield = etf.current_yield > 5; break;
+                        case 'medium': matchesYield = etf.current_yield >= 2 && etf.current_yield <= 5; break;
+                        case 'low': matchesYield = etf.current_yield < 2; break;
+                    }
+                }
+                
+                return matchesSearch && matchesFrequency && matchesYield;
+            });
+            
+            renderTable();
+        }
+
+        function sortTable(columnIndex, field) {
+            const direction = currentSort.column === columnIndex && currentSort.direction === 'asc' ? 'desc' : 'asc';
+            
+            // Update sort indicators
+            document.querySelectorAll('.sort-icon').forEach(icon => icon.classList.remove('active'));
+            document.getElementById(`sort-${columnIndex}`).classList.add('active');
+            
+            // Update sort direction
+            currentSort = { column: columnIndex, direction };
+            
+            // Sort data
+            filteredData.sort((a, b) => {
+                let aVal = a[field];
+                let bVal = b[field];
+                
+                // Handle null values and N/A cases
+                if (aVal === null || aVal === undefined || aVal === 'N/A') aVal = '';
+                if (bVal === null || bVal === undefined || bVal === 'N/A') bVal = '';
+                
+                // Handle numbers
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+                
+                // Handle dates
+                if (field === 'last_updated') {
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                }
+                
+                // Handle strings
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                
+                return 0;
+            });
+            
+            renderTable();
+        }
+
+        function getYieldClass(yield) {
+            if (!yield || yield === null || yield === undefined) return 'unknown';
+            if (yield > 5) return 'high';
+            if (yield >= 2) return 'medium';
+            return 'low';
+        }
+
+        function getFrequencyLabel(frequency) {
+            if (!frequency || frequency === 'unknown') return 'N/A';
+            const labels = {
+                'monthly': 'Miesięczne',
+                'quarterly': 'Kwartalne',
+                'annual': 'Roczne'
+            };
+            return labels[frequency] || frequency;
+        }
+
+        function updateStats() {
+            document.getElementById('totalEtfs').textContent = etfData.length;
+            
+            const yields = etfData.filter(etf => etf.current_yield && etf.current_yield > 0).map(etf => etf.current_yield);
+            const avgYield = yields.length > 0 ? (yields.reduce((a, b) => a + b, 0) / yields.length).toFixed(2) : 'N/A';
+            document.getElementById('avgYield').textContent = avgYield === 'N/A' ? 'N/A' : avgYield + '%';
+            
+            const lastUpdate = etfData.length > 0 ? 
+                new Date(Math.max(...etfData.map(etf => new Date(etf.last_updated || 0)))).toLocaleString('pl-PL') : 
+                'N/A';
+            document.getElementById('lastUpdate').textContent = lastUpdate;
+            
+            // Update system status
+            updateSystemStatus();
+        }
+
+        async function updateSystemStatus() {
+            try {
+                const response = await fetch('/api/system/status');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const status = result.data.scheduler_running ? 'Aktywny' : 'Nieaktywny';
+                    document.getElementById('systemStatus').textContent = status;
+                }
+            } catch (error) {
+                document.getElementById('systemStatus').textContent = 'Błąd';
+            }
+        }
+
+        async function addEtf() {
+            const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+            if (!ticker) {
+                showAlert('Wprowadź ticker ETF', 'warning');
+                return;
+            }
+            
+            // Show loading state
+            const btn = document.getElementById('addEtfBtnText');
+            const spinner = document.getElementById('addEtfBtnSpinner');
+            btn.classList.add('d-none');
+            spinner.classList.remove('d-none');
+            
+            try {
+                const response = await fetch('/api/etfs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ticker })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`ETF ${ticker} został dodany pomyślnie!`, 'success');
+                    document.getElementById('addEtfModal').querySelector('.btn-close').click();
+                    document.getElementById('tickerInput').value = '';
+                    loadDashboard(); // Reload data
+                } else {
+                    showAlert('Błąd podczas dodawania ETF: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Błąd połączenia: ' + error.message, 'danger');
+            } finally {
+                // Hide loading state
+                btn.classList.remove('d-none');
+                spinner.classList.add('d-none');
+            }
+        }
+
+        async function updateEtf(ticker) {
+            try {
+                const response = await fetch(`/api/etfs/${ticker}/update`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`ETF ${ticker} został zaktualizowany!`, 'success');
+                    loadDashboard(); // Reload data
+                } else {
+                    showAlert('Błąd podczas aktualizacji: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Błąd połączenia: ' + error.message, 'danger');
+            }
+        }
+        
+        async function deleteEtf(ticker) {
+            if (!confirm(`Czy na pewno chcesz usunąć ETF ${ticker}? Ta operacja usunie wszystkie powiązane dane (ceny, dywidendy) i nie może być cofnięta.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/etfs/${ticker}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`ETF ${ticker} został usunięty wraz z wszystkimi danymi!`, 'success');
+                    loadDashboard(); // Reload data
+                } else {
+                    showAlert('Błąd podczas usuwania: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Błąd połączenia: ' + error.message, 'danger');
+            }
+        }
+
+        function viewDetails(ticker) {
+            // TODO: Implement detailed view modal
+            showAlert(`Szczegóły dla ${ticker} - funkcja w trakcie rozwoju`, 'info');
+        }
+
+        function refreshData() {
+            loadDashboard();
+        }
+
+        function showLoading(show) {
+            const spinner = document.getElementById('loadingSpinner');
+            const table = document.getElementById('etfTable');
+            
+            if (show) {
+                spinner.classList.remove('d-none');
+                table.classList.add('loading');
+            } else {
+                spinner.classList.add('d-none');
+                table.classList.remove('loading');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertId = 'alert-' + Date.now();
+            
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" id="${alertId}" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            alertContainer.insertAdjacentHTML('beforeend', alertHtml);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                const alert = document.getElementById(alertId);
+                if (alert) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

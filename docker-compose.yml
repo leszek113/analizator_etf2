@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  etf-analyzer:
+    build: .
+    container_name: etf-analyzer
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=sqlite:///etf_analyzer.db
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - etf-network
+
+  # Optional: Add Redis for caching if needed in future
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: etf-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - etf-network
+
+networks:
+  etf-network:
+    driver: bridge
+
+volumes:
+  data:
