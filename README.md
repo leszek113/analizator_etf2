@@ -8,7 +8,7 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 
 - **✅ Automatyczne pobieranie danych** ETF z wiarygodnych źródeł
 - **✅ Historia cen** - miesięczne dane z ostatnich 15 lat
-- **✅ Historia dywidend** - automatyczne śledzenie wypłat
+- **✅ Historia dywidend** - automatyczne śledzenie wypłat (NAPRAWIONE!)
 - **✅ Dashboard** z sortowaniem i filtrowaniem
 - **✅ Automatyczne aktualizacje** - raz dziennie
 - **✅ CRUD operacje** - dodawanie, aktualizacja, usuwanie ETF
@@ -21,7 +21,7 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 - **Główne źródło** - najlepsze dane, najaktualniejsze
 - **Dane**: cena, nazwa, sector, industry, market cap, beta, dywidendy
 - **Historia**: ceny i dywidendy z ostatnich 15 lat
-- **Status**: ✅ **FUNKCJONALNE** - testowane z SPY ETF
+- **Status**: ✅ **FUNKCJONALNE** - testowane z SPY i SCHD ETF
 - **Przykład danych**: SPY - $641.76, 1.12% yield, miesięczne dywidendy
 
 ### **🥈 BACKUP: EOD Historical Data (EODHD)**
@@ -162,17 +162,39 @@ curl -X DELETE http://localhost:5002/api/etfs/SPY
   - Yield: 1.12% (obliczony z prawdziwych dywidend)
   - Częstotliwość: Miesięczne
   - Historia cen: 1255 rekordów (15+ lat)
+  - Historia dywidend: 60 rekordów (2010-2025) - NAPRAWIONE!
+
+- **SCHD** ✅ - Działa perfekcyjnie
+  - Cena: $27.09 (prawdziwa z FMP)
+  - Yield: 3.78% (obliczony z prawdziwych dywidend)
+  - Częstotliwość: Kwartalne
+  - Historia cen: 1255 rekordów (15+ lat)
+  - Historia dywidend: 55 rekordów (2010-2025)
 
 ### **Status API**
 - **FMP**: ✅ **FUNKCJONALNE** - główne źródło
 - **EODHD**: ✅ **GOTOWE** - backup
 - **Tiingo**: ✅ **GOTOWE** - fallback
 
+## 🔧 **Ostatnie naprawy (2025-08-12)**
+
+### **✅ Problem z dywidendami ROZWIĄZANY!**
+- **Problem**: SPY miał tylko 4 dywidendy zamiast 60
+- **Przyczyna**: Metoda `_check_new_dividends` sprawdzała tylko ostatni rok
+- **Rozwiązanie**: Zmieniono logikę aby pobierać wszystkie dostępne dywidendy (15 lat)
+- **Rezultat**: SPY teraz ma pełną historię 60 dywidend od 2010 roku
+
+### **✅ Debug logging dodany**
+- System teraz pokazuje dokładnie ile dywidend FMP API zwraca
+- Logowanie procesu filtrowania i dodawania danych
+- Lepsze monitorowanie działania systemu
+
 ## 🔮 **Planowane funkcjonalności**
 
-- [ ] Naprawienie problemu z dywidendami (drobny bug)
-- [ ] Testowanie innych ETF (QQQ, VTI, SCHD)
-- [ ] Więcej źródeł danych
+- [x] Naprawienie problemu z dywidendami ✅ **ZROBIONE!**
+- [ ] Prezentacja cen i dywidend dla każdego ETF (następny etap)
+- [ ] Wykresy i wizualizacje danych
+- [ ] Testowanie innych ETF (QQQ, VTI)
 - [ ] Advanced analytics
 - [ ] Export do Excel/CSV
 - [ ] Alerty i notyfikacje
@@ -198,5 +220,9 @@ MIT License - zobacz plik LICENSE
 5. **✅ Dashboard funkcjonalny** - sortowanie, filtrowanie, CRUD
 6. **✅ Automatyzacja** - scheduler, codzienne aktualizacje
 7. **✅ Docker ready** - gotowe do wdrożenia
+8. **✅ Problem z dywidendami ROZWIĄZANY** - pełna historia danych
+9. **✅ Debug logging** - lepsze monitorowanie systemu
 
 **Projekt jest gotowy do produkcji i spełnia wszystkie wymagania CEO!** 🚀
+
+**Następny etap: Implementacja prezentacji cen i dywidend dla każdego ETF**
