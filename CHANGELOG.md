@@ -5,6 +5,70 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.3.1] - 2025-08-13
+
+### Zmienione
+- **Port aplikacji** - zmieniony z 6000 na 5005 (rozwiązanie problemu ERR_UNSAFE_PORT w przeglądarkach)
+- **Domyślna wartość portu** - zaktualizowana w app.py i config.py
+
+## [1.3.0] - 2025-08-13
+
+### Dodane
+- **Historical Dividend Matrix** - szczegółowy widok historii dywidend w formie tabeli lat/miesięcy
+- **Stock Split Normalization** - automatyczna normalizacja danych po splitach akcji
+- **Split column w matrycy** - oznaczenie lat z splitami akcji
+- **Nowy endpoint `/etf/<ticker>`** - szczegółowy widok ETF z matrycą dywidend
+- **Automatyczna normalizacja cen** - uwzględnienie splitów w historycznych cenach
+- **Color-coded annual sums** - zielone (wzrost), żółte (spadek), szare (bez zmian)
+
+### Funkcjonalności Historical Dividend Matrix
+- **Tabela lat/miesięcy** - od najstarszych do najnowszych lat
+- **Kolumna "Suma Roczna"** - suma dywidend z danego roku z color-coding
+- **Kolumna "Split"** - oznaczenie splitów akcji (np. 3:1 dla SCHD 2024)
+- **Tooltips z wartościami** - dokładne kwoty zmian rok do roku
+- **Dynamiczne generowanie** - automatyczne dodawanie nowych lat
+
+### Stock Split Normalization
+- **Automatyczne wykrywanie splitów** - z FMP API
+- **Normalizacja dywidend** - przeliczanie kwot po splitach
+- **Normalizacja cen** - przeliczanie historycznych cen po splitach
+- **Zachowanie oryginalnych danych** - backup oryginalnych wartości
+- **Split ratio tracking** - śledzenie zastosowanych współczynników
+
+### Techniczne
+- **Nowe funkcje w APIService** - `get_stock_splits()`, `normalize_dividends_for_splits()`, `normalize_prices_for_splits()`
+- **Nowy template HTML** - `etf_details.html` z matrycą dywidend
+- **Integracja z dashboardem** - linki do szczegółowych widoków
+- **Port aplikacji** - zmieniony z 6000 na 5005 (bezpieczny port)
+
+### Naprawione
+- **Port conflicts** - aplikacja działa na porcie 5005 (bezpieczny port)
+- **Split data handling** - automatyczna normalizacja dla SCHD i innych ETF
+
+## [1.2.0] - 2025-08-13
+
+### Dodane
+- **Dividend Streak Growth (DSG)** - nowa funkcjonalność obliczająca streak wzrostu dywidend
+- **API endpoint `/api/etfs/<ticker>/dsg`** - zwraca szczegółowe informacje o DSG
+- **Kolumna DSG w dashboardzie** - wyświetla aktualny i najdłuższy streak
+- **Sortowanie po DSG** - możliwość sortowania tabeli według streak
+- **Tooltips z informacjami DSG** - szczegółowe informacje o streak w dashboardzie
+- **Automatyczne obliczanie DSG** - dla wszystkich ETF w endpoint `/api/etfs`
+
+### Funkcjonalności DSG
+- **Obliczanie streak** - rok do roku (średnia roczna dywidenda)
+- **Aktualny streak** - bieżący streak wzrostu dywidend
+- **Najdłuższy streak** - najdłuższy streak w historii
+- **Okres streak** - lata rozpoczęcia i zakończenia najdłuższego streak
+- **Ostatnia zmiana** - informacja o ostatniej zmianie dywidendy
+- **Metoda obliczania** - year-over-year average
+
+### Techniczne
+- **Nowa funkcja w APIService** - `calculate_dividend_streak_growth()`
+- **Integracja z dashboardem** - DSG wyświetlane w tabeli ETF
+- **Obsługa błędów** - bezpieczne obliczanie DSG z fallback do wartości domyślnych
+- **Wydajność** - DSG obliczane na żądanie, nie przechowywane w bazie
+
 ## [1.1.0] - 2025-08-12
 
 ### Naprawione
@@ -17,6 +81,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 - **Debug logging** w get_dividend_history dla lepszego monitorowania
 - **Szczegółowe logowanie** procesu filtrowania i dodawania dywidend
 - **Informacje o liczbie dywidend** z API vs w bazie danych
+- **Dokumentacja logiki systemu** - starting point 15 lat + automatyczny wzrost historii
 
 ### Zmienione
 - **Logika sprawdzania dywidend** - teraz pobiera wszystkie dostępne (15 lat)
@@ -25,6 +90,11 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 ### Techniczne
 - **Poprawiona wydajność** - system dodaje wszystkie brakujące dywidendy za jednym razem
 - **Lepsze monitorowanie** - widoczne dokładnie ile danych API zwraca vs ile system przetwarza
+
+### Dokumentacja
+- **Dodano sekcję "Logika Systemu Dywidend"** w README.md
+- **Wyjaśniono starting point 15 lat** i automatyczny wzrost historii
+- **Przykłady dla SPY i SCHD** - jak historia rośnie z czasem
 
 ## [1.0.0] - 2025-08-12
 

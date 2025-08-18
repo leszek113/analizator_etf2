@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Simple alias for ETF Analyzer management
+# Usage: ./scripts/etf [start|stop|restart|status|logs|clean]
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Execute the main management script
+"$SCRIPT_DIR/manage-app.sh" "$@"

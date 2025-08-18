@@ -5,7 +5,7 @@ services:
     build: .
     container_name: etf-analyzer
     ports:
-      - "5002:5002"
+      - "5005:5005"
     environment:
       - FLASK_ENV=production
       - DATABASE_URL=sqlite:///etf_analyzer.db

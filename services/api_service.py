@@ -281,11 +281,18 @@ class APIService:
             logger.warning(f"Error determining dividend frequency: {str(e)}")
             return 'unknown'
     
-    def get_historical_prices(self, ticker: str, years: int = 15) -> List[Dict]:
+    def get_historical_prices(self, ticker: str, years: int = 15, normalize_splits: bool = True) -> List[Dict]:
         """
-        Pobiera historyczne ceny ETF z FMP lub EODHD
+        Pobiera historyczne ceny ETF z FMP lub EODHD z opcjonalną normalizacją splitu
+        
+        Args:
+            ticker: Symbol ETF
+            years: Liczba lat historii
+            normalize_splits: Czy normalizować split akcji
         """
         try:
+            monthly_data = []
+            
             # Próba z FMP
             if self.config.FMP_API_KEY:
                 price_url = f"{self.config.FMP_BASE_URL}/historical-price-full/{ticker}"
@@ -295,10 +302,14 @@ class APIService:
                 if price_response and price_response.status_code == 200:
                     price_data = price_response.json()
                     if 'historical' in price_data:
-                        return self._convert_fmp_prices_to_monthly(price_data['historical'], years)
+                        monthly_data = self._convert_fmp_prices_to_monthly(price_data['historical'], years)
+                        if monthly_data:
+                            pass  # Mamy dane z FMP
+                        else:
+                            monthly_data = []
             
-            # Fallback do EODHD
-            if self.config.EODHD_API_KEY:
+            # Fallback do EODHD (tylko jeśli FMP nie dało danych)
+            if not monthly_data and self.config.EODHD_API_KEY:
                 price_url = f"{self.config.EODHD_BASE_URL}/eod/{ticker}"
                 price_params = {
                     'api_token': self.config.EODHD_API_KEY,
@@ -311,7 +322,16 @@ class APIService:
                 if price_response and price_response.status_code == 200:
                     price_data = price_response.json()
                     if price_data:
-                        return self._convert_eodhd_prices_to_monthly(price_data)
+                        monthly_data = self._convert_eodhd_prices_to_monthly(price_data)
+            
+            # Normalizacja splitu jeśli wymagana
+            if normalize_splits and monthly_data:
+                splits = self.get_stock_splits(ticker)
+                if splits:
+                    logger.info(f"Found {len(splits)} splits for {ticker}, normalizing prices")
+                    monthly_data = self.normalize_prices_for_splits(monthly_data, splits)
+            
+            return monthly_data
             
         except Exception as e:
             logger.error(f"Error getting historical prices for {ticker}: {str(e)}")
@@ -330,10 +350,10 @@ class APIService:
             if price_date >= cutoff_date:
                 monthly_data.append({
                     'date': price_date.date(),
-                    'close_price': float(price['close']),
-                    'open_price': float(price['open']),
-                    'high_price': float(price['high']),
-                    'low_price': float(price['low']),
+                    'close': float(price['close']),  # Zmienione na 'close' dla kompatybilności
+                    'open': float(price['open']),    # Zmienione na 'open' dla kompatybilności
+                    'high': float(price['high']),    # Zmienione na 'high' dla kompatybilności
+                    'low': float(price['low']),      # Zmienione na 'low' dla kompatybilności
                     'volume': int(price['volume'])
                 })
         
@@ -349,18 +369,23 @@ class APIService:
             price_date = datetime.strptime(price['date'], '%Y-%m-%d')
             monthly_data.append({
                 'date': price_date.date(),
-                'close_price': float(price['close']),
-                'open_price': float(price['open']),
-                'high_price': float(price['high']),
-                'low_price': float(price['low']),
+                'close': float(price['close']),  # Zmienione na 'close' dla kompatybilności
+                'open': float(price['open']),    # Zmienione na 'open' dla kompatybilności
+                'high': float(price['high']),    # Zmienione na 'high' dla kompatybilności
+                'low': float(price['low']),      # Zmienione na 'low' dla kompatybilności
                 'volume': int(price['volume'])
             })
         
         return monthly_data
     
-    def get_dividend_history(self, ticker: str, years: int = 15) -> List[Dict]:
+    def get_dividend_history(self, ticker: str, years: int = 15, normalize_splits: bool = True) -> List[Dict]:
         """
-        Pobiera historię dywidend ETF z FMP
+        Pobiera historię dywidend ETF z FMP z opcjonalną normalizacją splitu
+        
+        Args:
+            ticker: Symbol ETF
+            years: Liczba lat historii
+            normalize_splits: Czy normalizować split akcji
         """
         try:
             if not self.config.FMP_API_KEY:
@@ -402,9 +427,235 @@ class APIService:
                             continue
                     
                     logger.info(f"After filtering: {filtered_count} dividends for {ticker} (from {total_dividends} total)")
+                    
+                    # Normalizacja splitu jeśli wymagana
+                    if normalize_splits and dividend_list:
+                        splits = self.get_stock_splits(ticker)
+                        if splits:
+                            logger.info(f"Found {len(splits)} splits for {ticker}, normalizing dividends")
+                            dividend_list = self.normalize_dividends_for_splits(dividend_list, splits)
+                    
                     return dividend_list
             
         except Exception as e:
             logger.error(f"Error getting dividend history for {ticker}: {str(e)}")
         
         return []
+
+    def calculate_dividend_streak_growth(self, ticker: str) -> Dict:
+        """
+        Oblicza aktualny Dividend Streak Growth dla ETF
+        
+        Returns:
+            Dict z informacjami o DSG:
+            {
+                'current_streak': int,      # Aktualny streak
+                'total_years': int,         # Łączna liczba lat z danymi
+                'streak_start_year': int,   # Rok rozpoczęcia aktualnego streak
+                'last_dividend_change': str,  # Ostatnia zmiana dywidendy
+                'calculation_method': str    # Metoda obliczania
+            }
+        """
+        try:
+            # Pobieranie historii dywidend
+            dividends = self.get_dividend_history(ticker, years=20)  # Bierzemy więcej lat dla lepszej analizy
+            
+            if not dividends:
+                return {
+                    'current_streak': 0,
+                    'total_years': 0,
+                    'streak_start_year': None,
+                    'last_dividend_change': 'N/A',
+                    'calculation_method': 'year-over-year average'
+                }
+            
+            # Grupowanie dywidend według roku i obliczanie średniej rocznej
+            yearly_dividends = {}
+            for dividend in dividends:
+                year = dividend['payment_date'].year
+                if year not in yearly_dividends:
+                    yearly_dividends[year] = []
+                yearly_dividends[year].append(dividend['amount'])
+            
+            # Obliczanie średniej rocznej dla każdego roku
+            yearly_averages = {}
+            for year, amounts in yearly_dividends.items():
+                yearly_averages[year] = sum(amounts) / len(amounts)
+            
+            # Sortowanie lat rosnąco
+            years = sorted(yearly_averages.keys())
+            
+            if len(years) < 2:
+                return {
+                    'current_streak': 0,
+                    'total_years': len(years),
+                    'streak_start_year': None,
+                    'last_dividend_change': 'N/A',
+                    'calculation_method': 'year-over-year average'
+                }
+            
+            # PRAWIDŁOWA LOGIKA: Start od ostatniego zakończonego roku
+            # Sprawdzamy rok po roku wstecz aż do spadku
+            current_streak = 0
+            streak_start_year = None
+            
+            # Start: ostatni zakończony rok (np. 2024)
+            for i in range(len(years) - 1, 0, -1):
+                current_year = years[i]      # np. 2024
+                previous_year = years[i - 1] # np. 2023
+                
+                current_avg = yearly_averages[current_year]    # np. 1.7283
+                previous_avg = yearly_averages[previous_year]  # np. 1.7663
+                
+                if current_avg > previous_avg:
+                    # Dywidenda wzrosła rok do roku
+                    if current_streak == 0:
+                        streak_start_year = current_year
+                    current_streak += 1
+                else:
+                    # Dywidenda nie wzrosła - streak się kończy
+                    break
+            
+            # Określenie ostatniej zmiany dywidendy
+            last_change = "N/A"
+            if len(years) >= 2:
+                last_year = years[-1]
+                second_last_year = years[-2]
+                if yearly_averages[last_year] > yearly_averages[second_last_year]:
+                    last_change = f"Wzrost: {yearly_averages[second_last_year]:.4f} → {yearly_averages[last_year]:.4f}"
+                elif yearly_averages[last_year] < yearly_averages[second_last_year]:
+                    last_change = f"Spadek: {yearly_averages[second_last_year]:.4f} → {yearly_averages[last_year]:.4f}"
+                else:
+                    last_change = f"Bez zmian: {yearly_averages[last_year]:.4f}"
+            
+            return {
+                'current_streak': current_streak,
+                'total_years': len(years),
+                'streak_start_year': streak_start_year,
+                'last_dividend_change': last_change,
+                'calculation_method': 'year-over-year average'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating DSG for {ticker}: {str(e)}")
+            return {
+                'current_streak': 0,
+                'total_years': 0,
+                'streak_start_year': None,
+                'last_dividend_change': 'N/A',
+                'calculation_method': 'error'
+            }
+
+    def get_stock_splits(self, ticker: str) -> List[Dict]:
+        """
+        Pobiera informacje o splitach akcji z FMP API
+        
+        Returns:
+            Lista splitów z datą i stosunkiem
+        """
+        try:
+            if not self.config.FMP_API_KEY:
+                return []
+            
+            splits_url = f"{self.config.FMP_BASE_URL}/stock-split-calendar/{ticker}"
+            splits_params = {'apikey': self.config.FMP_API_KEY}
+            
+            splits_response = self._make_request_with_retry(splits_url, params=splits_params)
+            if splits_response and splits_response.status_code == 200:
+                splits_data = splits_response.json()
+                if isinstance(splits_data, list):
+                    return splits_data
+                elif isinstance(splits_data, dict) and 'historical' in splits_data:
+                    return splits_data['historical']
+            
+        except Exception as e:
+            logger.error(f"Error getting stock splits for {ticker}: {str(e)}")
+        
+        return []
+
+    def normalize_dividends_for_splits(self, dividends: List[Dict], splits: List[Dict]) -> List[Dict]:
+        """
+        Normalizuje dywidendy uwzględniając split akcji
+        
+        Args:
+            dividends: Lista dywidend
+            splits: Lista splitów
+            
+        Returns:
+            Lista znormalizowanych dywidend
+        """
+        if not splits:
+            return dividends
+        
+        # Sortowanie splitów od najstarszego do najnowszego
+        sorted_splits = sorted(splits, key=lambda x: x.get('date', ''))
+        
+        normalized_dividends = []
+        
+        for dividend in dividends:
+            dividend_date = dividend['payment_date']
+            if isinstance(dividend_date, str):
+                dividend_date = datetime.strptime(dividend_date, '%Y-%m-%d').date()
+            
+            # Sprawdzanie czy dywidenda była przed splitem
+            split_ratio = 1.0
+            for split in sorted_splits:
+                split_date = datetime.strptime(split.get('date', ''), '%Y-%m-%d').date()
+                if dividend_date < split_date:
+                    # Dywidenda była przed splitem - normalizujemy
+                    split_ratio *= float(split.get('ratio', 1.0))
+            
+            # Tworzenie kopii dywidendy z znormalizowaną kwotą
+            normalized_dividend = dividend.copy()
+            normalized_dividend['amount'] = dividend['amount'] / split_ratio
+            normalized_dividend['original_amount'] = dividend['amount']  # Zachowujemy oryginalną kwotę
+            normalized_dividend['split_ratio_applied'] = split_ratio
+            
+            normalized_dividends.append(normalized_dividend)
+        
+        return normalized_dividends
+
+    def normalize_prices_for_splits(self, prices: List[Dict], splits: List[Dict]) -> List[Dict]:
+        """
+        Normalizuje ceny historyczne uwzględniając split akcji
+        
+        Args:
+            prices: Lista cen
+            splits: Lista splitów
+            
+        Returns:
+            Lista znormalizowanych cen
+        """
+        if not splits:
+            return prices
+        
+        # Sortowanie splitów od najstarszego do najnowszego
+        sorted_splits = sorted(splits, key=lambda x: x.get('date', ''))
+        
+        normalized_prices = []
+        
+        for price in prices:
+            price_date = price['date']
+            if isinstance(price_date, str):
+                price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
+            
+            # Sprawdzanie czy cena była przed splitem
+            split_ratio = 1.0
+            for split in sorted_splits:
+                split_date = datetime.strptime(split.get('date', ''), '%Y-%m-%d').date()
+                if price_date < split_date:
+                    # Cena była przed splitem - normalizujemy
+                    split_ratio *= float(split.get('ratio', 1.0))
+            
+            # Tworzenie kopii ceny z znormalizowaną wartością
+            normalized_price = price.copy()
+            normalized_price['close'] = price['close'] / split_ratio
+            normalized_price['open'] = price.get('open', 0) / split_ratio
+            normalized_price['high'] = price.get('high', 0) / split_ratio
+            normalized_price['low'] = price.get('low', 0) / split_ratio
+            normalized_price['original_close'] = price['close']  # Zachowujemy oryginalną cenę
+            normalized_price['split_ratio_applied'] = split_ratio
+            
+            normalized_prices.append(normalized_price)
+        
+        return normalized_prices

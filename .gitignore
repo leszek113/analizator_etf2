@@ -128,23 +128,27 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# ETF Analyzer specific
+# ETF Analyzer specific files
+etf-analyzer.pid
+etf-analyzer.log
+etf-analyzer.lock
+*.pid
+*.log
+*.lock
+
+# Database files
 *.db
 *.sqlite
 *.sqlite3
-logs/
-*.log
-.env.local
-.env.production
 
-# IDE
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OS files
 .DS_Store
 .DS_Store?
 ._*

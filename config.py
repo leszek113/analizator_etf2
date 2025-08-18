@@ -7,6 +7,10 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///etf_analyzer.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Port settings
+    PORT = 5005
+    HOST = '127.0.0.1'
 
     # API Keys - PRIORYTET 1: FMP, BACKUP: EODHD, FALLBACK: Tiingo
     FMP_API_KEY = os.environ.get('FMP_API_KEY')

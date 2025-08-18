@@ -9,6 +9,7 @@ import os
 from config import Config
 from models import db
 from services.database_service import DatabaseService
+from services.api_service import APIService
 
 # Konfiguracja logowania
 logging.basicConfig(
@@ -21,12 +22,19 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     
+    # Pobieranie portu i hosta z konfiguracji
+    port = app.config.get('PORT', 5005)
+    host = app.config.get('HOST', '127.0.0.1')
+    
     # Inicjalizacja rozszerzeń
     db.init_app(app)
     CORS(app)
     
     # Inicjalizacja serwisu bazy danych
     db_service = DatabaseService()
+    
+    # Inicjalizacja serwisu API
+    api_service = APIService()
     
     # Inicjalizacja bazy danych
     with app.app_context():
@@ -75,15 +83,41 @@ def create_app():
             logger.error(f"Error loading dashboard: {str(e)}")
             return render_template('error.html', error=str(e))
     
+    @app.route('/etf/<ticker>')
+    def etf_details(ticker):
+        """Szczegółowy widok ETF z historią dywidend"""
+        try:
+            etf = db_service.get_etf_by_ticker(ticker)
+            if not etf:
+                return render_template('error.html', error=f'ETF {ticker} not found')
+            
+            # Pobieranie historii dywidend
+            dividends = db_service.get_etf_dividends(etf.id)
+            
+            return render_template('etf_details.html', etf=etf, dividends=dividends)
+        except Exception as e:
+            logger.error(f"Error loading ETF details for {ticker}: {str(e)}")
+            return render_template('error.html', error=str(e))
+    
     @app.route('/api/etfs', methods=['GET'])
     def get_etfs():
         """API endpoint do pobierania wszystkich ETF"""
         try:
             etfs = db_service.get_all_etfs()
+            
+            # Dodajemy DSG dla każdego ETF
+            etfs_with_dsg = []
+            for etf in etfs:
+                etf_data = etf.to_dict()
+                # Obliczamy DSG
+                dsg_data = api_service.calculate_dividend_streak_growth(etf.ticker)
+                etf_data['dsg'] = dsg_data
+                etfs_with_dsg.append(etf_data)
+            
             return jsonify({
                 'success': True,
-                'data': [etf.to_dict() for etf in etfs],
-                'count': len(etfs)
+                'data': etfs_with_dsg,
+                'count': len(etfs_with_dsg)
             })
         except Exception as e:
             logger.error(f"Error fetching ETFs: {str(e)}")
@@ -253,6 +287,36 @@ def create_app():
                 'error': str(e)
             }), 500
     
+    @app.route('/api/etfs/<ticker>/dsg', methods=['GET'])
+    def get_etf_dsg(ticker):
+        """API endpoint do pobierania Dividend Streak Growth dla ETF"""
+        try:
+            etf = db_service.get_etf_by_ticker(ticker)
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} not found'
+                }), 404
+            
+            # Obliczanie DSG używając API service
+            dsg_data = api_service.calculate_dividend_streak_growth(ticker)
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker,
+                    'name': etf.name,
+                    'dsg': dsg_data
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error calculating DSG for ETF {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
     @app.route('/api/system/logs', methods=['GET'])
     def get_system_logs():
         """API endpoint do pobierania logów systemu"""
@@ -337,4 +401,7 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5002)
+    # Używaj ustawień z Config (HOST/PORT) z możliwością nadpisania przez env
+    host = app.config.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', app.config.get('PORT', 5005)))
+    app.run(debug=True, host=host, port=port)

@@ -14,6 +14,9 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 - **✅ CRUD operacje** - dodawanie, aktualizacja, usuwanie ETF
 - **✅ Cache system** - inteligentne cache'owanie danych
 - **✅ Retry logic** - odporność na problemy API
+- **✅ Dividend Streak Growth (DSG)** - obliczanie aktualnego streak wzrostu dywidend
+- **✅ Historical Dividend Matrix** - szczegółowy widok historii dywidend w formie tabeli lat/miesięcy
+- **✅ Stock Split Normalization** - automatyczna normalizacja danych po splitach akcji
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
@@ -46,7 +49,7 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 - **Scheduler**: APScheduler (automatyczne zadania)
 - **Cache**: Wbudowany cache w pamięci (TTL: 1 godzina)
 - **Retry Logic**: Exponential backoff dla API calls
-- **Port**: 5002 (zgodnie z wymaganiami)
+- **Port**: 5005 (bezpieczny port, zgodnie z wymaganiami)
 
 ## 📊 **Struktura bazy danych**
 
@@ -86,6 +89,7 @@ cp .env.example .env
 
 # 5. Uruchomienie
 python app.py
+# Aplikacja będzie dostępna na http://localhost:5005
 ```
 
 ## 🌐 **API Endpoints**
@@ -97,6 +101,8 @@ python app.py
 - `DELETE /api/etfs/{ticker}` - Usunięcie ETF wraz z wszystkimi danymi
 - `GET /api/etfs/{ticker}/prices` - Historia cen
 - `GET /api/etfs/{ticker}/dividends` - Historia dywidend
+- `GET /api/etfs/{ticker}/dsg` - Dividend Streak Growth (DSG)
+- `GET /etf/{ticker}` - Szczegółowy widok ETF z matrycą dywidend
 - `GET /api/system/status` - Status systemu
 - `GET /api/system/logs` - Logi systemu
 
@@ -114,6 +120,37 @@ python app.py
 - **Cache**: Automatyczne cache'owanie danych (1 godzina)
 - **Retry Logic**: Ponowne próby z exponential backoff
 
+## 📈 **Logika Systemu Dywidend**
+
+### **🎯 Starting Point (15 lat):**
+- **System pobiera** historię dywidend z ostatnich 15 lat jako **punkt startowy**
+- **Jeśli ETF istnieje krócej** niż 15 lat (np. SCHD od 2011), pobieramy **od początku istnienia**
+- **15 lat to minimum** - nie maksimum!
+
+### **🚀 Automatyczny Wzrost Historii:**
+- **Codziennie** system sprawdza czy ETF wypłacił nową dywidendę
+- **Nowe dywidendy** są **dodawane** do bazy danych
+- **Stare dywidendy** **NIE są kasowane**
+- **Historia rośnie** z czasem automatycznie
+
+### **📊 Przykłady:**
+
+#### **SPY ETF (istnieje od 1993):**
+- **Dzisiaj**: 60 dywidend (2010-2025) - **15 lat starting point**
+- **Za rok**: 72 dywidendy (2010-2026) - **16 lat historii**
+- **Za 5 lat**: 120 dywidend (2010-2030) - **20 lat historii**
+
+#### **SCHD ETF (istnieje od 2011):**
+- **Dzisiaj**: 55 dywidend (2011-2025) - **od początku istnienia**
+- **Za rok**: 59 dywidend (2011-2026) - **15 lat historii**
+- **Za 5 lat**: 79 dywidend (2011-2030) - **19 lat historii**
+
+### **💡 Korzyści:**
+- **Bogata historia** - z czasem mamy coraz więcej danych
+- **Analiza długoterminowa** - widzimy trendy na przestrzeni lat
+- **Dividend Streak Growth** - pełna historia dla analiz
+- **Automatyczne** - bez ingerencji użytkownika
+
 ## 🐳 **Docker**
 
 ```bash
@@ -121,7 +158,7 @@ python app.py
 docker build -t etf-analyzer .
 
 # Uruchomienie
-docker run -p 5002:5002 etf-analyzer
+docker run -p 5005:5005 etf-analyzer
 
 # Docker Compose
 docker-compose up -d
@@ -131,14 +168,14 @@ docker-compose up -d
 
 ### **Dodanie ETF**
 ```bash
-curl -X POST http://localhost:5002/api/etfs \
+curl -X POST http://localhost:5005/api/etfs \
   -H "Content-Type: application/json" \
   -d '{"ticker": "SPY"}'
 ```
 
 ### **Aktualizacja danych**
 ```bash
-curl -X POST http://localhost:5002/api/etfs/SPY/update
+curl -X POST http://localhost:5005/api/etfs/SPY/update
 ```
 
 ### **Usunięcie ETF**
@@ -226,3 +263,23 @@ MIT License - zobacz plik LICENSE
 **Projekt jest gotowy do produkcji i spełnia wszystkie wymagania CEO!** 🚀
 
 **Następny etap: Implementacja prezentacji cen i dywidend dla każdego ETF**
+
+## 🚀 **Funkcjonalności**
+
+### **📊 Podstawowe funkcje:**
+- **Dodawanie ETF** - automatyczne pobieranie danych z API
+- **Aktualizacja danych** - codzienne sprawdzanie nowych informacji
+- **Dashboard** - tabela z wszystkimi ETF i ich danymi
+- **Sortowanie i filtrowanie** - według ticker, nazwy, ceny, yield, częstotliwości
+- **Historia cen** - miesięczne ceny z ostatnich 15 lat
+- **Historia dywidend** - wszystkie dywidendy z ostatnich 15 lat
+- **Dividend Streak Growth (DSG)** - obliczanie streak wzrostu dywidend
+
+### **🎯 Dividend Streak Growth (DSG):**
+- **Obliczanie streak** - liczba kolejnych lat wzrostu dywidend
+- **Aktualny streak** - bieżący streak wzrostu
+- **Najdłuższy streak** - najdłuższy streak w historii
+- **Metoda obliczania** - rok do roku (średnia roczna)
+- **Szczegółowe informacje** - okres streak, ostatnia zmiana dywidendy
+- **Sortowanie po DSG** - ranking ETF według streak
+- **Tooltips** - szczegółowe informacje o DSG w dashboardzie

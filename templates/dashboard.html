@@ -185,6 +185,9 @@
                             <th onclick="sortTable(5, 'last_updated')">
                                 Ostatnia aktualizacja <i class="bi bi-arrow-down-up sort-icon" id="sort-5"></i>
                             </th>
+                            <th onclick="sortTable(6, 'dsg')">
+                                DSG <i class="bi bi-arrow-down-up sort-icon" id="sort-6"></i>
+                            </th>
                             <th>Akcje</th>
                         </tr>
                     </thead>
@@ -322,10 +325,18 @@
                         }
                     </td>
                     <td>
+                        ${etf.dsg && etf.dsg.current_streak !== undefined ? 
+                            `<div class="text-center">
+                                <div class="badge bg-success text-white frequency-badge">${etf.dsg.current_streak}</div>
+                            </div>` : 
+                            '<span class="badge bg-light text-dark frequency-badge">N/A</span>'
+                        }
+                    </td>
+                    <td>
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary" onclick="viewDetails('${etf.ticker}')">
+                            <a href="/etf/${etf.ticker}" class="btn btn-outline-primary">
                                 <i class="bi bi-eye"></i>
-                            </button>
+                            </a>
                             <button class="btn btn-outline-success" onclick="updateEtf('${etf.ticker}')">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </button>
@@ -396,6 +407,12 @@
                 if (field === 'last_updated') {
                     aVal = new Date(aVal);
                     bVal = new Date(bVal);
+                }
+                
+                // Handle DSG sorting
+                if (field === 'dsg') {
+                    aVal = aVal && aVal.current_streak !== undefined ? aVal.current_streak : 0;
+                    bVal = bVal && bVal.current_streak !== undefined ? bVal.current_streak : 0;
                 }
                 
                 // Handle strings
@@ -537,11 +554,6 @@
             } catch (error) {
                 showAlert('Błąd połączenia: ' + error.message, 'danger');
             }
-        }
-
-        function viewDetails(ticker) {
-            // TODO: Implement detailed view modal
-            showAlert(`Szczegóły dla ${ticker} - funkcja w trakcie rozwoju`, 'info');
         }
 
         function refreshData() {
