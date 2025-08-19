@@ -223,6 +223,52 @@ class DatabaseService:
             logger.error(f"Error fetching dividends for ETF {etf_id}: {str(e)}")
             return []
     
+    def get_monthly_prices(self, etf_id: int) -> List[ETFPrice]:
+        """Pobiera ceny miesięczne ETF z bazy danych - jedna cena na miesiąc"""
+        try:
+            # Pobieranie cen miesięcznych, grupowane po roku i miesiącu
+            # Używamy raw SQL dla lepszej kontroli nad grupowaniem
+            from sqlalchemy import text
+            from datetime import datetime
+            
+            query = text("""
+                SELECT 
+                    id, etf_id, date, close_price, normalized_close_price, split_ratio_applied
+                FROM etf_prices 
+                WHERE etf_id = :etf_id 
+                AND date IN (
+                    SELECT MAX(date) 
+                    FROM etf_prices 
+                    WHERE etf_id = :etf_id 
+                    GROUP BY strftime('%Y-%m', date)
+                )
+                ORDER BY date ASC
+            """)
+            
+            result = db.session.execute(query, {'etf_id': etf_id})
+            prices = []
+            
+            for row in result:
+                price = ETFPrice()
+                price.id = row.id
+                price.etf_id = row.etf_id
+                # Konwersja stringa daty na datetime.date
+                if isinstance(row.date, str):
+                    price.date = datetime.strptime(row.date, '%Y-%m-%d').date()
+                else:
+                    price.date = row.date
+                price.close_price = row.close_price
+                price.normalized_close_price = row.normalized_close_price
+                price.split_ratio_applied = row.split_ratio_applied
+                prices.append(price)
+            
+            logger.info(f"Retrieved {len(prices)} monthly prices (one per month) for ETF ID {etf_id}")
+            return prices
+            
+        except Exception as e:
+            logger.error(f"Error getting monthly prices for ETF ID {etf_id}: {str(e)}")
+            return []
+
     def _add_historical_prices(self, etf_id: int, ticker: str) -> None:
         """
         Dodaje historyczne ceny ETF

@@ -5,6 +5,25 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.5.0] - 2025-08-19
+
+### Added
+- **Wykres cen miesięcznych** - interaktywny wykres Chart.js z cenami zamknięcia z ostatnich 15 lat
+- **Optymalizacja danych** - jedna cena na miesiąc zamiast wszystkich dostępnych cen
+- **Oryginalne ceny historyczne** - wykres pokazuje ceny jakie były w danym momencie (bez normalizacji splitów)
+- **Responsywny design** - wykres automatycznie dostosowuje się do rozmiaru ekranu
+- **Interaktywne tooltips** - pokazują cenę z 5 miejscami po przecinku
+
+### Changed
+- **API endpoint `/api/etfs/{ticker}/prices`** - zwraca zoptymalizowane dane miesięczne
+- **DatabaseService.get_monthly_prices()** - używa SQL z grupowaniem po miesiącu
+- **Szablon etf_details.html** - dodano sekcję z wykresem cen pod tabelą dywidend
+
+### Technical
+- **Chart.js integration** - biblioteka wykresów JavaScript
+- **SQL optimization** - grupowanie cen po roku i miesiącu
+- **Date handling** - poprawka konwersji stringów dat na obiekty datetime
+
 ## [1.4.0] - 2025-08-19
 
 ### Dodane

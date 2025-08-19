@@ -241,26 +241,54 @@ def create_app():
     
     @app.route('/api/etfs/<ticker>/prices', methods=['GET'])
     def get_etf_prices(ticker):
-        """API endpoint do pobierania historii cen ETF"""
+        """API endpoint do pobierania cen miesięcznych ETF"""
         try:
-            etf = db_service.get_etf_by_ticker(ticker)
+            from models import ETF, ETFPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
             if not etf:
                 return jsonify({
                     'success': False,
-                    'error': f'ETF {ticker} not found'
+                    'error': f'ETF {ticker} nie został znaleziony'
                 }), 404
             
-            limit = request.args.get('limit', type=int)
-            prices = db_service.get_etf_prices(etf.id, limit)
+            # Pobieranie cen z bazy danych
+            db_service = DatabaseService()
+            prices = db_service.get_monthly_prices(etf.id)
+            
+            if not prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cenowych dla {ticker}'
+                }), 404
+            
+            # Formatowanie danych dla Chart.js
+            price_data = []
+            for price in prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m'),
+                    'close_price': price.normalized_close_price,
+                    'original_price': price.close_price,
+                    'split_ratio': price.split_ratio_applied
+                })
             
             return jsonify({
                 'success': True,
-                'data': [price.to_dict() for price in prices],
-                'count': len(prices)
+                'data': {
+                    'ticker': ticker.upper(),
+                    'prices': price_data,
+                    'count': len(price_data),
+                    'date_range': {
+                        'start': price_data[0]['date'] if price_data else None,
+                        'end': price_data[-1]['date'] if price_data else None
+                    }
+                }
             })
             
         except Exception as e:
-            logger.error(f"Error fetching prices for ETF {ticker}: {str(e)}")
+            logger.error(f"Error getting ETF prices for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)

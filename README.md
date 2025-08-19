@@ -6,20 +6,14 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 
 ## 🎯 **Główne funkcjonalności**
 
-- **✅ Automatyczne pobieranie danych** ETF z wiarygodnych źródeł
-- **✅ Historia cen** - miesięczne dane z ostatnich 15 lat
-- **✅ Historia dywidend** - automatyczne śledzenie wypłat (NAPRAWIONE!)
-- **✅ Dashboard** z sortowaniem i filtrowaniem
-- **✅ Automatyczne aktualizacje** - raz dziennie
-- **✅ CRUD operacje** - dodawanie, aktualizacja, usuwanie ETF
-- **✅ Cache system** - inteligentne cache'owanie danych
-- **✅ Retry logic** - odporność na problemy API
-- **✅ Dividend Streak Growth (DSG)** - obliczanie aktualnego streak wzrostu dywidend
-- **✅ Historical Dividend Matrix** - szczegółowy widok historii dywidend w formie tabeli lat/miesięcy
-- **✅ Stock Split Normalization** - automatyczna normalizacja danych po splitach akcji
-- **✅ Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend (12 miesięcznych, 4 kwartalnych, 1 rocznej)
-- **✅ System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
-- **✅ Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu, bazie danych i tokenach API
+✅ **Analiza ETF** - szczegółowe informacje o funduszach ETF
+✅ **Historia dywidend** - kompletna historia wypłat dywidend z ostatnich 15 lat
+✅ **Tabela dywidend** - macierz miesięczna/kwartalna z sumami rocznymi
+✅ **Normalizacja splitów** - automatyczne dostosowanie historycznych danych do splitów akcji
+✅ **Wykres cen miesięcznych** - interaktywny wykres cen zamknięcia z ostatnich 15 lat
+✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend (12 miesięcznych, 4 kwartalnych, 1 rocznej)
+✅ **System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
+✅ **Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu, bazie danych i tokenach API
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
