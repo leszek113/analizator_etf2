@@ -94,7 +94,13 @@ def create_app():
             # Pobieranie historii dywidend
             dividends = db_service.get_etf_dividends(etf.id)
             
-            return render_template('etf_details.html', etf=etf, dividends=dividends)
+            # Obliczanie sumy ostatnich dywidend w zależności od częstotliwości
+            dividend_sum = db_service.calculate_recent_dividend_sum(etf.id, etf.frequency)
+            
+            return render_template('etf_details.html', 
+                                 etf=etf, 
+                                 dividends=dividends,
+                                 dividend_sum=dividend_sum)
         except Exception as e:
             logger.error(f"Error loading ETF details for {ticker}: {str(e)}")
             return render_template('error.html', error=str(e))
@@ -359,6 +365,15 @@ def create_app():
             latest_update = ETF.query.order_by(ETF.last_updated.desc()).first()
             last_update = latest_update.last_updated if latest_update else None
             
+            # Sprawdzanie statusu tokenów API
+            api_health = {}
+            try:
+                from services.api_service import APIService
+                api_service = APIService()
+                api_health = api_service.check_api_health()
+            except Exception as e:
+                api_health = {'error': str(e)}
+            
             return jsonify({
                 'success': True,
                 'data': {
@@ -368,7 +383,8 @@ def create_app():
                     'log_count': log_count,
                     'last_update': last_update.isoformat() if last_update else None,
                     'scheduler_running': scheduler.running,
-                    'uptime': str(datetime.utcnow() - app.start_time) if hasattr(app, 'start_time') else 'Unknown'
+                    'uptime': str(datetime.utcnow() - app.start_time) if hasattr(app, 'start_time') else 'Unknown',
+                    'api_health': api_health
                 }
             })
             
@@ -378,6 +394,68 @@ def create_app():
                 'success': False,
                 'error': str(e)
             }), 500
+
+    @app.route('/api/system/api-status', methods=['GET'])
+    def get_api_token_status():
+        """API endpoint do sprawdzania statusu tokenów API"""
+        try:
+            from services.api_service import APIService
+            api_service = APIService()
+            status = api_service.get_api_status()
+            health = api_service.check_api_health()
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'api_status': status,
+                    'health_check': health,
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting API token status: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/system/status')
+    def system_status_page():
+        """Strona z systemowymi informacjami"""
+        try:
+            from models import ETF, ETFPrice, ETFDividend, SystemLog
+            from services.api_service import APIService
+            
+            # Pobieranie statystyk systemu
+            etf_count = ETF.query.count()
+            price_count = ETFPrice.query.count()
+            dividend_count = ETFDividend.query.count()
+            log_count = SystemLog.query.count()
+            
+            # Sprawdzanie ostatniej aktualizacji
+            latest_update = ETF.query.order_by(ETF.last_updated.desc()).first()
+            last_update = latest_update.last_updated if latest_update else None
+            
+            # Status tokenów API
+            api_health = {}
+            try:
+                api_service = APIService()
+                api_health = api_service.check_api_health()
+            except Exception as e:
+                api_health = {'error': str(e)}
+            
+            return render_template('system_status.html', 
+                                etf_count=etf_count,
+                                price_count=price_count,
+                                dividend_count=dividend_count,
+                                log_count=log_count,
+                                last_update=last_update,
+                                api_health=api_health)
+            
+        except Exception as e:
+            logger.error(f"Error rendering system status page: {str(e)}")
+            return render_template('error.html', error=str(e))
     
     # Error handlers
     @app.errorhandler(404)

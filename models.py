@@ -19,6 +19,7 @@ class ETF(db.Model):
     # Relationships
     prices = db.relationship('ETFPrice', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
     dividends = db.relationship('ETFDividend', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
+    splits = db.relationship('ETFSplit', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<ETF {self.ticker}: {self.name}>'
@@ -41,17 +42,15 @@ class ETFPrice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     etf_id = db.Column(db.Integer, db.ForeignKey('etfs.id'), nullable=False, index=True)
     date = db.Column(db.Date, nullable=False, index=True)
-    close_price = db.Column(db.Float, nullable=False)
-    open_price = db.Column(db.Float)
-    high_price = db.Column(db.Float)
-    low_price = db.Column(db.Float)
-    volume = db.Column(db.BigInteger)
+    close_price = db.Column(db.Float, nullable=False)  # Oryginalna cena
+    normalized_close_price = db.Column(db.Float, nullable=False)  # Znormalizowana cena
+    split_ratio_applied = db.Column(db.Float, default=1.0)  # Współczynnik splitu
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('etf_id', 'date', name='_etf_date_uc'),)
     
     def __repr__(self):
-        return f'<ETFPrice {self.etf_id} {self.date}: {self.close_price}>'
+        return f'<ETFPrice {self.etf_id} {self.date}: {self.close_price} -> {self.normalized_close_price}>'
     
     def to_dict(self):
         return {
@@ -59,10 +58,8 @@ class ETFPrice(db.Model):
             'etf_id': self.etf_id,
             'date': self.date.isoformat() if self.date else None,
             'close_price': self.close_price,
-            'open_price': self.open_price,
-            'high_price': self.high_price,
-            'low_price': self.low_price,
-            'volume': self.volume,
+            'normalized_close_price': self.normalized_close_price,
+            'split_ratio_applied': self.split_ratio_applied,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
@@ -73,14 +70,15 @@ class ETFDividend(db.Model):
     etf_id = db.Column(db.Integer, db.ForeignKey('etfs.id'), nullable=False, index=True)
     payment_date = db.Column(db.Date, nullable=False, index=True)
     ex_date = db.Column(db.Date, index=True)
-    amount = db.Column(db.Float, nullable=False)
-    frequency = db.Column(db.String(20))  # monthly, quarterly, etc.
+    amount = db.Column(db.Float, nullable=False)  # Oryginalna kwota
+    normalized_amount = db.Column(db.Float, nullable=False)  # Znormalizowana kwota
+    split_ratio_applied = db.Column(db.Float, default=1.0)  # Współczynnik splitu
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('etf_id', 'payment_date', name='_etf_payment_date_uc'),)
     
     def __repr__(self):
-        return f'<ETFDividend {self.etf_id} {self.payment_date}: {self.amount}>'
+        return f'<ETFDividend {self.etf_id} {self.payment_date}: {self.amount} -> {self.normalized_amount}>'
     
     def to_dict(self):
         return {
@@ -89,7 +87,33 @@ class ETFDividend(db.Model):
             'payment_date': self.payment_date.isoformat() if self.payment_date else None,
             'ex_date': self.ex_date.isoformat() if self.ex_date else None,
             'amount': self.amount,
-            'frequency': self.frequency,
+            'normalized_amount': self.normalized_amount,
+            'split_ratio_applied': self.split_ratio_applied,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class ETFSplit(db.Model):
+    __tablename__ = 'etf_splits'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    etf_id = db.Column(db.Integer, db.ForeignKey('etfs.id'), nullable=False, index=True)
+    split_date = db.Column(db.Date, nullable=False, index=True)
+    split_ratio = db.Column(db.Float, nullable=False)  # np. 3.0 dla 3:1 split
+    description = db.Column(db.String(200))  # np. "3:1 Stock Split"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('etf_id', 'split_date', name='_etf_split_date_uc'),)
+    
+    def __repr__(self):
+        return f'<ETFSplit {self.etf_id} {self.split_date}: {self.split_ratio}:1>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'etf_id': self.etf_id,
+            'split_date': self.split_date.isoformat() if self.split_date else None,
+            'split_ratio': self.split_ratio,
+            'description': self.description,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

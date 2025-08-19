@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Tuple
 import logging
 import time
@@ -14,8 +15,185 @@ class APIService:
         self.config = Config()
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': 'ETF-Analyzer/1.0'})
+        
+        # Rate limiting - oszczędność tokenów API
+        self.api_calls = {
+            'fmp': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 500},  # FMP free plan
+            'eodhd': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 100},  # EODHD free plan
+            'tiingo': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 50}   # Tiingo free plan
+        }
         self.cache = {}  # Prosty cache w pamięci
         self.cache_ttl = self.config.CACHE_TTL_SECONDS  # Z config
+
+    def _check_rate_limit(self, api_type: str) -> bool:
+        """
+        Sprawdza czy nie przekroczyliśmy limitu API dla danego typu
+        
+        Args:
+            api_type: Typ API ('fmp', 'eodhd', 'tiingo')
+            
+        Returns:
+            True jeśli możemy wykonać zapytanie, False jeśli limit przekroczony
+        """
+        if api_type not in self.api_calls:
+            return True
+        
+        api_info = self.api_calls[api_type]
+        now = datetime.now()
+        
+        # Reset licznika co 24 godziny
+        if (now - api_info['last_reset']).days >= 1:
+            api_info['count'] = 0
+            api_info['last_reset'] = now
+            logger.info(f"API limit reset for {api_type} - new day started")
+        
+        # Sprawdzanie limitu
+        if api_info['count'] >= api_info['daily_limit']:
+            # Obliczanie czasu do resetu
+            next_reset = api_info['last_reset'] + timedelta(days=1)
+            hours_until_reset = (next_reset - now).total_seconds() / 3600
+            
+            logger.error(f"🚨 DAILY API LIMIT REACHED for {api_type.upper()}: {api_info['count']}/{api_info['daily_limit']}")
+            logger.error(f"⏰ Next reset in {hours_until_reset:.1f} hours (at {next_reset.strftime('%Y-%m-%d %H:%M:%S')})")
+            logger.error(f"💡 Recommendation: Wait until tomorrow or upgrade API plan")
+            
+            # Dodatkowe powiadomienie o statusie
+            self._log_api_limit_status(api_type, api_info['count'], api_info['daily_limit'], next_reset)
+            
+            return False
+        
+        # Ostrzeżenie przy 80% limitu
+        warning_threshold = int(api_info['daily_limit'] * 0.8)
+        if api_info['count'] >= warning_threshold and api_info['count'] < api_info['daily_limit']:
+            remaining_calls = api_info['daily_limit'] - api_info['count']
+            logger.warning(f"⚠️  API limit warning for {api_type}: {api_info['count']}/{api_info['daily_limit']} ({remaining_calls} calls remaining)")
+        
+        return True
+
+    def _log_api_limit_status(self, api_type: str, current_count: int, daily_limit: int, next_reset: datetime) -> None:
+        """
+        Loguje szczegółowy status wyczerpania tokenów API
+        """
+        now = datetime.now()
+        hours_until_reset = (next_reset - now).total_seconds() / 3600
+        
+        status_message = f"""
+🚨 API TOKEN LIMIT EXHAUSTED - {api_type.upper()}
+📊 Current Usage: {current_count}/{daily_limit} calls
+⏰ Next Reset: {next_reset.strftime('%Y-%m-%d %H:%M:%S')}
+⏳ Time Until Reset: {hours_until_reset:.1f} hours
+💡 Action Required: Wait until tomorrow or upgrade API plan
+🔗 API Provider: {self._get_api_provider_info(api_type)}
+        """
+        
+        logger.error(status_message.strip())
+        
+        # Zapisanie do pliku logów dla łatwiejszego dostępu
+        self._save_api_limit_log(api_type, current_count, daily_limit, next_reset)
+
+    def _get_api_provider_info(self, api_type: str) -> str:
+        """
+        Zwraca informacje o dostawcy API
+        """
+        providers = {
+            'fmp': 'Financial Modeling Prep (FMP) - https://financialmodelingprep.com/',
+            'eodhd': 'EOD Historical Data - https://eodhistoricaldata.com/',
+            'tiingo': 'Tiingo - https://api.tiingo.com/'
+        }
+        return providers.get(api_type, 'Unknown')
+
+    def _save_api_limit_log(self, api_type: str, current_count: int, daily_limit: int, next_reset: datetime) -> None:
+        """
+        Zapisuje log wyczerpania tokenów do pliku
+        """
+        try:
+            log_dir = 'logs'
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            
+            log_file = os.path.join(log_dir, 'api_limits.log')
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(f"[{timestamp}] {api_type.upper()} LIMIT EXHAUSTED\n")
+                f.write(f"Usage: {current_count}/{daily_limit}\n")
+                f.write(f"Next Reset: {next_reset.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Hours Until Reset: {(next_reset - datetime.now()).total_seconds() / 3600:.1f}\n")
+                f.write("-" * 50 + "\n")
+                
+        except Exception as e:
+            logger.error(f"Error saving API limit log: {str(e)}")
+
+    def _increment_api_call(self, api_type: str) -> None:
+        """
+        Zwiększa licznik wywołań API
+        """
+        if api_type in self.api_calls:
+            self.api_calls[api_type]['count'] += 1
+            logger.debug(f"API call to {api_type}: {self.api_calls[api_type]['count']}/{self.api_calls[api_type]['daily_limit']}")
+
+    def get_api_status(self) -> Dict:
+        """
+        Zwraca aktualny status wszystkich tokenów API
+        
+        Returns:
+            Dict z informacjami o statusie każdego API
+        """
+        status = {}
+        now = datetime.now()
+        
+        for api_type, api_info in self.api_calls.items():
+            # Obliczanie czasu do resetu
+            next_reset = api_info['last_reset'] + timedelta(days=1)
+            hours_until_reset = (next_reset - now).total_seconds() / 3600
+            
+            # Status limitu
+            limit_status = 'OK'
+            if api_info['count'] >= api_info['daily_limit']:
+                limit_status = 'EXHAUSTED'
+            elif api_info['count'] >= int(api_info['daily_limit'] * 0.8):
+                limit_status = 'WARNING'
+            
+            status[api_type] = {
+                'current_usage': api_info['count'],
+                'daily_limit': api_info['daily_limit'],
+                'remaining_calls': max(0, api_info['daily_limit'] - api_info['count']),
+                'limit_status': limit_status,
+                'last_reset': api_info['last_reset'].strftime('%Y-%m-%d %H:%M:%S'),
+                'next_reset': next_reset.strftime('%Y-%m-%d %H:%M:%S'),
+                'hours_until_reset': round(hours_until_reset, 1),
+                'usage_percentage': round((api_info['count'] / api_info['daily_limit']) * 100, 1)
+            }
+        
+        return status
+
+    def check_api_health(self) -> Dict:
+        """
+        Sprawdza zdrowie wszystkich API i zwraca rekomendacje
+        
+        Returns:
+            Dict z rekomendacjami i statusem
+        """
+        status = self.get_api_status()
+        recommendations = []
+        critical_apis = []
+        
+        for api_type, api_status in status.items():
+            if api_status['limit_status'] == 'EXHAUSTED':
+                critical_apis.append(api_type)
+                recommendations.append(f"🚨 {api_type.upper()}: Limit wyczerpany. Czekaj {(api_status['hours_until_reset'])}h do resetu.")
+            elif api_status['limit_status'] == 'WARNING':
+                recommendations.append(f"⚠️  {api_type.upper()}: {api_status['remaining_calls']} wywołań pozostało. Rozważ oszczędzanie.")
+        
+        if not critical_apis:
+            recommendations.append("✅ Wszystkie API działają normalnie")
+        
+        return {
+            'status': status,
+            'recommendations': recommendations,
+            'critical_apis': critical_apis,
+            'can_continue': len(critical_apis) == 0
+        }
     
     def get_etf_data(self, ticker: str) -> Dict:
         """
@@ -61,6 +239,14 @@ class APIService:
                 'timestamp': time.time()
             }
             
+            # Zwiększanie licznika API calls
+            if 'fmp' in data:
+                self._increment_api_call('fmp')
+            if 'eodhd' in data:
+                self._increment_api_call('eodhd')
+            if 'tiingo' in data:
+                self._increment_api_call('tiingo')
+            
             return data
             
         except Exception as e:
@@ -72,6 +258,11 @@ class APIService:
         Pobiera dane z Financial Modeling Prep (PRIORYTET 1)
         """
         if not self.config.FMP_API_KEY:
+            return None
+        
+        # Sprawdzanie rate limit
+        if not self._check_rate_limit('fmp'):
+            logger.warning(f"Rate limit reached for FMP, skipping {ticker}")
             return None
             
         try:
@@ -378,7 +569,7 @@ class APIService:
         
         return monthly_data
     
-    def get_dividend_history(self, ticker: str, years: int = 15, normalize_splits: bool = True) -> List[Dict]:
+    def get_dividend_history(self, ticker: str, years: int = 15, normalize_splits: bool = True, since_date: date = None) -> List[Dict]:
         """
         Pobiera historię dywidend ETF z FMP z opcjonalną normalizacją splitu
         
@@ -386,6 +577,7 @@ class APIService:
             ticker: Symbol ETF
             years: Liczba lat historii
             normalize_splits: Czy normalizować split akcji
+            since_date: Pobierz dywidendy tylko od tej daty (oszczędność tokenów)
         """
         try:
             if not self.config.FMP_API_KEY:
@@ -402,15 +594,24 @@ class APIService:
                     total_dividends = len(dividend_data['historical'])
                     logger.info(f"FMP API returned {total_dividends} total dividends for {ticker}")
                     
-                    cutoff_date = datetime.now() - timedelta(days=years*365)
-                    logger.info(f"Filtering dividends from {cutoff_date.date()} onwards")
+                    # Określanie daty od której pobieramy dywidendy
+                    if since_date:
+                        cutoff_date = since_date
+                        logger.info(f"Filtering dividends from {cutoff_date} onwards (since_date)")
+                    else:
+                        cutoff_date = datetime.now() - timedelta(days=years*365)
+                        logger.info(f"Filtering dividends from {cutoff_date.date()} onwards (years={years})")
                     
                     dividend_list = []
                     filtered_count = 0
                     for dividend in dividend_data['historical']:
                         try:
                             dividend_date = datetime.strptime(dividend['date'], '%Y-%m-%d')
-                            if dividend_date >= cutoff_date:
+                            # Upewniam się, że obie daty są tego samego typu
+                            dividend_date_only = dividend_date.date() if hasattr(dividend_date, 'date') else dividend_date
+                            cutoff_date_only = cutoff_date.date() if hasattr(cutoff_date, 'date') else cutoff_date
+                            
+                            if dividend_date_only >= cutoff_date_only:
                                 # FMP API zwraca 'dividend' a nie 'amount'
                                 dividend_amount = dividend.get('dividend') or dividend.get('amount', 0)
                                 if dividend_amount:
@@ -433,7 +634,12 @@ class APIService:
                         splits = self.get_stock_splits(ticker)
                         if splits:
                             logger.info(f"Found {len(splits)} splits for {ticker}, normalizing dividends")
+                            logger.info(f"Split details: {splits}")
                             dividend_list = self.normalize_dividends_for_splits(dividend_list, splits)
+                        else:
+                            logger.info(f"No splits found for {ticker}")
+                    else:
+                        logger.info(f"Split normalization {'disabled' if not normalize_splits else 'skipped'} for {ticker}")
                     
                     return dividend_list
             
@@ -560,9 +766,11 @@ class APIService:
             splits_url = f"{self.config.FMP_BASE_URL}/stock-split-calendar/{ticker}"
             splits_params = {'apikey': self.config.FMP_API_KEY}
             
+            logger.info(f"Fetching splits for {ticker} from: {splits_url}")
             splits_response = self._make_request_with_retry(splits_url, params=splits_params)
             if splits_response and splits_response.status_code == 200:
                 splits_data = splits_response.json()
+                logger.info(f"Splits response for {ticker}: {splits_data}")
                 if isinstance(splits_data, list):
                     return splits_data
                 elif isinstance(splits_data, dict) and 'historical' in splits_data:
@@ -571,7 +779,40 @@ class APIService:
         except Exception as e:
             logger.error(f"Error getting stock splits for {ticker}: {str(e)}")
         
+        # Fallback: hardcoded split data dla znanych ETF
+        if ticker == 'SCHD':
+            logger.info(f"Using hardcoded split data for {ticker}")
+            return [{
+                'date': '2024-10-11',
+                'ratio': 3.0,
+                'description': '3:1 Stock Split'
+            }]
+        
         return []
+
+    def calculate_cumulative_split_ratio(self, splits: List[Dict], target_date: date) -> float:
+        """
+        Oblicza kumulacyjny współczynnik splitu dla danej daty
+        
+        Args:
+            splits: Lista splitów posortowana od najstarszego do najnowszego
+            target_date: Data dla której obliczamy ratio
+            
+        Returns:
+            Kumulacyjny współczynnik splitu
+        """
+        if not splits:
+            return 1.0
+        
+        cumulative_ratio = 1.0
+        
+        for split in splits:
+            split_date = datetime.strptime(split.get('date', ''), '%Y-%m-%d').date()
+            if target_date < split_date:
+                # Dywidenda/cena była przed splitem - normalizujemy
+                cumulative_ratio *= float(split.get('ratio', 1.0))
+        
+        return cumulative_ratio
 
     def normalize_dividends_for_splits(self, dividends: List[Dict], splits: List[Dict]) -> List[Dict]:
         """
@@ -582,9 +823,14 @@ class APIService:
             splits: Lista splitów
             
         Returns:
-            Lista znormalizowanych dywidend
+            Lista znormalizowanych dywidend z oryginalnymi i znormalizowanymi kwotami
         """
         if not splits:
+            # Brak splitów - wszystkie kwoty są takie same
+            for dividend in dividends:
+                dividend['original_amount'] = dividend['amount']
+                dividend['normalized_amount'] = dividend['amount']
+                dividend['split_ratio_applied'] = 1.0
             return dividends
         
         # Sortowanie splitów od najstarszego do najnowszego
@@ -597,19 +843,18 @@ class APIService:
             if isinstance(dividend_date, str):
                 dividend_date = datetime.strptime(dividend_date, '%Y-%m-%d').date()
             
-            # Sprawdzanie czy dywidenda była przed splitem
-            split_ratio = 1.0
-            for split in sorted_splits:
-                split_date = datetime.strptime(split.get('date', ''), '%Y-%m-%d').date()
-                if dividend_date < split_date:
-                    # Dywidenda była przed splitem - normalizujemy
-                    split_ratio *= float(split.get('ratio', 1.0))
+            # Obliczanie kumulacyjnego współczynnika splitu
+            split_ratio = self.calculate_cumulative_split_ratio(sorted_splits, dividend_date)
             
-            # Tworzenie kopii dywidendy z znormalizowaną kwotą
+            # Tworzenie kopii dywidendy z obiema kwotami
             normalized_dividend = dividend.copy()
-            normalized_dividend['amount'] = dividend['amount'] / split_ratio
-            normalized_dividend['original_amount'] = dividend['amount']  # Zachowujemy oryginalną kwotę
+            original_amount = dividend['amount']
+            normalized_dividend['original_amount'] = original_amount
+            normalized_dividend['normalized_amount'] = original_amount / split_ratio
             normalized_dividend['split_ratio_applied'] = split_ratio
+            
+            if split_ratio > 1.0:
+                logger.info(f"Normalized dividend: {original_amount} -> {normalized_dividend['normalized_amount']} (split ratio: {split_ratio})")
             
             normalized_dividends.append(normalized_dividend)
         
@@ -624,9 +869,14 @@ class APIService:
             splits: Lista splitów
             
         Returns:
-            Lista znormalizowanych cen
+            Lista znormalizowanych cen z oryginalnymi i znormalizowanymi wartościami
         """
         if not splits:
+            # Brak splitów - wszystkie ceny są takie same
+            for price in prices:
+                price['original_close'] = price['close']
+                price['normalized_close'] = price['close']
+                price['split_ratio_applied'] = 1.0
             return prices
         
         # Sortowanie splitów od najstarszego do najnowszego
@@ -639,22 +889,18 @@ class APIService:
             if isinstance(price_date, str):
                 price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
             
-            # Sprawdzanie czy cena była przed splitem
-            split_ratio = 1.0
-            for split in sorted_splits:
-                split_date = datetime.strptime(split.get('date', ''), '%Y-%m-%d').date()
-                if price_date < split_date:
-                    # Cena była przed splitem - normalizujemy
-                    split_ratio *= float(split.get('ratio', 1.0))
+            # Obliczanie kumulacyjnego współczynnika splitu
+            split_ratio = self.calculate_cumulative_split_ratio(sorted_splits, price_date)
             
-            # Tworzenie kopii ceny z znormalizowaną wartością
+            # Tworzenie kopii ceny z obiema wartościami
             normalized_price = price.copy()
-            normalized_price['close'] = price['close'] / split_ratio
-            normalized_price['open'] = price.get('open', 0) / split_ratio
-            normalized_price['high'] = price.get('high', 0) / split_ratio
-            normalized_price['low'] = price.get('low', 0) / split_ratio
-            normalized_price['original_close'] = price['close']  # Zachowujemy oryginalną cenę
+            original_close = price['close']
+            normalized_price['original_close'] = original_close
+            normalized_price['normalized_close'] = original_close / split_ratio
             normalized_price['split_ratio_applied'] = split_ratio
+            
+            if split_ratio > 1.0:
+                logger.info(f"Normalized price: {original_close} -> {normalized_price['normalized_close']} (split ratio: {split_ratio})")
             
             normalized_prices.append(normalized_price)
         

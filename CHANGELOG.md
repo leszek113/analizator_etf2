@@ -5,6 +5,34 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.4.0] - 2025-08-19
+
+### Dodane
+- **Suma ostatnich dywidend**: Automatyczne obliczanie sumy ostatnich dywidend w zależności od częstotliwości
+  - Miesięczne ETF: suma 12 ostatnich dywidend
+  - Kwartalne ETF: suma 4 ostatnich dywidend
+  - Roczne ETF: ostatnia dywidenda
+  - Auto-detekcja częstotliwości na podstawie dat
+- **System powiadomień API**: Monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
+  - Szczegółowe powiadomienia o wyczerpaniu tokenów
+  - Ostrzeżenia przy 80% limitu
+  - Automatyczne resetowanie liczników co 24h
+  - Logi wyczerpania tokenów do pliku
+- **Strona statusu systemu**: Dedykowana pod-strona `/system/status` z informacjami o:
+  - Statystykach systemu (ETF, ceny, dywidendy, logi)
+  - Statusie bazy danych (ostatnia aktualizacja)
+  - Statusie tokenów API (FMP, EODHD, Tiingo)
+  - Zdrowiu systemu
+  - Szybkich akcjach
+- **Dashboard link**: Kafelek "Status systemu" zmieniony na link do pod-strony systemowej
+- **API endpoints**: Nowe endpointy `/api/system/api-status` i `/system/status`
+
+### Ulepszone
+- **Inteligentne sprawdzanie API**: System automatycznie używa cache gdy API niedostępne
+- **Rate limiting**: Kontrola liczby wywołań API dla każdego dostawcy
+- **Error handling**: Lepsze obsługiwanie błędów i fallback do cache
+- **User experience**: Łatwiejszy dostęp do informacji systemowych
+
 ## [1.3.1] - 2025-08-13
 
 ### Zmienione

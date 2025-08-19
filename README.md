@@ -17,6 +17,9 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 - **✅ Dividend Streak Growth (DSG)** - obliczanie aktualnego streak wzrostu dywidend
 - **✅ Historical Dividend Matrix** - szczegółowy widok historii dywidend w formie tabeli lat/miesięcy
 - **✅ Stock Split Normalization** - automatyczna normalizacja danych po splitach akcji
+- **✅ Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend (12 miesięcznych, 4 kwartalnych, 1 rocznej)
+- **✅ System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
+- **✅ Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu, bazie danych i tokenach API
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 

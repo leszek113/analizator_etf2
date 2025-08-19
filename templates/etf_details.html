@@ -102,9 +102,22 @@
                         {{ etf.ticker }} - {{ etf.name }}
                     </h1>
                     <p class="mb-0">
-                        <strong>Cena:</strong> ${{ "%.2f"|format(etf.current_price) if etf.current_price else 'N/A' }} | 
-                        <strong>Yield:</strong> {{ "%.2f"|format(etf.current_yield) if etf.current_yield else 'N/A' }}% | 
+                        <strong>Cena:</strong> ${{ "%.5f"|format(etf.current_price) if etf.current_price else 'N/A' }} | 
+                        <strong>Yield:</strong> {{ "%.5f"|format(etf.current_yield) if etf.current_yield else 'N/A' }}% | 
                         <strong>Częstotliwość:</strong> {{ etf.frequency or 'N/A' }}
+                        {% if dividend_sum %}
+                        | <strong>
+                            {% if etf.frequency == 'monthly' %}
+                                Suma 12 ostatnich:
+                            {% elif etf.frequency == 'quarterly' %}
+                                Suma 4 ostatnich:
+                            {% elif etf.frequency == 'annual' %}
+                                Ostatnia:
+                            {% else %}
+                                Suma:
+                            {% endif %}
+                        </strong> ${{ "%.5f"|format(dividend_sum) }}
+                        {% endif %}
                     </p>
                 </div>
                 <a href="/" class="btn back-button">
@@ -126,7 +139,6 @@
                             <tr>
                                 <th class="year-column">Suma Roczna</th>
                                 <th class="year-column">Rok</th>
-                                <th>Split</th>
                                 <th>Sty</th>
                                 <th>Lut</th>
                                 <th>Mar</th>
@@ -154,8 +166,8 @@
                             {% if month not in dividends_by_year_month[year] %}
                                 {% set _ = dividends_by_year_month[year].update({month: []}) %}
                             {% endif %}
-                            {% set _ = dividends_by_year_month[year][month].append(dividend.amount) %}
-                            {% set _ = yearly_totals.update({year: yearly_totals[year] + dividend.amount}) %}
+                            {% set _ = dividends_by_year_month[year][month].append(dividend.normalized_amount) %}
+                            {% set _ = yearly_totals.update({year: yearly_totals[year] + dividend.normalized_amount}) %}
                         {% endfor %}
                         
                         {% set years = dividends_by_year_month.keys()|sort(reverse=true) %}
@@ -167,33 +179,24 @@
                             {% if previous_total %}
                                 {% if current_total > previous_total %}
                                     {% set total_class = "table-success" %}
-                                    {% set total_title = "Wzrost z " + "%.2f"|format(previous_total) + " na " + "%.2f"|format(current_total) %}
+                                    {% set total_title = "Wzrost z " + "%.5f"|format(previous_total) + " na " + "%.5f"|format(current_total) %}
                                 {% elif current_total < previous_total %}
                                     {% set total_class = "table-warning" %}
-                                    {% set total_title = "Spadek z " + "%.2f"|format(previous_total) + " na " + "%.2f"|format(current_total) %}
+                                    {% set total_title = "Spadek z " + "%.5f"|format(previous_total) + " na " + "%.5f"|format(current_total) %}
                                 {% else %}
                                     {% set total_class = "table-secondary" %}
-                                    {% set total_title = "Bez zmian: " + "%.2f"|format(current_total) %}
+                                    {% set total_title = "Bez zmian: " + "%.5f"|format(current_total) %}
                                 {% endif %}
                             {% else %}
                                 {% set total_class = "table-light" %}
-                                {% set total_title = "Pierwszy rok: " + "%.2f"|format(current_total) %}
+                                                                    {% set total_title = "Pierwszy rok: " + "%.5f"|format(current_total) %}
                             {% endif %}
                             
                                                                     <tr>
                                             <td class="{{ total_class }}" title="{{ total_title }}">
-                                                <strong>{{ "%.2f"|format(current_total) }}</strong>
+                                                <strong>{{ "%.5f"|format(current_total) }}</strong>
                                             </td>
                                             <td class="year-column">{{ year }}</td>
-                                            <td class="split-info">
-                                                {% if year == 2024 %}
-                                                    <span class="badge bg-warning" title="Split 3:1 - 11 października 2024">
-                                                        <i class="bi bi-arrow-split"></i> 3:1
-                                                    </span>
-                                                {% else %}
-                                                    <span class="text-muted">-</span>
-                                                {% endif %}
-                                            </td>
                                             {% for month in range(1, 13) %}
                                                 {% if month in dividends_by_year_month[year] %}
                                                     {% set amounts = dividends_by_year_month[year][month] %}
@@ -201,11 +204,11 @@
                                                     {% set count = amounts|length %}
                                                     {% if count > 1 %}
                                                         <td class="dividend-value" title="Liczba wypłat: {{ count }}">
-                                                            {{ "%.2f"|format(total) }}
+                                                            {{ "%.5f"|format(total) }}
                                                         </td>
                                                     {% else %}
                                                         <td class="dividend-value">
-                                                            {{ "%.2f"|format(total) }}
+                                                            {{ "%.5f"|format(total) }}
                                                         </td>
                                                     {% endif %}
                                                 {% else %}
@@ -226,8 +229,7 @@
                                 <span class="text-warning">Żółte</span> = spadek dywidendy rok do roku, 
                                 <span class="text-secondary">Szare</span> = bez zmian. 
                                 <br>
-                                <strong>Kolumna Split:</strong> Informacja o splitach akcji w danym roku.
-                                <span class="badge bg-warning">3:1</span> oznacza split 3:1 (11 października 2024).
+                                <strong>Split akcji:</strong> SCHD miał split 3:1 dnia 11 października 2024.
                                 <br>
                                 <strong>Komórki miesięczne:</strong> Suma dywidend wypłaconych w danym miesiącu. 
                                 Jeśli w miesiącu wypłacono kilka dywidend, pokazana jest suma.

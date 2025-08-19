@@ -129,6 +129,11 @@
                         </div>
                         <i class="bi bi-server display-6"></i>
                     </div>
+                    <div class="mt-2">
+                        <a href="/system/status" class="btn btn-sm btn-outline-info">
+                            <i class="bi bi-info-circle"></i> Szczegóły
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -305,10 +310,10 @@
                 <tr>
                     <td><strong>${etf.ticker}</strong></td>
                     <td>${etf.name || 'N/A'}</td>
-                    <td>${etf.current_price ? '$' + etf.current_price.toFixed(2) : 'N/A'}</td>
+                    <td>${etf.current_price ? '$' + etf.current_price.toFixed(5) : 'N/A'}</td>
                     <td>
                         ${etf.current_yield ? 
-                            `<span class="yield-${getYieldClass(etf.current_yield)}">${etf.current_yield.toFixed(2)}%</span>` : 
+                            `<span class="yield-${getYieldClass(etf.current_yield)}">${etf.current_yield.toFixed(5)}%</span>` : 
                             '<span class="yield-unknown">N/A</span>'
                         }
                     </td>
@@ -447,7 +452,7 @@
             document.getElementById('totalEtfs').textContent = etfData.length;
             
             const yields = etfData.filter(etf => etf.current_yield && etf.current_yield > 0).map(etf => etf.current_yield);
-            const avgYield = yields.length > 0 ? (yields.reduce((a, b) => a + b, 0) / yields.length).toFixed(2) : 'N/A';
+            const avgYield = yields.length > 0 ? (yields.reduce((a, b) => a + b, 0) / yields.length).toFixed(5) : 'N/A';
             document.getElementById('avgYield').textContent = avgYield === 'N/A' ? 'N/A' : avgYield + '%';
             
             const lastUpdate = etfData.length > 0 ? 
