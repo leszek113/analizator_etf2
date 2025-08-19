@@ -9,43 +9,62 @@ import os
 from datetime import datetime
 
 def migrate_database():
-    """Wykonuje migrację bazy danych"""
-    
-    db_path = 'instance/etf_analyzer.db'
-    
-    if not os.path.exists(db_path):
-        print(f"Baza danych nie istnieje: {db_path}")
-        return
-    
+    """Główna funkcja migracji bazy danych"""
     print("Rozpoczynam migrację bazy danych...")
     
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
     try:
-        # 1. Dodanie nowych kolumn do tabeli etf_dividends
-        print("Dodaję kolumny do tabeli etf_dividends...")
-        cursor.execute("""
-            ALTER TABLE etf_dividends 
-            ADD COLUMN normalized_amount REAL
-        """)
+        # Połączenie z bazą danych
+        conn = sqlite3.connect('instance/etf_analyzer.db')
+        cursor = conn.cursor()
         
-        cursor.execute("""
-            ALTER TABLE etf_dividends 
-            ADD COLUMN split_ratio_applied REAL DEFAULT 1.0
-        """)
+        # 1. Sprawdzenie i dodanie kolumn do tabeli etf_dividends
+        print("Sprawdzam kolumny w tabeli etf_dividends...")
         
-        # 2. Dodanie nowych kolumn do tabeli etf_prices
-        print("Dodaję kolumny do tabeli etf_prices...")
-        cursor.execute("""
-            ALTER TABLE etf_prices 
-            ADD COLUMN normalized_close_price REAL
-        """)
+        # Sprawdzenie czy kolumna normalized_amount już istnieje
+        cursor.execute("PRAGMA table_info(etf_dividends)")
+        columns = [column[1] for column in cursor.fetchall()]
         
-        cursor.execute("""
-            ALTER TABLE etf_prices 
-            ADD COLUMN split_ratio_applied REAL DEFAULT 1.0
-        """)
+        if 'normalized_amount' not in columns:
+            print("Dodaję kolumnę normalized_amount do tabeli etf_dividends...")
+            cursor.execute("""
+                ALTER TABLE etf_dividends
+                ADD COLUMN normalized_amount REAL
+            """)
+        else:
+            print("✅ Kolumna normalized_amount już istnieje")
+            
+        if 'split_ratio_applied' not in columns:
+            print("Dodaję kolumnę split_ratio_applied do tabeli etf_dividends...")
+            cursor.execute("""
+                ALTER TABLE etf_dividends
+                ADD COLUMN split_ratio_applied REAL DEFAULT 1.0
+            """)
+        else:
+            print("✅ Kolumna split_ratio_applied już istnieje")
+        
+        # 2. Sprawdzenie i dodanie kolumn do tabeli etf_prices
+        print("Sprawdzam kolumny w tabeli etf_prices...")
+        
+        cursor.execute("PRAGMA table_info(etf_prices)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'normalized_close_price' not in columns:
+            print("Dodaję kolumnę normalized_close_price do tabeli etf_prices...")
+            cursor.execute("""
+                ALTER TABLE etf_prices
+                ADD COLUMN normalized_close_price REAL
+            """)
+        else:
+            print("✅ Kolumna normalized_close_price już istnieje")
+            
+        if 'split_ratio_applied' not in columns:
+            print("Dodaję kolumnę split_ratio_applied do tabeli etf_prices...")
+            cursor.execute("""
+                ALTER TABLE etf_prices
+                ADD COLUMN split_ratio_applied REAL DEFAULT 1.0
+            """)
+        else:
+            print("✅ Kolumna split_ratio_applied już istnieje")
         
         # 3. Tworzenie nowej tabeli etf_splits
         print("Tworzę tabelę etf_splits...")
@@ -77,6 +96,30 @@ def migrate_database():
             CREATE UNIQUE INDEX IF NOT EXISTS idx_etf_splits_etf_date 
             ON etf_splits (etf_id, split_date)
         """)
+        
+        # Tworzenie tabeli api_limits
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_limits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                api_type VARCHAR(20) UNIQUE NOT NULL,
+                current_count INTEGER DEFAULT 0 NOT NULL,
+                daily_limit INTEGER NOT NULL,
+                last_reset DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Inicjalizacja domyślnych limitów API
+        cursor.execute('''
+            INSERT OR IGNORE INTO api_limits (api_type, current_count, daily_limit, last_reset)
+            VALUES 
+                ('fmp', 0, 500, CURRENT_TIMESTAMP),
+                ('eodhd', 0, 100, CURRENT_TIMESTAMP),
+                ('tiingo', 0, 50, CURRENT_TIMESTAMP)
+        ''')
+        
+        print("✅ Tabela api_limits została utworzona i zainicjalizowana")
         
         # 5. Inicjalizacja istniejących danych
         print("Inicjalizuję istniejące dane...")

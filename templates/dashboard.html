@@ -282,6 +282,10 @@
                 if (result.success) {
                     etfData = result.data;
                     filteredData = [...etfData];
+                    
+                    // Ładowanie DSG dla każdego ETF
+                    await loadDSGForAllETFs();
+                    
                     renderTable();
                     updateStats();
                 } else {
@@ -292,6 +296,45 @@
             } finally {
                 showLoading(false);
             }
+        }
+
+        async function loadDSGForAllETFs() {
+            // Ładowanie DSG dla każdego ETF równolegle
+            const dsgPromises = etfData.map(async (etf) => {
+                try {
+                    // Sprawdź czy ETF ma dywidendy przed wywołaniem DSG
+                    const dividendsResponse = await fetch(`/api/etfs/${etf.ticker}/dividends`);
+                    const dividendsResult = await dividendsResponse.json();
+                    
+                    if (dividendsResult.count === 0) {
+                        // ETF bez dywidend - ustaw DSG na 0
+                        etf.dsg = {
+                            current_streak: 0,
+                            total_years: 0,
+                            streak_start_year: null,
+                            last_dividend_change: 'Brak dywidend',
+                            calculation_method: 'no dividends'
+                        };
+                        return;
+                    }
+                    
+                    // ETF z dywidendami - pobierz DSG
+                    const response = await fetch(`/api/etfs/${etf.ticker}/dsg`);
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        etf.dsg = result.data.dsg;
+                    } else {
+                        etf.dsg = null;
+                    }
+                } catch (error) {
+                    console.error(`Error loading DSG for ${etf.ticker}:`, error);
+                    etf.dsg = null;
+                }
+            });
+            
+            // Czekamy na załadowanie wszystkich DSG
+            await Promise.all(dsgPromises);
         }
 
         function renderTable() {

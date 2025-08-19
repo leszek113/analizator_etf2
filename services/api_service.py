@@ -7,6 +7,7 @@ import logging
 import time
 import json
 from config import Config
+from models import db
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +17,69 @@ class APIService:
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': 'ETF-Analyzer/1.0'})
         
-        # Rate limiting - oszczędność tokenów API
-        self.api_calls = {
-            'fmp': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 500},  # FMP free plan
-            'eodhd': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 100},  # EODHD free plan
-            'tiingo': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 50}   # Tiingo free plan
-        }
+        # Rate limiting - oszczędność tokenów API (ładowanie z bazy danych)
+        self.api_calls = self._load_api_limits_from_db()
+        
         self.cache = {}  # Prosty cache w pamięci
         self.cache_ttl = self.config.CACHE_TTL_SECONDS  # Z config
+
+    def _load_api_limits_from_db(self) -> Dict:
+        """
+        Ładuje limity API z bazy danych lub tworzy domyślne jeśli nie istnieją
+        """
+        try:
+            from models import APILimit, db
+            
+            api_limits = {}
+            default_limits = {
+                'fmp': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 500},
+                'eodhd': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 100},
+                'tiingo': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 50}
+            }
+            
+            for api_type, default_info in default_limits.items():
+                # Próba pobrania z bazy
+                api_limit = APILimit.query.filter_by(api_type=api_type).first()
+                
+                if api_limit:
+                    # Sprawdzenie czy trzeba zresetować licznik (nowy dzień)
+                    now = datetime.now()
+                    if (now - api_limit.last_reset).days >= 1:
+                        api_limit.current_count = 0
+                        api_limit.last_reset = now
+                        db.session.commit()
+                        logger.info(f"API limit reset for {api_type} - new day started")
+                    
+                    api_limits[api_type] = {
+                        'count': api_limit.current_count,
+                        'last_reset': api_limit.last_reset,
+                        'daily_limit': api_limit.daily_limit
+                    }
+                else:
+                    # Tworzenie nowego wpisu w bazie
+                    new_limit = APILimit(
+                        api_type=api_type,
+                        current_count=default_info['count'],
+                        daily_limit=default_info['daily_limit'],
+                        last_reset=default_info['last_reset']
+                    )
+                    db.session.add(new_limit)
+                    db.session.commit()
+                    
+                    api_limits[api_type] = default_info
+                    logger.info(f"Created new API limit record for {api_type}")
+            
+            logger.info(f"Loaded API limits from database: {api_limits}")
+            return api_limits
+            
+        except Exception as e:
+            logger.error(f"Error loading API limits from database: {str(e)}")
+            # Fallback do domyślnych wartości
+            return {
+                'fmp': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 500},
+                'eodhd': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 100},
+                'tiingo': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 50}
+            }
 
     def _check_rate_limit(self, api_type: str) -> bool:
         """
@@ -45,9 +101,44 @@ class APIService:
         if (now - api_info['last_reset']).days >= 1:
             api_info['count'] = 0
             api_info['last_reset'] = now
+            api_info['minute_count'] = 0  # Reset minutowego licznika
+            api_info['minute_reset'] = now  # Reset minutowego timera
             logger.info(f"API limit reset for {api_type} - new day started")
+            
+            # Reset w bazie danych
+            try:
+                from models import APILimit
+                api_limit = APILimit.query.filter_by(api_type=api_type).first()
+                if api_limit:
+                    api_limit.current_count = 0
+                    api_limit.last_reset = now
+                    api_limit.updated_at = now
+                    db.session.commit()
+                    logger.info(f"Reset API limit in database for {api_type}")
+            except Exception as e:
+                logger.error(f"Error resetting API limit in database for {api_type}: {str(e)}")
         
-        # Sprawdzanie limitu
+        # Inicjalizacja minutowych liczników jeśli nie istnieją
+        if 'minute_count' not in api_info:
+            api_info['minute_count'] = 0
+            api_info['minute_reset'] = now
+        
+        # Reset minutowego licznika co minutę
+        if (now - api_info['minute_reset']).total_seconds() >= 60:
+            api_info['minute_count'] = 0
+            api_info['minute_reset'] = now
+            logger.debug(f"Minute rate limit reset for {api_type}")
+        
+        # Sprawdzanie minutowego limitu (tylko dla FMP)
+        if api_type == 'fmp':
+            minute_limit = 5  # FMP: 5 wywołań na minutę
+            if api_info['minute_count'] >= minute_limit:
+                seconds_until_reset = 60 - (now - api_info['minute_reset']).total_seconds()
+                logger.warning(f"⚠️  MINUTE RATE LIMIT for FMP: {api_info['minute_count']}/{minute_limit} calls")
+                logger.warning(f"⏳ Wait {seconds_until_reset:.0f} seconds for minute reset")
+                return False
+        
+        # Sprawdzanie dziennego limitu
         if api_info['count'] >= api_info['daily_limit']:
             # Obliczanie czasu do resetu
             next_reset = api_info['last_reset'] + timedelta(days=1)
@@ -126,11 +217,37 @@ class APIService:
 
     def _increment_api_call(self, api_type: str) -> None:
         """
-        Zwiększa licznik wywołań API
+        Zwiększa licznik wywołań API dla danego typu
+        
+        Args:
+            api_type: Typ API ('fmp', 'eodhd', 'tiingo')
         """
-        if api_type in self.api_calls:
-            self.api_calls[api_type]['count'] += 1
-            logger.debug(f"API call to {api_type}: {self.api_calls[api_type]['count']}/{self.api_calls[api_type]['daily_limit']}")
+        if api_type not in self.api_calls:
+            return
+        
+        api_info = self.api_calls[api_type]
+        api_info['count'] += 1
+        
+        # Aktualizacja minutowego licznika dla FMP
+        if api_type == 'fmp':
+            if 'minute_count' not in api_info:
+                api_info['minute_count'] = 0
+                api_info['minute_reset'] = datetime.now()
+            api_info['minute_count'] += 1
+            logger.debug(f"FMP API call: {api_info['minute_count']}/5 per minute, {api_info['count']}/500 per day")
+        
+        # Aktualizacja w bazie danych
+        try:
+            from models import APILimit
+            api_limit = APILimit.query.filter_by(api_type=api_type).first()
+            if api_limit:
+                api_limit.current_count = api_info['count']
+                api_limit.updated_at = datetime.now()
+                db.session.commit()
+        except Exception as e:
+            logger.error(f"Error updating API limit in database for {api_type}: {str(e)}")
+        
+        logger.debug(f"API call incremented for {api_type}: {api_info['count']}")
 
     def get_api_status(self) -> Dict:
         """
@@ -142,28 +259,36 @@ class APIService:
         status = {}
         now = datetime.now()
         
-        for api_type, api_info in self.api_calls.items():
-            # Obliczanie czasu do resetu
-            next_reset = api_info['last_reset'] + timedelta(days=1)
-            hours_until_reset = (next_reset - now).total_seconds() / 3600
-            
-            # Status limitu
-            limit_status = 'OK'
-            if api_info['count'] >= api_info['daily_limit']:
-                limit_status = 'EXHAUSTED'
-            elif api_info['count'] >= int(api_info['daily_limit'] * 0.8):
-                limit_status = 'WARNING'
-            
-            status[api_type] = {
-                'current_usage': api_info['count'],
-                'daily_limit': api_info['daily_limit'],
-                'remaining_calls': max(0, api_info['daily_limit'] - api_info['count']),
-                'limit_status': limit_status,
-                'last_reset': api_info['last_reset'].strftime('%Y-%m-%d %H:%M:%S'),
-                'next_reset': next_reset.strftime('%Y-%m-%d %H:%M:%S'),
-                'hours_until_reset': round(hours_until_reset, 1),
-                'usage_percentage': round((api_info['count'] / api_info['daily_limit']) * 100, 1)
-            }
+        for api_type in ['fmp', 'eodhd', 'tiingo']:
+            if api_type in self.api_calls:
+                api_info = self.api_calls[api_type]
+                now = datetime.now()
+                
+                # Obliczanie czasu do resetu
+                next_reset = api_info['last_reset'] + timedelta(days=1)
+                hours_until_reset = (next_reset - now).total_seconds() / 3600
+                
+                # Status minutowego limitu dla FMP
+                minute_status = "OK"
+                if api_type == 'fmp' and 'minute_count' in api_info:
+                    minute_limit = 5
+                    if api_info['minute_count'] >= minute_limit:
+                        minute_status = "LIMIT REACHED"
+                    elif api_info['minute_count'] >= minute_limit * 0.8:
+                        minute_status = "WARNING"
+                
+                status[api_type] = {
+                    'current_usage': api_info['count'],
+                    'daily_limit': api_info['daily_limit'],
+                    'hours_until_reset': hours_until_reset,
+                    'last_reset': api_info['last_reset'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'next_reset': next_reset.strftime('%Y-%m-%d %H:%M:%S'),
+                    'remaining_calls': api_info['daily_limit'] - api_info['count'],
+                    'usage_percentage': round((api_info['count'] / api_info['daily_limit']) * 100, 1),
+                    'limit_status': 'OK' if api_info['count'] < api_info['daily_limit'] else 'LIMIT REACHED',
+                    'minute_status': minute_status if api_type == 'fmp' else 'N/A',
+                    'minute_usage': f"{api_info.get('minute_count', 0)}/5" if api_type == 'fmp' else 'N/A'
+                }
         
         return status
 
@@ -214,12 +339,22 @@ class APIService:
                 data.update(fmp_data)
                 logger.info(f"FMP data retrieved for {ticker}")
             
-            # 2. BACKUP: EOD Historical Data - ceny historyczne
+            # 2. BACKUP: EOD Historical Data - ceny historyczne + dywidendy
             if not data.get('current_price'):
                 eodhd_data = self._get_eodhd_data(ticker)
                 if eodhd_data:
                     data.update(eodhd_data)
                     logger.info(f"EODHD backup data retrieved for {ticker}")
+                    
+                    # Dodanie cen historycznych do cache
+                    if 'eodhd_prices' in eodhd_data:
+                        data['fmp_prices'] = eodhd_data['eodhd_prices']  # Użyj jako fmp_prices dla kompatybilności
+                        logger.info(f"Added EODHD prices to cache for {ticker}")
+                    
+                    # Dodanie dywidend do cache
+                    if 'eodhd_dividends' in eodhd_data:
+                        data['fmp_dividends'] = eodhd_data['eodhd_dividends']  # Użyj jako fmp_dividends dla kompatybilności
+                        logger.info(f"Added EODHD dividends to cache for {ticker}")
             
             # 3. FALLBACK: Tiingo - ostatnia cena
             if not data.get('current_price'):
@@ -228,10 +363,20 @@ class APIService:
                     data.update(tiingo_data)
                     logger.info(f"Tiingo fallback data retrieved for {ticker}")
             
-            # Sprawdzenie minimalnych wymaganych danych
-            if not data.get('current_price'):
+            # Sprawdzenie minimalnych wymaganych danych - cena musi być dostępna
+            current_price = data.get('current_price')
+            if not current_price:
+                # Sprawdź backup sources
+                current_price = data.get('eodhd_current_price')
+                if not current_price:
+                    current_price = data.get('tiingo_current_price')
+                
+            if not current_price:
                 logger.error(f"No price data available for {ticker} from any source")
                 return None
+            
+            # Upewniam się, że current_price jest ustawione
+            data['current_price'] = current_price
             
             # Cache danych
             self.cache[cache_key] = {
@@ -319,13 +464,15 @@ class APIService:
     
     def _get_eodhd_data(self, ticker: str) -> Optional[Dict]:
         """
-        Pobiera dane z EOD Historical Data (BACKUP - ceny historyczne)
+        Pobiera dane z EOD Historical Data (BACKUP - ceny historyczne + dywidendy)
         """
         if not self.config.EODHD_API_KEY:
             return None
             
         try:
-            # Miesięczne ceny (ostatnie 15 lat)
+            eodhd_data = {}
+            
+            # 1. Miesięczne ceny (ostatnie 15 lat)
             price_url = f"{self.config.EODHD_BASE_URL}/eod/{ticker}"
             price_params = {
                 'api_token': self.config.EODHD_API_KEY,
@@ -336,6 +483,9 @@ class APIService:
             
             price_response = self._make_request_with_retry(price_url, params=price_params)
             if price_response and price_response.status_code == 200:
+                # Zwiększanie licznika API calls
+                self._increment_api_call('eodhd')
+                
                 price_data = price_response.json()
                 if price_data and len(price_data) > 0:
                     # Najnowsza cena jako current_price
@@ -343,11 +493,35 @@ class APIService:
                     current_price = float(latest_price.get('close', 0))
                     
                     if current_price > 0:
-                        return {
+                        eodhd_data.update({
                             'eodhd_current_price': current_price,
                             'eodhd_prices': price_data,
                             'eodhd_latest_date': latest_price.get('date')
-                        }
+                        })
+            
+            # 2. Próba pobrania dywidend (jeśli endpoint istnieje)
+            try:
+                dividend_url = f"{self.config.EODHD_BASE_URL}/div/{ticker}"
+                dividend_params = {
+                    'api_token': self.config.EODHD_API_KEY,
+                    'fmt': 'json',
+                    'limit': 200  # Ostatnie 200 dywidend
+                }
+                
+                dividend_response = self._make_request_with_retry(dividend_url, params=dividend_params)
+                if dividend_response and dividend_response.status_code == 200:
+                    dividend_data = dividend_response.json()
+                    if dividend_data and len(dividend_data) > 0:
+                        logger.info(f"EODHD returned {len(dividend_data)} dividends for {ticker}")
+                        eodhd_data['eodhd_dividends'] = dividend_data
+                    else:
+                        logger.info(f"EODHD returned empty dividend data for {ticker}")
+                else:
+                    logger.info(f"EODHD dividend endpoint not available for {ticker} (HTTP {dividend_response.status_code if dividend_response else 'No response'})")
+            except Exception as e:
+                logger.info(f"EODHD dividend endpoint error for {ticker}: {str(e)}")
+            
+            return eodhd_data if eodhd_data else None
             
         except Exception as e:
             logger.error(f"EODHD error for {ticker}: {str(e)}")
@@ -409,6 +583,12 @@ class APIService:
                     time.sleep(wait_time)
                 else:
                     logger.warning(f"HTTP {response.status_code} for {url}, attempt {attempt + 1}")
+                    # Dodanie szczegółowego logowania dla debugowania
+                    try:
+                        response_text = response.text[:200]  # Pierwsze 200 znaków
+                        logger.info(f"Response content: {response_text}")
+                    except:
+                        pass
                     
             except Exception as e:
                 logger.error(f"Request error for {url}: {str(e)}, attempt {attempt + 1}")
@@ -491,6 +671,9 @@ class APIService:
                 
                 price_response = self._make_request_with_retry(price_url, params=price_params)
                 if price_response and price_response.status_code == 200:
+                    # Zwiększanie licznika API calls
+                    self._increment_api_call('fmp')
+                    
                     price_data = price_response.json()
                     if 'historical' in price_data:
                         monthly_data = self._convert_fmp_prices_to_monthly(price_data['historical'], years)
@@ -588,6 +771,9 @@ class APIService:
             
             dividend_response = self._make_request_with_retry(dividend_url, params=dividend_params)
             if dividend_response and dividend_response.status_code == 200:
+                # Zwiększanie licznika API calls
+                self._increment_api_call('fmp')
+                
                 dividend_data = dividend_response.json()
                 if 'historical' in dividend_data:
                     # Debug logging
@@ -648,9 +834,13 @@ class APIService:
         
         return []
 
-    def calculate_dividend_streak_growth(self, ticker: str) -> Dict:
+    def calculate_dividend_streak_growth(self, ticker: str, dividends_from_db: List = None) -> Dict:
         """
         Oblicza aktualny Dividend Streak Growth dla ETF
+        
+        Args:
+            ticker: Ticker ETF
+            dividends_from_db: Lista dywidend z bazy danych (opcjonalna)
         
         Returns:
             Dict z informacjami o DSG:
@@ -663,16 +853,22 @@ class APIService:
             }
         """
         try:
-            # Pobieranie historii dywidend
-            dividends = self.get_dividend_history(ticker, years=20)  # Bierzemy więcej lat dla lepszej analizy
+            # Użyj danych z bazy jeśli podane, w przeciwnym razie pobierz z API
+            if dividends_from_db:
+                dividends = dividends_from_db
+                logger.info(f"Using {len(dividends)} dividends from database for {ticker} DSG calculation")
+            else:
+                # Fallback do API (tylko gdy konieczne)
+                logger.info(f"No database dividends provided for {ticker}, fetching from API")
+                dividends = self.get_dividend_history(ticker, years=20)
             
-            if not dividends:
+            if not dividends or len(dividends) == 0:
                 return {
                     'current_streak': 0,
                     'total_years': 0,
                     'streak_start_year': None,
-                    'last_dividend_change': 'N/A',
-                    'calculation_method': 'year-over-year average'
+                    'last_dividend_change': 'Brak dywidend',
+                    'calculation_method': 'no dividends'
                 }
             
             # Grupowanie dywidend według roku i obliczanie średniej rocznej
@@ -700,12 +896,14 @@ class APIService:
                     'calculation_method': 'year-over-year average'
                 }
             
-            # PRAWIDŁOWA LOGIKA: Start od ostatniego zakończonego roku
-            # Sprawdzamy rok po roku wstecz aż do spadku
+            # PRAWIDŁOWA LOGIKA: Sprawdzamy wszystkie lata wstecz aż do spadku
+            # Nie kończymy na pierwszym spadku - szukamy najdłuższego streak
             current_streak = 0
             streak_start_year = None
+            max_streak = 0
+            max_streak_start_year = None
             
-            # Start: ostatni zakończony rok (np. 2024)
+            # Sprawdzamy wszystkie lata wstecz
             for i in range(len(years) - 1, 0, -1):
                 current_year = years[i]      # np. 2024
                 previous_year = years[i - 1] # np. 2023
@@ -718,9 +916,26 @@ class APIService:
                     if current_streak == 0:
                         streak_start_year = current_year
                     current_streak += 1
+                    
+                    # Aktualizuj maksymalny streak
+                    if current_streak > max_streak:
+                        max_streak = current_streak
+                        max_streak_start_year = streak_start_year
                 else:
-                    # Dywidenda nie wzrosła - streak się kończy
-                    break
+                    # Dywidenda nie wzrosła - reset streak ale kontynuuj sprawdzanie
+                    if current_streak > 0:
+                        # Aktualizuj maksymalny streak przed resetem
+                        if current_streak > max_streak:
+                            max_streak = current_streak
+                            max_streak_start_year = streak_start_year
+                    
+                    # Reset streak
+                    current_streak = 0
+                    streak_start_year = None
+            
+            # Użyj maksymalnego streak (nie tylko aktualnego)
+            final_streak = max_streak
+            final_streak_start_year = max_streak_start_year
             
             # Określenie ostatniej zmiany dywidendy
             last_change = "N/A"
@@ -735,9 +950,9 @@ class APIService:
                     last_change = f"Bez zmian: {yearly_averages[last_year]:.4f}"
             
             return {
-                'current_streak': current_streak,
+                'current_streak': final_streak,
                 'total_years': len(years),
-                'streak_start_year': streak_start_year,
+                'streak_start_year': final_streak_start_year,
                 'last_dividend_change': last_change,
                 'calculation_method': 'year-over-year average'
             }
@@ -769,6 +984,9 @@ class APIService:
             logger.info(f"Fetching splits for {ticker} from: {splits_url}")
             splits_response = self._make_request_with_retry(splits_url, params=splits_params)
             if splits_response and splits_response.status_code == 200:
+                # Zwiększanie licznika API calls
+                self._increment_api_call('fmp')
+                
                 splits_data = splits_response.json()
                 logger.info(f"Splits response for {ticker}: {splits_data}")
                 if isinstance(splits_data, list):

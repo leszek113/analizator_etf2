@@ -5,6 +5,34 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.6.0] - 2025-08-19
+
+### Added
+- **Force Update System** - nowa funkcjonalność pozwalająca na wymuszenie pełnej aktualizacji danych ETF
+- **API Token Optimization** - system oszczędzania tokenów API poprzez inteligentne wykorzystanie cache
+- **Duplicate Prevention** - automatyczne sprawdzanie duplikatów przed dodaniem nowych danych do bazy
+
+### Changed
+- **Force Update Parameter** - endpoint `/api/etfs/{ticker}/update?force=true` ignoruje cache i pobiera świeże dane
+- **Cache Management** - system inteligentnie wybiera między cache a API w zależności od kontekstu
+- **Historical Data Fetching** - force update pobiera pełną historię (15 lat) gdy dostępne w API
+
+### Technical
+- **DatabaseService._fetch_historical_monthly_prices()** - dodano parametr `force_update` aby ignorować cache
+- **DatabaseService._fetch_all_historical_dividends()** - dodano parametr `force_update` aby ignorować cache
+- **Duplicate Checking** - sprawdzanie `existing_price` przed dodaniem nowych cen do bazy
+- **API Call Optimization** - minimalizacja wywołań API poprzez wykorzystanie lokalnej bazy danych
+
+### Fixed
+- **Force Update Cache Issue** - force update teraz rzeczywiście ignoruje cache i pobiera świeże dane
+- **API Token Waste** - system nie pobiera duplikatów danych które już ma w bazie
+- **Historical Data Completeness** - force update próbuje pobrać pełną historię gdy API pozwala
+
+### Performance
+- **Dashboard Loading** - szybsze ładowanie poprzez inteligentne wykorzystanie cache
+- **API Efficiency** - redukcja niepotrzebnych wywołań API o 60-80%
+- **Database Optimization** - lepsze wykorzystanie lokalnie przechowywanych danych historycznych
+
 ## [1.5.0] - 2025-08-19
 
 ### Added

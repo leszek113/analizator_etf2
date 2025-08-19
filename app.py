@@ -30,11 +30,11 @@ def create_app():
     db.init_app(app)
     CORS(app)
     
-    # Inicjalizacja serwisu bazy danych
-    db_service = DatabaseService()
-    
     # Inicjalizacja serwisu API
     api_service = APIService()
+    
+    # Inicjalizacja serwisu bazy danych (używa współdzielonego APIService)
+    db_service = DatabaseService(api_service=api_service)
     
     # Inicjalizacja bazy danych
     with app.app_context():
@@ -111,13 +111,12 @@ def create_app():
         try:
             etfs = db_service.get_all_etfs()
             
-            # Dodajemy DSG dla każdego ETF
+            # Konwertujemy ETF na dict bez wywoływania DSG
             etfs_with_dsg = []
             for etf in etfs:
                 etf_data = etf.to_dict()
-                # Obliczamy DSG
-                dsg_data = api_service.calculate_dividend_streak_growth(etf.ticker)
-                etf_data['dsg'] = dsg_data
+                # DSG będzie obliczane na żądanie, nie przy każdym ładowaniu dashboard
+                etf_data['dsg'] = None  # Placeholder - DSG będzie pobierane osobno
                 etfs_with_dsg.append(etf_data)
             
             return jsonify({
@@ -197,7 +196,21 @@ def create_app():
     def update_etf(ticker):
         """API endpoint do aktualizacji danych ETF"""
         try:
-            success = db_service.update_etf_data(ticker)
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = db_service.get_etf_by_ticker(ticker)
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Sprawdzanie parametru force_update
+            force_update = request.args.get('force', 'false').lower() == 'true'
+            
+            # Aktualizacja danych ETF
+            success = db_service.update_etf_data(ticker, force_update=force_update)
             if not success:
                 return jsonify({
                     'success': False,
@@ -255,7 +268,7 @@ def create_app():
                 }), 404
             
             # Pobieranie cen z bazy danych
-            db_service = DatabaseService()
+            db_service = DatabaseService(api_service=api_service)
             prices = db_service.get_monthly_prices(etf.id)
             
             if not prices:
@@ -323,29 +336,40 @@ def create_app():
     
     @app.route('/api/etfs/<ticker>/dsg', methods=['GET'])
     def get_etf_dsg(ticker):
-        """API endpoint do pobierania Dividend Streak Growth dla ETF"""
+        """API endpoint do pobierania DSG dla konkretnego ETF"""
         try:
+            # Sprawdzanie czy ETF istnieje
             etf = db_service.get_etf_by_ticker(ticker)
             if not etf:
                 return jsonify({
                     'success': False,
-                    'error': f'ETF {ticker} not found'
+                    'error': f'ETF {ticker} nie został znaleziony'
                 }), 404
             
-            # Obliczanie DSG używając API service
-            dsg_data = api_service.calculate_dividend_streak_growth(ticker)
+            # Pobieranie dywidend z bazy danych
+            dividends = db_service.get_etf_dividends(etf.id)
+            
+            # Konwersja dywidend z bazy na format oczekiwany przez DSG
+            dividends_for_dsg = []
+            for dividend in dividends:
+                dividends_for_dsg.append({
+                    'payment_date': dividend.payment_date,
+                    'amount': dividend.normalized_amount or dividend.amount
+                })
+            
+            # Obliczanie DSG używając danych z bazy
+            dsg_data = api_service.calculate_dividend_streak_growth(ticker, dividends_from_db=dividends_for_dsg)
             
             return jsonify({
                 'success': True,
                 'data': {
-                    'ticker': ticker,
-                    'name': etf.name,
+                    'ticker': ticker.upper(),
                     'dsg': dsg_data
                 }
             })
             
         except Exception as e:
-            logger.error(f"Error calculating DSG for ETF {ticker}: {str(e)}")
+            logger.error(f"Error calculating DSG for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)
@@ -467,11 +491,14 @@ def create_app():
             
             # Status tokenów API
             api_health = {}
+            api_status = {}
             try:
                 api_service = APIService()
                 api_health = api_service.check_api_health()
+                api_status = api_service.get_api_status()  # Dodanie pełnego statusu API
             except Exception as e:
                 api_health = {'error': str(e)}
+                api_status = {'error': str(e)}
             
             return render_template('system_status.html', 
                                 etf_count=etf_count,
@@ -479,7 +506,8 @@ def create_app():
                                 dividend_count=dividend_count,
                                 log_count=log_count,
                                 last_update=last_update,
-                                api_health=api_health)
+                                api_health=api_health,
+                                api_status=api_status)  # Przekazanie minutowych limitów
             
         except Exception as e:
             logger.error(f"Error rendering system status page: {str(e)}")

@@ -35,4 +35,4 @@ class Config:
     
     # Retry settings
     MAX_RETRIES = 3
-    RETRY_DELAY_BASE = 2  # seconds
+    RETRY_DELAY_BASE = 0.5  # seconds - zmniejszone z 2 na 0.5

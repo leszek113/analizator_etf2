@@ -139,3 +139,28 @@ class SystemLog(db.Model):
             'level': self.level,
             'metadata': self.metadata_json
         }
+
+class APILimit(db.Model):
+    __tablename__ = 'api_limits'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    api_type = db.Column(db.String(20), unique=True, nullable=False, index=True)  # 'fmp', 'eodhd', 'tiingo'
+    current_count = db.Column(db.Integer, default=0, nullable=False)
+    daily_limit = db.Column(db.Integer, nullable=False)
+    last_reset = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<APILimit {self.api_type}: {self.current_count}/{self.daily_limit}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'api_type': self.api_type,
+            'current_count': self.current_count,
+            'daily_limit': self.daily_limit,
+            'last_reset': self.last_reset.isoformat() if self.last_reset else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

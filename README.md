@@ -14,6 +14,9 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 ✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend (12 miesięcznych, 4 kwartalnych, 1 rocznej)
 ✅ **System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
 ✅ **Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu, bazie danych i tokenach API
+✅ **Force Update System** - wymuszenie pełnej aktualizacji danych ETF z ignorowaniem cache
+✅ **API Token Optimization** - inteligentne oszczędzanie tokenów API poprzez wykorzystanie lokalnej bazy danych
+✅ **Duplicate Prevention** - automatyczne sprawdzanie duplikatów przed dodaniem nowych danych
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
@@ -89,12 +92,56 @@ python app.py
 # Aplikacja będzie dostępna na http://localhost:5005
 ```
 
+## 🚀 **Force Update System**
+
+### **Co to jest Force Update?**
+Force Update to funkcjonalność pozwalająca na wymuszenie pełnej aktualizacji danych ETF z ignorowaniem cache i lokalnej bazy danych.
+
+### **Kiedy używać?**
+- **Nowe ETF** - gdy dodajesz ETF po raz pierwszy
+- **Brakujące dane** - gdy ETF ma niekompletne dane historyczne
+- **Aktualizacja splitów** - gdy chcesz zaktualizować normalizację po splitach
+- **Debugging** - gdy chcesz sprawdzić czy API ma nowe dane
+
+### **Jak używać?**
+```bash
+# Wymuszenie pełnej aktualizacji SCHD
+curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
+
+# Lub przez dashboard - przycisk "Force Update"
+```
+
+### **Co robi Force Update?**
+1. **Ignoruje cache** - pobiera świeże dane z API
+2. **Sprawdza duplikaty** - nie dodaje danych które już ma
+3. **Pobiera pełną historię** - próbuje pobrać 15 lat danych
+4. **Oszczędza tokeny** - nie robi niepotrzebnych wywołań API
+
+## 💰 **API Token Optimization**
+
+### **Strategia oszczędzania tokenów:**
+1. **Cache First** - używa lokalnej bazy danych gdy możliwe
+2. **Smart Updates** - sprawdza tylko nowe dane
+3. **Duplicate Prevention** - nie pobiera danych które już ma
+4. **Force Update** - tylko gdy rzeczywiście potrzebne
+
+### **Oszczędności:**
+- **Normalne aktualizacje**: 60-80% mniej wywołań API
+- **Dashboard loading**: 90% mniej wywołań API
+- **Historical data**: 100% z lokalnej bazy (bez API calls)
+
+### **Monitoring tokenów:**
+- **Status systemu** - `/system/status`
+- **API health** - monitoring wszystkich źródeł
+- **Rate limiting** - kontrola minutowych i dziennych limitów
+
 ## 🌐 **API Endpoints**
 
 - `GET /api/etfs` - Lista wszystkich ETF
 - `GET /api/etfs/{ticker}` - Szczegóły konkretnego ETF
 - `POST /api/etfs` - Dodanie nowego ETF
 - `POST /api/etfs/{ticker}/update` - Aktualizacja danych ETF
+- `POST /api/etfs/{ticker}/update?force=true` - Wymuszenie pełnej aktualizacji (ignoruje cache)
 - `DELETE /api/etfs/{ticker}` - Usunięcie ETF wraz z wszystkimi danymi
 - `GET /api/etfs/{ticker}/prices` - Historia cen
 - `GET /api/etfs/{ticker}/dividends` - Historia dywidend

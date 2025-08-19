@@ -229,7 +229,15 @@
                                 <span class="text-warning">Żółte</span> = spadek dywidendy rok do roku, 
                                 <span class="text-secondary">Szare</span> = bez zmian. 
                                 <br>
-                                <strong>Split akcji:</strong> SCHD miał split 3:1 dnia 11 października 2024.
+                                <strong>Split akcji:</strong> 
+                                {% if etf.splits.count() > 0 %}
+                                    {% for split in etf.splits %}
+                                        {{ split.description }} dnia {{ split.split_date.strftime('%d %B %Y') }}
+                                        {% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    Brak splitów akcji w historii tego ETF.
+                                {% endif %}
                                 <br>
                                 <strong>Komórki miesięczne:</strong> Suma dywidend wypłaconych w danym miesiącu. 
                                 Jeśli w miesiącu wypłacono kilka dywidend, pokazana jest suma.

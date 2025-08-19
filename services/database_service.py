@@ -8,8 +8,8 @@ from services.api_service import APIService
 logger = logging.getLogger(__name__)
 
 class DatabaseService:
-    def __init__(self):
-        self.api_service = APIService()
+    def __init__(self, api_service: APIService = None):
+        self.api_service = api_service or APIService()
     
     def add_etf(self, ticker: str) -> Optional[ETF]:
         """
@@ -80,9 +80,13 @@ class DatabaseService:
             self._log_action('ERROR', f"Failed to add ETF {ticker}: {str(e)}", 'ERROR')
             return None
     
-    def update_etf_data(self, ticker: str) -> bool:
+    def update_etf_data(self, ticker: str, force_update: bool = False) -> bool:
         """
         Aktualizuje dane istniejącego ETF
+        
+        Args:
+            ticker: Ticker ETF
+            force_update: Jeśli True, wymusza pełną aktualizację (15 lat historii)
         """
         try:
             # Sprawdzanie statusu tokenów API przed aktualizacją
@@ -127,12 +131,18 @@ class DatabaseService:
             # Sprawdzanie nowych cen
             new_prices = self._check_new_prices(etf.id, ticker)
             
+            # Jeśli force_update, pobierz pełną historię (15 lat)
+            if force_update:
+                logger.info(f"Force update requested for {ticker}, fetching full 15-year history")
+                self._fetch_all_historical_dividends(etf.id, ticker, force_update=True)
+                self._fetch_historical_monthly_prices(etf.id, ticker, force_update=True)
+            
             # Zarządzanie splitami
             split_updated = self._manage_splits(etf.id, ticker)
             
             db.session.commit()
             
-            if new_dividends or new_prices or split_updated:
+            if new_dividends or new_prices or split_updated or force_update:
                 self._log_action('ETF_UPDATED', f"Updated ETF {ticker} with new data from FMP")
                 logger.info(f"Successfully updated ETF {ticker} with new data")
             else:
@@ -271,18 +281,39 @@ class DatabaseService:
 
     def _add_historical_prices(self, etf_id: int, ticker: str) -> None:
         """
-        Dodaje historyczne ceny ETF
+        Dodaje historyczne ceny ETF - używa danych z cache jeśli dostępne
         """
         try:
-            prices_data = self.api_service.get_historical_prices(ticker, normalize_splits=True)
+            # Próba użycia danych z cache (jeśli były pobrane przez get_etf_data)
+            cached_data = self.api_service.cache.get(f"etf_data_{ticker}")
+            prices_data = []
+            
+            # Debug logging
+            logger.info(f"Cache check for {ticker}: {list(self.api_service.cache.keys()) if self.api_service.cache else 'Empty cache'}")
+            if cached_data:
+                logger.info(f"Cache data keys for {ticker}: {list(cached_data['data'].keys())}")
+            
+            if cached_data and 'fmp_prices' in cached_data['data']:
+                # Użyj danych z cache
+                logger.info(f"Using cached price data for {ticker}")
+                raw_prices = cached_data['data']['fmp_prices']
+                prices_data = self._convert_fmp_prices_to_monthly(raw_prices, years=15)
+            else:
+                # Fallback do API
+                logger.info(f"No cached price data for {ticker}, fetching from API")
+                prices_data = self.api_service.get_historical_prices(ticker, normalize_splits=True)
+            
+            if not prices_data:
+                logger.warning(f"No price data available for {ticker}")
+                return
             
             for price_data in prices_data:
                 price = ETFPrice(
                     etf_id=etf_id,
                     date=price_data['date'],
-                    close_price=price_data['close_price'],
-                    normalized_close_price=price_data['normalized_close'],
-                    split_ratio_applied=price_data['split_ratio_applied']
+                    close_price=price_data['close'],
+                    normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                    split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
                 )
                 db.session.add(price)
             
@@ -293,19 +324,35 @@ class DatabaseService:
     
     def _add_historical_dividends(self, etf_id: int, ticker: str) -> None:
         """
-        Dodaje historyczne dywidendy ETF
+        Dodaje historyczne dywidendy ETF - używa danych z cache jeśli dostępne
         """
         try:
-            dividends_data = self.api_service.get_dividend_history(ticker, normalize_splits=True)
+            # Próba użycia danych z cache (jeśli były pobrane przez get_etf_data)
+            cached_data = self.api_service.cache.get(f"etf_data_{ticker}")
+            dividends_data = []
+            
+            if cached_data and 'fmp_dividends' in cached_data['data']:
+                # Użyj danych z cache
+                logger.info(f"Using cached dividend data for {ticker}")
+                raw_dividends = cached_data['data']['fmp_dividends']
+                dividends_data = self._convert_fmp_dividends_to_standard(raw_dividends)
+            else:
+                # Fallback do API
+                logger.info(f"No cached dividend data for {ticker}, fetching from API")
+                dividends_data = self.api_service.get_dividend_history(ticker, normalize_splits=True)
+            
+            if not dividends_data:
+                logger.warning(f"No dividend data available for {ticker}")
+                return
             
             for dividend_data in dividends_data:
                 dividend = ETFDividend(
                     etf_id=etf_id,
                     payment_date=dividend_data['payment_date'],
-                    ex_date=dividend_data['ex_date'],
-                    amount=dividend_data['original_amount'],
-                    normalized_amount=dividend_data['normalized_amount'],
-                    split_ratio_applied=dividend_data['split_ratio_applied']
+                    ex_date=dividend_data.get('ex_date'),
+                    amount=dividend_data.get('original_amount', dividend_data['amount']),
+                    normalized_amount=dividend_data.get('normalized_amount', dividend_data['amount']),
+                    split_ratio_applied=dividend_data.get('split_ratio_applied', 1.0)
                 )
                 db.session.add(dividend)
             
@@ -356,8 +403,26 @@ class DatabaseService:
                 logger.info(f"No truly new dividends for {ticker}")
                 return False
             
-            # Dodawanie nowych dywidend
+            # Upewniam się, że wszystkie nowe dywidendy mają wymagane klucze
+            processed_new_dividends = []
             for dividend_data in truly_new_dividends:
+                # Sprawdzanie czy dane mają wymagane klucze
+                if 'original_amount' not in dividend_data:
+                    # Jeśli nie ma original_amount, używam amount jako original_amount
+                    dividend_data['original_amount'] = dividend_data.get('amount', 0)
+                
+                if 'normalized_amount' not in dividend_data:
+                    # Jeśli nie ma normalized_amount, używam original_amount (brak splitów)
+                    dividend_data['normalized_amount'] = dividend_data['original_amount']
+                
+                if 'split_ratio_applied' not in dividend_data:
+                    # Jeśli nie ma split_ratio_applied, ustawiam 1.0 (brak splitów)
+                    dividend_data['split_ratio_applied'] = 1.0
+                
+                processed_new_dividends.append(dividend_data)
+            
+            # Dodawanie nowych dywidend
+            for dividend_data in processed_new_dividends:
                 dividend = ETFDividend(
                     etf_id=etf_id,
                     payment_date=dividend_data['payment_date'],
@@ -368,29 +433,93 @@ class DatabaseService:
                 )
                 db.session.add(dividend)
             
-            logger.info(f"Added {len(truly_new_dividends)} new dividends for ETF {ticker}")
+            logger.info(f"Added {len(processed_new_dividends)} new dividends for ETF {ticker}")
             return True
             
         except Exception as e:
             logger.error(f"Error checking new dividends for ETF {ticker}: {str(e)}")
             return False
 
-    def _fetch_all_historical_dividends(self, etf_id: int, ticker: str) -> bool:
+    def _fetch_all_historical_dividends(self, etf_id: int, ticker: str, force_update: bool = False) -> bool:
         """
-        Pobiera wszystkie historyczne dywidendy (tylko przy pierwszym uruchomieniu)
+        Pobiera wszystkie historyczne dywidendy (15 lat) - używa cache
+        
+        Args:
+            etf_id: ID ETF w bazie danych
+            ticker: Ticker ETF
+            force_update: Jeśli True, ignoruje cache i pobiera nowe dane
         """
         try:
-            logger.info(f"Fetching all historical dividends for {ticker} (first time)")
+            if force_update:
+                logger.info(f"Force update requested for {ticker}, ignoring cache and fetching fresh dividends")
+            else:
+                logger.info(f"Fetching all historical dividends for {ticker} (first time)")
             
-            # Pobieranie wszystkich dostępnych dywidend z FMP API (15 lat) z normalizacją
-            all_dividends = self.api_service.get_dividend_history(ticker, years=15, normalize_splits=True)
+            # Sprawdzanie czy mamy już dywidendy w bazie
+            existing_dividends = ETFDividend.query.filter_by(etf_id=etf_id).count()
+            if existing_dividends > 0 and not force_update:
+                logger.info(f"ETF {ticker} already has {existing_dividends} dividends in database, skipping historical fetch")
+                return True
+            
+            # Próba użycia danych z cache (jeśli były pobrane przez get_etf_data)
+            all_dividends = []
+            
+            if not force_update and self.api_service.cache.get(f"etf_data_{ticker}"):
+                cached_data = self.api_service.cache.get(f"etf_data_{ticker}")
+                if cached_data and 'fmp_dividends' in cached_data['data']:
+                    # Użyj danych z cache
+                    logger.info(f"Using cached dividend data for {ticker} in _fetch_all_historical_dividends")
+                    raw_dividends = cached_data['data']['fmp_dividends']
+                    all_dividends = self._convert_fmp_dividends_to_standard(raw_dividends)
+                else:
+                    # Fallback do API
+                    logger.info(f"No cached dividend data for {ticker}, fetching from API")
+                    all_dividends = self.api_service.get_dividend_history(ticker, years=15, normalize_splits=True)
+            else:
+                # Force update lub brak cache - pobierz z API
+                logger.info(f"{'Force update' if force_update else 'No cached data'} for {ticker}, fetching dividends from API")
+                all_dividends = self.api_service.get_dividend_history(ticker, years=15, normalize_splits=True)
+            
+            # Jeśli nadal brak dywidend, spróbuj EODHD jako backup
+            if not all_dividends:
+                logger.info(f"No dividends from FMP for {ticker}, trying EODHD backup")
+                eodhd_data = self.api_service._get_eodhd_data(ticker)
+                if eodhd_data and 'eodhd_dividends' in eodhd_data:
+                    logger.info(f"Found EODHD dividends for {ticker}, converting to standard format")
+                    all_dividends = self._convert_eodhd_dividends_to_standard(eodhd_data['eodhd_dividends'])
+                else:
+                    logger.info(f"No EODHD dividends available for {ticker}")
             
             if not all_dividends:
                 logger.warning(f"No dividends returned from API for {ticker}")
                 return False
             
-            # Dodawanie wszystkich dywidend
+            # Debug logging - sprawdzenie struktury danych
+            if all_dividends:
+                sample_dividend = all_dividends[0]
+                logger.info(f"Sample dividend data structure for {ticker}: {list(sample_dividend.keys())}")
+                logger.info(f"Sample dividend data: {sample_dividend}")
+            
+            # Upewniam się, że wszystkie dywidendy mają wymagane klucze
+            processed_dividends = []
             for dividend_data in all_dividends:
+                # Sprawdzanie czy dane mają wymagane klucze
+                if 'original_amount' not in dividend_data:
+                    # Jeśli nie ma original_amount, używam amount jako original_amount
+                    dividend_data['original_amount'] = dividend_data.get('amount', 0)
+                
+                if 'normalized_amount' not in dividend_data:
+                    # Jeśli nie ma normalized_amount, używam original_amount (brak splitów)
+                    dividend_data['normalized_amount'] = dividend_data['original_amount']
+                
+                if 'split_ratio_applied' not in dividend_data:
+                    # Jeśli nie ma split_ratio_applied, ustawiam 1.0 (brak splitów)
+                    dividend_data['split_ratio_applied'] = 1.0
+                
+                processed_dividends.append(dividend_data)
+            
+            # Dodawanie wszystkich dywidend
+            for dividend_data in processed_dividends:
                 dividend = ETFDividend(
                     etf_id=etf_id,
                     payment_date=dividend_data['payment_date'],
@@ -401,7 +530,7 @@ class DatabaseService:
                 )
                 db.session.add(dividend)
             
-            logger.info(f"Added {len(all_dividends)} historical dividends for ETF {ticker}")
+            logger.info(f"Added {len(processed_dividends)} historical dividends for ETF {ticker}")
             return True
             
         except Exception as e:
@@ -467,39 +596,93 @@ class DatabaseService:
             logger.error(f"Error checking new prices for ETF {ticker}: {str(e)}")
             return False
 
-    def _fetch_historical_monthly_prices(self, etf_id: int, ticker: str) -> bool:
+    def _fetch_historical_monthly_prices(self, etf_id: int, ticker: str, force_update: bool = False) -> bool:
         """
-        Pobiera historyczne ceny miesięczne (tylko przy pierwszym uruchomieniu)
+        Pobiera historyczne ceny miesięczne (tylko przy pierwszym uruchomieniu) - używa cache
+        
+        Args:
+            etf_id: ID ETF w bazie danych
+            ticker: Ticker ETF
+            force_update: Jeśli True, ignoruje cache i pobiera nowe dane
         """
         try:
-            logger.info(f"Fetching historical monthly prices for {ticker} (first time)")
+            if force_update:
+                logger.info(f"Force update requested for {ticker}, ignoring cache and fetching fresh data")
+            else:
+                logger.info(f"Fetching historical monthly prices for {ticker} (first time)")
             
-            # Pobieranie historycznych cen miesięcznych (15 lat)
-            historical_prices = self.api_service.get_historical_prices(ticker, years=15, normalize_splits=True)
+            # Próba użycia danych z cache (jeśli były pobrane przez get_etf_data)
+            historical_prices = []
+            
+            if not force_update and self.api_service.cache.get(f"etf_data_{ticker}"):
+                cached_data = self.api_service.cache.get(f"etf_data_{ticker}")
+                if 'fmp_prices' in cached_data['data']:
+                    # Użyj danych z cache
+                    logger.info(f"Using cached price data for {ticker} in _fetch_historical_monthly_prices")
+                    raw_prices = cached_data['data']['fmp_prices']
+                    historical_prices = self._convert_fmp_prices_to_monthly(raw_prices, years=15)
+            
+            # Jeśli nie ma danych z cache lub force_update, pobierz z API
+            if not historical_prices:
+                logger.info(f"{'Force update' if force_update else 'No cached price data'} for {ticker}, fetching from API")
+                historical_prices = self.api_service.get_historical_prices(ticker, years=15, normalize_splits=True)
             
             if not historical_prices:
                 logger.warning(f"No historical prices returned from API for {ticker}")
                 return False
             
+            # Debug logging - sprawdzenie struktury danych
+            if historical_prices:
+                sample_price = historical_prices[0]
+                logger.info(f"Sample price data structure for {ticker}: {list(sample_price.keys())}")
+                logger.info(f"Sample price data: {sample_price}")
+            
+            # Upewniam się, że wszystkie ceny mają wymagane klucze
+            processed_prices = []
+            for price_data in historical_prices:
+                # Sprawdzanie czy dane mają wymagane klucze
+                if 'original_close' not in price_data:
+                    # Jeśli nie ma original_close, używam close jako original_close
+                    price_data['original_close'] = price_data.get('close', 0)
+                
+                if 'normalized_close' not in price_data:
+                    # Jeśli nie ma normalized_close, używam original_close (brak splitów)
+                    price_data['normalized_close'] = price_data['original_close']
+                
+                if 'split_ratio_applied' not in price_data:
+                    # Jeśli nie ma split_ratio_applied, ustawiam 1.0 (brak splitów)
+                    price_data['split_ratio_applied'] = 1.0
+                
+                processed_prices.append(price_data)
+            
             # Dodawanie cen miesięcznych
             added_count = 0
-            for price_data in historical_prices:
-                # Sprawdzanie czy to cena miesięczna (ostatni dzień miesiąca)
-                price_date = price_data['date']
-                if isinstance(price_date, str):
-                    price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
-                
-                # Sprawdzanie czy to ostatni dzień miesiąca
-                if price_date.day >= 25:  # Uproszczone sprawdzanie
-                    price = ETFPrice(
-                        etf_id=etf_id,
-                        date=price_date,
-                        close_price=price_data['close'],
-                        normalized_close_price=price_data['normalized_close'],
-                        split_ratio_applied=price_data['split_ratio_applied']
-                    )
-                    db.session.add(price)
-                    added_count += 1
+            for price_data in processed_prices:
+                try:
+                    # Sprawdzanie czy cena już istnieje
+                    existing_price = ETFPrice.query.filter_by(
+                        etf_id=etf_id, 
+                        date=price_data['date']
+                    ).first()
+                    
+                    if not existing_price:
+                        # Tworzenie nowej ceny
+                        new_price = ETFPrice(
+                            etf_id=etf_id,
+                            date=price_data['date'],
+                            close_price=price_data['original_close'],
+                            normalized_close_price=price_data['normalized_close'],
+                            split_ratio_applied=price_data['split_ratio_applied']
+                        )
+                        db.session.add(new_price)
+                        added_count += 1
+                        logger.debug(f"Added price for {ticker} on {price_data['date']}: {price_data['original_close']}")
+                    else:
+                        logger.debug(f"Price for {ticker} on {price_data['date']} already exists")
+                        
+                except Exception as e:
+                    logger.error(f"Error adding price for {ticker} on {price_data['date']}: {str(e)}")
+                    continue
             
             logger.info(f"Added {added_count} historical monthly prices for ETF {ticker}")
             return added_count > 0
@@ -762,3 +945,106 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error checking monthly frequency: {str(e)}")
             return False
+
+    def _convert_fmp_dividends_to_standard(self, fmp_dividends: List[Dict]) -> List[Dict]:
+        """
+        Konwertuje dywidendy z formatu FMP na standardowy format
+        """
+        standard_dividends = []
+        
+        for fmp_div in fmp_dividends:
+            try:
+                # FMP zwraca 'dividend' a nie 'amount'
+                dividend_amount = fmp_div.get('dividend') or fmp_div.get('amount', 0)
+                if dividend_amount:
+                    standard_div = {
+                        'payment_date': datetime.strptime(fmp_div['date'], '%Y-%m-%d').date(),
+                        'ex_date': None,  # FMP nie ma ex-date
+                        'amount': float(dividend_amount),
+                        'original_amount': float(dividend_amount),
+                        'normalized_amount': float(dividend_amount),
+                        'split_ratio_applied': 1.0
+                    }
+                    standard_dividends.append(standard_div)
+            except (KeyError, ValueError) as e:
+                logger.warning(f"Error converting FMP dividend: {str(e)}")
+                continue
+        
+        return standard_dividends
+
+    def _convert_fmp_prices_to_monthly(self, fmp_prices: List[Dict], years: int = 15) -> List[Dict]:
+        """
+        Konwertuje ceny z formatu FMP na miesięczne
+        """
+        monthly_data = []
+        cutoff_date = datetime.now() - timedelta(days=years*365)
+        
+        logger.info(f"Converting {len(fmp_prices)} FMP prices to monthly for {years} years")
+        logger.info(f"Cutoff date: {cutoff_date.date()}")
+        
+        for price in fmp_prices:
+            try:
+                price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+                if price_date >= cutoff_date:
+                    monthly_price = {
+                        'date': price_date.date(),
+                        'close': float(price['close']),
+                        'open': float(price['open']),
+                        'high': float(price['high']),
+                        'low': float(price['low']),
+                        'volume': int(price['volume'])
+                    }
+                    monthly_data.append(monthly_price)
+            except (KeyError, ValueError) as e:
+                logger.warning(f"Error converting FMP price: {str(e)}")
+                continue
+        
+        logger.info(f"Converted {len(monthly_data)} monthly prices")
+        return monthly_data
+
+    def _convert_eodhd_dividends_to_standard(self, eodhd_dividends: List[Dict]) -> List[Dict]:
+        """
+        Konwertuje dywidendy z formatu EODHD na standardowy format
+        """
+        standard_dividends = []
+        
+        for eodhd_div in eodhd_dividends:
+            try:
+                # EODHD może mieć różne formaty - sprawdzamy dostępne pola
+                dividend_amount = eodhd_div.get('value') or eodhd_div.get('amount') or eodhd_div.get('dividend', 0)
+                dividend_date = eodhd_div.get('date') or eodhd_div.get('paymentDate')
+                
+                if dividend_amount and dividend_date:
+                    # Konwersja daty
+                    if isinstance(dividend_date, str):
+                        try:
+                            # Próba różnych formatów daty
+                            for date_format in ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S']:
+                                try:
+                                    parsed_date = datetime.strptime(dividend_date, date_format)
+                                    break
+                                except ValueError:
+                                    continue
+                            else:
+                                logger.warning(f"Could not parse EODHD dividend date: {dividend_date}")
+                                continue
+                        except:
+                            logger.warning(f"Error parsing EODHD dividend date: {dividend_date}")
+                            continue
+                    else:
+                        parsed_date = dividend_date
+                    
+                    standard_div = {
+                        'payment_date': parsed_date.date() if hasattr(parsed_date, 'date') else parsed_date,
+                        'ex_date': None,  # EODHD może nie mieć ex-date
+                        'amount': float(dividend_amount),
+                        'original_amount': float(dividend_amount),
+                        'normalized_amount': float(dividend_amount),
+                        'split_ratio_applied': 1.0
+                    }
+                    standard_dividends.append(standard_div)
+            except (KeyError, ValueError) as e:
+                logger.warning(f"Error converting EODHD dividend: {str(e)}")
+                continue
+        
+        return standard_dividends
