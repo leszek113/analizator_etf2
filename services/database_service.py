@@ -519,19 +519,37 @@ class DatabaseService:
                 processed_dividends.append(dividend_data)
             
             # Dodawanie wszystkich dywidend
+            added_count = 0
             for dividend_data in processed_dividends:
-                dividend = ETFDividend(
-                    etf_id=etf_id,
-                    payment_date=dividend_data['payment_date'],
-                    ex_date=dividend_data['ex_date'],
-                    amount=dividend_data['original_amount'],
-                    normalized_amount=dividend_data['normalized_amount'],
-                    split_ratio_applied=dividend_data['split_ratio_applied']
-                )
-                db.session.add(dividend)
+                try:
+                    # Sprawdzanie czy dywidenda już istnieje
+                    existing_dividend = ETFDividend.query.filter_by(
+                        etf_id=etf_id,
+                        payment_date=dividend_data['payment_date']
+                    ).first()
+                    
+                    if not existing_dividend:
+                        # Tworzenie nowej dywidendy
+                        dividend = ETFDividend(
+                            etf_id=etf_id,
+                            payment_date=dividend_data['payment_date'],
+                            ex_date=dividend_data['ex_date'],
+                            amount=dividend_data['original_amount'],
+                            normalized_amount=dividend_data['normalized_amount'],
+                            split_ratio_applied=dividend_data['split_ratio_applied']
+                        )
+                        db.session.add(dividend)
+                        added_count += 1
+                        logger.debug(f"Added dividend for {ticker} on {dividend_data['payment_date']}: {dividend_data['original_amount']}")
+                    else:
+                        logger.debug(f"Dividend for {ticker} on {dividend_data['payment_date']} already exists")
+                        
+                except Exception as e:
+                    logger.error(f"Error adding dividend for {ticker} on {dividend_data['payment_date']}: {str(e)}")
+                    continue
             
-            logger.info(f"Added {len(processed_dividends)} historical dividends for ETF {ticker}")
-            return True
+            logger.info(f"Added {added_count} historical dividends for ETF {ticker}")
+            return added_count > 0
             
         except Exception as e:
             logger.error(f"Error fetching historical dividends for ETF {ticker}: {str(e)}")

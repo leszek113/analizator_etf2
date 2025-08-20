@@ -5,6 +5,37 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.7.0] - 2025-08-20
+
+### Added
+- **Strefy czasowe w schedulerze** - automatyczna konwersja UTC ↔ CET w interfejsie systemu
+- **Czytelne opisy zadań** - zrozumiałe nazwy i opisy zamiast technicznych szczegółów
+- **Informacje o strefach czasowych** - wyświetlanie aktualnego czasu UTC i CET
+
+### Changed
+- **Dashboard kafelki** - usunięto zbędny kafelek "Średni Yield", naprawiono rozmiary kafelków
+- **Kafelek "Status systemu"** - cały kafelek jest teraz linkiem do szczegółów systemu
+- **Layout kafelków** - zmieniono z 4 kafelków (col-md-3) na 3 kafelki (col-md-4)
+- **Wyświetlanie zadań schedulera** - czytelne opisy zamiast technicznych nazw
+
+### Technical
+- **Scheduler info** - dodano `display_name` i `description` dla zadań
+- **Timezone conversion** - automatyczna konwersja UTC na CET (UTC+1)
+- **Cron parsing** - inteligentne parsowanie harmonogramu cron dla czytelnych opisów
+- **Dashboard optimization** - usunięto niepotrzebny kod JavaScript
+
+### Fixed
+- **Dashboard layout** - wszystkie kafelki mają teraz ten sam rozmiar
+- **Kafelek status systemu** - usunięto przycisk "Szczegóły", cały kafelek jest linkiem
+- **Scheduler display** - zadania pokazują czytelne opisy zamiast technicznych nazw
+- **Timezone confusion** - jasne wyświetlanie czasu w UTC i CET
+
+### UI/UX
+- **Czytelność dashboard** - usunięto zbędne elementy, poprawiono układ
+- **Intuicyjna nawigacja** - kliknięcie kafelka = przejście do szczegółów
+- **Spójny design** - wszystkie kafelki mają jednolity wygląd
+- **User-friendly descriptions** - zrozumiałe opisy zadań systemowych
+
 ## [1.6.0] - 2025-08-19
 
 ### Added

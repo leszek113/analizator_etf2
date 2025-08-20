@@ -17,6 +17,8 @@ System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywide
 ✅ **Force Update System** - wymuszenie pełnej aktualizacji danych ETF z ignorowaniem cache
 ✅ **API Token Optimization** - inteligentne oszczędzanie tokenów API poprzez wykorzystanie lokalnej bazy danych
 ✅ **Duplicate Prevention** - automatyczne sprawdzanie duplikatów przed dodaniem nowych danych
+✅ **Strefy czasowe w schedulerze** - automatyczna konwersja UTC ↔ CET z czytelnymi opisami zadań
+✅ **Dashboard optimization** - zoptymalizowany układ kafelków z intuicyjną nawigacją
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
@@ -117,6 +119,12 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 3. **Pobiera pełną historię** - próbuje pobrać 15 lat danych
 4. **Oszczędza tokeny** - nie robi niepotrzebnych wywołań API
 
+### **Strefy czasowe i czytelne opisy:**
+- **Automatyczna konwersja** UTC ↔ CET (UTC+1)
+- **Czytelne opisy zadań** zamiast technicznych nazw
+- **Przykład**: "Codziennie o 09:00 UTC (10:00 CET)"
+- **Intuicyjne nazwy**: "Aktualizacja danych dla wszystkich ETF"
+
 ## 💰 **API Token Optimization**
 
 ### **Strategia oszczędzania tokenów:**
@@ -134,6 +142,28 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Status systemu** - `/system/status`
 - **API health** - monitoring wszystkich źródeł
 - **Rate limiting** - kontrola minutowych i dziennych limitów
+
+## 🎨 **Dashboard Optimization**
+
+### **Zoptymalizowany układ kafelków:**
+- **3 kafelki w rzędzie** (col-md-4) zamiast 4 (col-md-3)
+- **Jednolity rozmiar** - wszystkie kafelki mają ten sam wymiar
+- **Lepsze proporcje** - więcej miejsca na każdy kafelek
+
+### **Usunięte elementy:**
+- **Kafelek "Średni Yield"** - zbędne informacje statystyczne
+- **Przycisk "Szczegóły"** - zastąpiony przez link całego kafelka
+- **Niepotrzebny JavaScript** - usunięto obliczenia średniego yield
+
+### **Ulepszona nawigacja:**
+- **Kafelek "Status systemu"** - cały kafelek jest linkiem do `/system/status`
+- **Intuicyjne kliknięcie** - kliknięcie kafelka = przejście do szczegółów
+- **Spójny design** - wszystkie kafelki mają jednolity wygląd i funkcjonalność
+
+### **Korzyści:**
+- **Lepsza czytelność** - mniej elementów, więcej miejsca
+- **Prostszy interfejs** - intuicyjna nawigacja
+- **Spójny UX** - jednolite zachowanie wszystkich kafelków
 
 ## 🌐 **API Endpoints**
 

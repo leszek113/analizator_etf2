@@ -87,7 +87,7 @@
 
         <!-- Stats Cards -->
         <div class="row mt-3">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="stats-card">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -98,18 +98,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stats-card">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="mb-1">Średni Yield</h6>
-                            <h3 class="mb-0" id="avgYield">-</h3>
-                        </div>
-                        <i class="bi bi-percent display-6"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="stats-card">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -120,21 +109,18 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stats-card">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="mb-1">Status systemu</h6>
-                            <h6 class="mb-0" id="systemStatus">-</h6>
+            <div class="col-md-4">
+                <a href="/system/status" class="text-decoration-none">
+                    <div class="stats-card">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="mb-1">Status systemu</h6>
+                                <h6 class="mb-0" id="systemStatus">-</h6>
+                            </div>
+                            <i class="bi bi-server display-6"></i>
                         </div>
-                        <i class="bi bi-server display-6"></i>
                     </div>
-                    <div class="mt-2">
-                        <a href="/system/status" class="btn btn-sm btn-outline-info">
-                            <i class="bi bi-info-circle"></i> Szczegóły
-                        </a>
-                    </div>
-                </div>
+                </a>
             </div>
         </div>
 
@@ -493,10 +479,6 @@
 
         function updateStats() {
             document.getElementById('totalEtfs').textContent = etfData.length;
-            
-            const yields = etfData.filter(etf => etf.current_yield && etf.current_yield > 0).map(etf => etf.current_yield);
-            const avgYield = yields.length > 0 ? (yields.reduce((a, b) => a + b, 0) / yields.length).toFixed(5) : 'N/A';
-            document.getElementById('avgYield').textContent = avgYield === 'N/A' ? 'N/A' : avgYield + '%';
             
             const lastUpdate = etfData.length > 0 ? 
                 new Date(Math.max(...etfData.map(etf => new Date(etf.last_updated || 0)))).toLocaleString('pl-PL') : 
