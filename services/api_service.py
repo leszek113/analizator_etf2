@@ -421,6 +421,9 @@ class APIService:
                 if profile_data and len(profile_data) > 0:
                     profile = profile_data[0]
                     
+                    # Logowanie wszystkich dostępnych pól z profilu FMP
+                    logger.info(f"FMP profile data for {ticker}: {profile}")
+                    
                     fmp_data = {
                         'ticker': ticker,
                         'name': profile.get('companyName', ticker),
@@ -431,8 +434,12 @@ class APIService:
                         'beta': profile.get('beta'),
                         'last_dividend': profile.get('lastDiv'),
                         'exchange': profile.get('exchange'),
-                        'is_etf': profile.get('isEtf', False)
+                        'is_etf': profile.get('isEtf', False),
+                        'inception_date': profile.get('ipoDate')  # Data utworzenia ETF na rynku (IPO date)
                     }
+                    
+                    # Logowanie inception_date (IPO date)
+                    logger.info(f"FMP inception_date for {ticker}: {profile.get('ipoDate')}")
                     
                     # 2. Historia dywidend
                     dividend_url = f"{self.config.FMP_BASE_URL}/historical-price-full/stock_dividend/{ticker}"

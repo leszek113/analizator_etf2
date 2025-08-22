@@ -5,6 +5,23 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.3] - 2025-08-22
+
+### Added
+- **Kolumna "Wiek ETF" na dashboard** - nowa kolumna obok DSG pokazująca rzeczywisty wiek ETF na rynku w latach
+- **Automatyczne pobieranie dat IPO** - system używa `ipoDate` z FMP API zamiast `inceptionDate`
+- **Obliczanie wieku na podstawie rzeczywistych danych rynkowych** - wiek jest obliczany od daty IPO ETF, nie od daty dodania do systemu
+
+### Fixed
+- **Poprawiono źródło danych dla wieku ETF** - zidentyfikowano że FMP API zwraca `ipoDate` zamiast `inceptionDate`
+- **Zaktualizowano wszystkie ETF-y** - wszystkie ETF-y mają teraz poprawną datę utworzenia na rynku
+
+### Technical
+- Dodano pole `inception_date` do modelu ETF w bazie danych
+- Zmodyfikowano `_get_fmp_data()` w `api_service.py` żeby używał `ipoDate`
+- Zaktualizowano JavaScript w dashboard żeby obliczał wiek na podstawie `inception_date`
+- Stworzono migrację bazy danych dla nowej kolumny
+
 ## [1.9.2] - 2025-08-22
 
 ### Fixed

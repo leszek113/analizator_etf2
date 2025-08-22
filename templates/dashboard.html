@@ -174,6 +174,9 @@
                             <th onclick="sortTable(6, 'dsg')">
                                 DSG <i class="bi bi-arrow-down-up sort-icon" id="sort-6"></i>
                             </th>
+                            <th onclick="sortTable(7, 'age')">
+                                Wiek ETF <i class="bi bi-arrow-down-up sort-icon" id="sort-7"></i>
+                            </th>
                             <th>Akcje</th>
                         </tr>
                     </thead>
@@ -314,6 +317,20 @@
                 
                 if (result.success) {
                     etfData = result.data;
+                    
+                    // Obliczanie wieku ETF na podstawie inception_date z FMP API
+                    etfData.forEach(etf => {
+                        if (etf.inception_date) {
+                            const inceptionDate = new Date(etf.inception_date);
+                            const now = new Date();
+                            const diffTime = Math.abs(now - inceptionDate);
+                            const diffYears = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 365.25));
+                            etf.age = diffYears;
+                        } else {
+                            etf.age = null;
+                        }
+                    });
+                    
                     filteredData = [...etfData];
                     
                     // Ładowanie DSG dla każdego ETF
@@ -473,6 +490,8 @@
             return originalAmount * (1 - taxRate / 100);
         }
 
+
+
         function renderTable() {
             const tbody = document.getElementById('etfTableBody');
             
@@ -523,6 +542,13 @@
                             </div>` : 
                             '<span class="badge bg-light text-dark frequency-badge">N/A</span>'
                         }
+                    </td>
+                    <td>
+                        <div class="text-center">
+                            <span class="badge bg-info text-white frequency-badge">
+                                ${etf.age !== null ? `${etf.age} lat` : 'N/A'}
+                            </span>
+                        </div>
                     </td>
                     <td>
                         <div class="btn-group btn-group-sm">
@@ -605,6 +631,12 @@
                 if (field === 'dsg') {
                     aVal = aVal && aVal.current_streak !== undefined ? aVal.current_streak : 0;
                     bVal = bVal && bVal.current_streak !== undefined ? bVal.current_streak : 0;
+                }
+                
+                // Handle age sorting
+                if (field === 'age') {
+                    aVal = aVal !== null ? aVal : 0;
+                    bVal = bVal !== null ? bVal : 0;
                 }
                 
                 // Handle strings

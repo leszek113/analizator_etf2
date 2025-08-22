@@ -13,6 +13,7 @@ class ETF(db.Model):
     current_price = db.Column(db.Float)
     current_yield = db.Column(db.Float)
     frequency = db.Column(db.String(20))  # monthly, quarterly, etc.
+    inception_date = db.Column(db.Date)  # Data utworzenia ETF na rynku (z FMP API)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -32,6 +33,7 @@ class ETF(db.Model):
             'current_price': self.current_price,
             'current_yield': self.current_yield,
             'frequency': self.frequency,
+            'inception_date': self.inception_date.isoformat() if self.inception_date else None,
             'last_updated': self.last_updated.isoformat() if self.last_updated else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

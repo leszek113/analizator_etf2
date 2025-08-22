@@ -47,6 +47,14 @@ class DatabaseService:
             current_yield = etf_data.get('current_yield')
             frequency = etf_data.get('frequency', 'unknown')
             
+            # Konwersja inception_date z string na date
+            inception_date = None
+            if etf_data.get('inception_date'):
+                try:
+                    inception_date = datetime.strptime(etf_data['inception_date'], '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid inception_date format for {ticker}: {etf_data.get('inception_date')}")
+            
             # Tworzenie nowego ETF
             new_etf = ETF(
                 ticker=ticker.upper(),
@@ -54,6 +62,7 @@ class DatabaseService:
                 current_price=current_price,
                 current_yield=current_yield,
                 frequency=frequency,
+                inception_date=inception_date,
                 last_updated=datetime.utcnow()
             )
             
@@ -123,6 +132,16 @@ class DatabaseService:
             etf.current_price = current_price
             etf.current_yield = etf_data.get('current_yield', etf.current_yield)
             etf.frequency = etf_data.get('frequency', etf.frequency)
+            
+            # Aktualizacja inception_date jeśli dostępne
+            if etf_data.get('inception_date') and not etf.inception_date:
+                try:
+                    inception_date = datetime.strptime(etf_data['inception_date'], '%Y-%m-%d').date()
+                    etf.inception_date = inception_date
+                    logger.info(f"Updated inception_date for {ticker}: {inception_date}")
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid inception_date format for {ticker}: {etf_data.get('inception_date')}")
+            
             etf.last_updated = datetime.utcnow()
             
             # Sprawdzanie nowych dywidend

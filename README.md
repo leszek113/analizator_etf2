@@ -1,6 +1,6 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.2  
+**Wersja:** v1.9.3  
 **Ostatnia aktualizacja:** 22 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -22,15 +22,18 @@
 ✅ **System podatku od dywidend** - globalne ustawienie stawki podatku z automatycznym przeliczaniem wszystkich wartości
 ✅ **Wartości brutto/netto** - wyświetlanie wartości przed i po podatku w czasie rzeczywistym
 ✅ **Polski format liczb** - wszystkie liczby wyświetlane z przecinkami jako separatorami dziesiętnymi
+✅ **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+✅ **Sortowanie według wieku** - możliwość sortowania ETF według wieku na rynku
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
 ### **🥇 PRIORYTET 1: Financial Modeling Prep (FMP) - DZIAŁA!**
 - **Główne źródło** - najlepsze dane, najaktualniejsze
-- **Dane**: cena, nazwa, sector, industry, market cap, beta, dywidendy
+- **Dane**: cena, nazwa, sector, industry, market cap, beta, dywidendy, data IPO
 - **Historia**: ceny i dywidendy z ostatnich 15 lat
 - **Status**: ✅ **FUNKCJONALNE** - testowane z SPY i SCHD ETF
-- **Przykład danych**: SPY - $641.76, 1.12% yield, miesięczne dywidendy
+- **Przykład danych**: SPY - $641.76, 1.12% yield, miesięczne dywidendy, IPO: 1993-01-29
+- **Wiek ETF**: Automatyczne obliczanie na podstawie daty IPO z FMP API
 
 ### **🥈 BACKUP: EOD Historical Data (EODHD)**
 - **Backup source** - gdy FMP nie działa
@@ -57,17 +60,20 @@
 - **Port**: 5005 (bezpieczny port, zgodnie z wymaganiami)
 - **Tax System**: Globalny system podatku od dywidend z persystentnym przechowywaniem
 - **Growth Forecasting**: Automatyczne obliczanie prognozowanego wzrostu dywidendy
+- **ETF Age Calculation**: Automatyczne obliczanie wieku ETF na podstawie daty IPO z FMP API
 - **Number Formatting**: Polski format liczb z przecinkami jako separatorami dziesiętnymi
+- **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
 
 ## 📊 **Struktura bazy danych**
 
-- **ETF**: podstawowe informacje o funduszu
+- **ETF**: podstawowe informacje o funduszu (w tym `inception_date` - data IPO)
 - **ETFPrice**: historia cen miesięcznych
 - **ETFDividend**: historia dywidend
 - **SystemLog**: logi systemu
 - **DividendTaxRate**: stawka podatku od dywidend (globalna dla całego systemu)
 - **APIUsage**: monitoring użycia tokenów API z limitami dziennymi
 - **Number Formatting**: filtry Jinja2 dla polskiego formatu liczb (przecinki) i JavaScript (kropki)
+- **Wiek ETF**: Automatyczne obliczanie na podstawie `inception_date` w JavaScript
 
 ## 🔧 **Instalacja i uruchomienie**
 
@@ -75,7 +81,7 @@
 - Python 3.11+
 - Virtual environment
 - Klucze API (FMP, EODHD, Tiingo)
-- **FMP API**: Główny klucz (500 requestów/dzień)
+- **FMP API**: Główny klucz (500 requestów/dzień) - **wymagane dla wieku ETF**
 - **EODHD API**: Backup klucz (100 requestów/dzień)
 - **Tiingo API**: Fallback klucz (50 requestów/dzień)
 
@@ -105,6 +111,11 @@ cp .env.example .env
 python app.py
 # Aplikacja będzie dostępna na http://localhost:5005
 
+# 6. Nowe funkcjonalności dostępne:
+# - Kolumna wieku ETF (automatyczne obliczanie na podstawie daty IPO)
+# - Sortowanie według wieku na rynku
+# - Aktualizacje automatyczne przy każdej aktualizacji danych
+
 ### **🎯 Nowe funkcjonalności dostępne po uruchomieniu:**
 - **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu w szczegółach ETF
 - **System podatku od dywidend** - edytowalne pole w dashboard z real-time przeliczaniem
@@ -114,6 +125,8 @@ python app.py
 - **Real-time aktualizacje** - wszystkie wartości przeliczają się automatycznie
 - **Inteligentne fallback** - automatyczne przełączanie między rokiem poprzednim a bieżącym
 - **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
+- **Kolumna wieku ETF** - automatyczne obliczanie wieku ETF na podstawie daty IPO z FMP API
+- **Sortowanie według wieku** - możliwość sortowania ETF według wieku na rynku
 ```
 
 ## 🚀 **Force Update System**
@@ -125,6 +138,7 @@ Force Update to funkcjonalność pozwalająca na wymuszenie pełnej aktualizacji
 - **Nowe ETF** - gdy dodajesz ETF po raz pierwszy
 - **Brakujące dane** - gdy ETF ma niekompletne dane historyczne
 - **Aktualizacja splitów** - gdy chcesz zaktualizować normalizację po splitach
+- **Aktualizacja wieku ETF** - gdy chcesz pobrać najnowszą datę IPO z FMP API
 - **Debugging** - gdy chcesz sprawdzić czy API ma nowe dane
 
 ### **Jak używać?**
@@ -139,7 +153,8 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 1. **Ignoruje cache** - pobiera świeże dane z API
 2. **Sprawdza duplikaty** - nie dodaje danych które już ma
 3. **Pobiera pełną historię** - próbuje pobrać 15 lat danych
-4. **Oszczędza tokeny** - nie robi niepotrzebnych wywołań API
+4. **Aktualizuje wiek ETF** - pobiera najnowszą datę IPO z FMP API
+5. **Oszczędza tokeny** - nie robi niepotrzebnych wywołań API
 
 ### **Strefy czasowe i czytelne opisy:**
 - **Automatyczna konwersja** UTC ↔ CET (UTC+1)
@@ -154,11 +169,13 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 2. **Smart Updates** - sprawdza tylko nowe dane
 3. **Duplicate Prevention** - nie pobiera danych które już ma
 4. **Force Update** - tylko gdy rzeczywiście potrzebne
+5. **Wiek ETF** - automatyczne pobieranie dat IPO przy każdej aktualizacji
 
 ### **Oszczędności:**
 - **Normalne aktualizacje**: 60-80% mniej wywołań API
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
+- **Wiek ETF**: Automatyczne pobieranie dat IPO przy każdej aktualizacji
 
 ### **Monitoring tokenów:**
 - **Status systemu** - `/system/status`
@@ -171,21 +188,27 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **3 kafelki w rzędzie** (col-md-4) zamiast 4 (col-md-3)
 - **Jednolity rozmiar** - wszystkie kafelki mają ten sam wymiar
 - **Lepsze proporcje** - więcej miejsca na każdy kafelek
+- **Nowa kolumna wieku ETF** - sortowalna kolumna obok DSG
+- **Sortowanie wieku** - możliwość sortowania ETF według wieku na rynku
 
 ### **Usunięte elementy:**
 - **Kafelek "Średni Yield"** - zbędne informacje statystyczne
+- **Stare obliczenia wieku** - zastąpione automatycznym obliczaniem na podstawie daty IPO
 - **Przycisk "Szczegóły"** - zastąpiony przez link całego kafelka
 - **Niepotrzebny JavaScript** - usunięto obliczenia średniego yield
+- **Ręczne obliczanie wieku** - zastąpione automatycznym pobieraniem z FMP API
 
 ### **Ulepszona nawigacja:**
 - **Kafelek "Status systemu"** - cały kafelek jest linkiem do `/system/status`
 - **Intuicyjne kliknięcie** - kliknięcie kafelka = przejście do szczegółów
 - **Spójny design** - wszystkie kafelki mają jednolity wygląd i funkcjonalność
+- **Sortowanie wieku** - możliwość sortowania ETF według wieku na rynku
 
 ### **Korzyści:**
 - **Lepsza czytelność** - mniej elementów, więcej miejsca
 - **Prostszy interfejs** - intuicyjna nawigacja
 - **Spójny UX** - jednolite zachowanie wszystkich kafelków
+- **Analiza wieku** - możliwość sortowania ETF według wieku na rynku
 
 ## 🌐 **API Endpoints**
 
@@ -199,6 +222,9 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - `GET /api/etfs/{ticker}/dividends` - Historia dywidend
 - `GET /api/etfs/{ticker}/dsg` - Dividend Streak Growth (DSG)
 - `GET /etf/{ticker}` - Szczegółowy widok ETF z matrycą dywidend, prognozowanym wzrostem dywidendy i systemem podatku
+- **Wiek ETF** - automatyczne obliczanie wieku ETF na podstawie daty IPO z FMP API
+- **Sortowanie wieku** - możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
 - `GET /api/system/status` - Status systemu
 - `GET /api/system/logs` - Logi systemu
 - `GET /api/system/dividend-tax-rate` - Pobieranie stawki podatku od dywidend
@@ -213,6 +239,9 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **System podatku**: Edytowalne pole stawki podatku od dywidend z automatycznym przeliczaniem
 - **Wartości po podatku**: Wszystkie kwoty i yield są przeliczane po podatku w czasie rzeczywistym
 - **Format liczb**: Wszystkie liczby wyświetlane w polskim formacie z przecinkami
+- **Wiek ETF**: Kolumna pokazująca rzeczywisty wiek ETF na rynku w latach (sortowalna)
+- **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ## 🔍 **Szczegóły ETF**
 
@@ -223,6 +252,9 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **System podatku**: Wszystkie kwoty są przeliczane po podatku w czasie rzeczywistym
 - **Format liczb**: Wszystkie liczby wyświetlane w polskim formacie z przecinkami
 - **Tooltipy informacyjne**: Wyjaśnienia obliczeń i funkcjonalności po najechaniu myszką
+- **Wiek ETF**: Informacja o wieku ETF na rynku w latach (na podstawie daty IPO)
+- **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ## 🔄 **Automatyzacja**
 
@@ -230,6 +262,9 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Aktualizacje**: Raz dziennie sprawdzanie nowych danych
 - **Cache**: Automatyczne cache'owanie danych (1 godzina)
 - **Retry Logic**: Ponowne próby z exponential backoff
+- **Aktualizacja wieku ETF**: Automatyczne pobieranie najnowszych dat IPO z FMP API
+- **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ## 📈 **Logika Systemu Dywidend**
 
@@ -237,24 +272,48 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **System pobiera** historię dywidend z ostatnich 15 lat jako **punkt startowy**
 - **Jeśli ETF istnieje krócej** niż 15 lat (np. SCHD od 2011), pobieramy **od początku istnienia**
 - **15 lat to minimum** - nie maksimum!
+- **Wiek ETF** - automatycznie obliczany na podstawie daty IPO z FMP API
+- **Sortowanie wieku** - możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ### **🚀 Automatyczny Wzrost Historii:**
 - **Codziennie** system sprawdza czy ETF wypłacił nową dywidendę
 - **Nowe dywidendy** są **dodawane** do bazy danych
 - **Stare dywidendy** **NIE są kasowane**
 - **Historia rośnie** z czasem automatycznie
+- **Wiek ETF** - automatycznie aktualizowany przy każdej aktualizacji danych
+- **Sortowanie wieku** - możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ### **📊 Przykłady:**
 
 #### **SPY ETF (istnieje od 1993):**
 - **Dzisiaj**: 60 dywidend (2010-2025) - **15 lat starting point**
+- **Wiek na rynku**: 32 lata (IPO: 1993-01-29)
 - **Za rok**: 72 dywidendy (2010-2026) - **16 lat historii**
 - **Za 5 lat**: 120 dywidend (2010-2030) - **20 lat historii**
+- **Sortowanie wieku**: Możliwość sortowania według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 #### **SCHD ETF (istnieje od 2011):**
 - **Dzisiaj**: 55 dywidend (2011-2025) - **od początku istnienia**
+- **Wiek na rynku**: 14 lat (IPO: 2011-10-20)
 - **Za rok**: 59 dywidend (2011-2026) - **15 lat historii**
 - **Za 5 lat**: 79 dywidend (2011-2030) - **19 lat historii**
+- **Sortowanie wieku**: Możliwość sortowania według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
+
+#### **VTI ETF (istnieje od 2001):**
+- **Dzisiaj**: 60 dywidend (2010-2025) - **15 lat starting point**
+- **Wiek na rynku**: 24 lata (IPO: 2001-06-15)
+- **Sortowanie wieku**: Możliwość sortowania według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
+
+#### **KBWY ETF (istnieje od 2010):**
+- **Dzisiaj**: 177 dywidend (2010-2025) - **od początku istnienia**
+- **Wiek na rynku**: 15 lat (IPO: 2010-12-02)
+- **Sortowanie wieku**: Możliwość sortowania według wieku na rynku
+- **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ### **💡 Korzyści:**
 - **Bogata historia** - z czasem mamy coraz więcej danych
@@ -262,6 +321,8 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Dividend Streak Growth** - pełna historia dla analiz
 - **Prognozowany wzrost** - automatyczne obliczanie trendu dywidendy
 - **System podatku** - real-time przeliczanie wartości po podatku
+- **Wiek ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+- **Analiza długoterminowa** - wiek ETF pomaga w ocenie stabilności i doświadczenia na rynku
 - **Wizualne wskaźniki** - kolorowe badge'y dla szybkiej identyfikacji trendów
 - **Inteligentne obliczenia** - automatyczne wykrywanie częstotliwości wypłat
 - **Real-time przeliczanie** - wszystkie wartości aktualizują się automatycznie
@@ -277,6 +338,9 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
 - **Real-time aktualizacje** - wszystkie wartości aktualizują się automatycznie
 - **Automatyczne** - bez ingerencji użytkownika
+- **Sortowanie po wieku** - możliwość sortowania ETF według wieku na rynku
+- **Analiza wieku** - możliwość porównania ETF według doświadczenia na rynku
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ## 🐳 **Docker**
 
@@ -289,6 +353,13 @@ docker run -p 5005:5005 etf-analyzer
 
 # Docker Compose
 docker-compose up -d
+
+# Uruchomienie z nowymi funkcjonalnościami:
+# - Kolumna wieku ETF (automatyczne obliczanie na podstawie daty IPO)
+# - Sortowanie według wieku na rynku
+# - Aktualizacje automatyczne przy każdej aktualizacji danych
+# - Rzeczywiste dane rynkowe (data IPO z FMP API)
+# - Automatyczne obliczanie wieku na podstawie daty IPO z FMP API
 ```
 
 ### **🚀 Nowe funkcjonalności w kontenerze:**
@@ -307,6 +378,9 @@ docker-compose up -d
 - **Real-time obliczenia** - wszystkie wartości aktualizują się automatycznie
 - **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
 - **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
+- **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+- **Sortowanie według wieku** - możliwość sortowania ETF według wieku na rynku
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ### **🚀 Nowe funkcjonalności dostępne po uruchomieniu:**
 - **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend
@@ -339,6 +413,8 @@ docker-compose up -d
 - **Real-time aktualizacje** - wszystkie wartości aktualizują się automatycznie
 - **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
 - **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
+- **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
 
 ## 📈 **Prognozowany Wzrost Dywidendy**
 
@@ -602,6 +678,7 @@ Prognozowany wzrost = (Suma ostatnich dywidend - Suma roczna z poprzedniego roku
 ## 🔮 **Planowane funkcjonalności**
 
 - [x] Naprawienie problemu z dywidendami ✅ **ZROBIONE!**
+- [x] Kolumna wieku ETF ✅ **ZROBIONE!**
 - [ ] Prezentacja cen i dywidend dla każdego ETF (następny etap)
 - [ ] Wykresy i wizualizacje danych
 - [ ] Testowanie innych ETF (QQQ, VTI)
@@ -635,10 +712,17 @@ MIT License - zobacz plik LICENSE
 10. **✅ Prognozowany wzrost dywidendy** - automatyczne obliczanie trendów
 11. **✅ System podatku od dywidend** - globalne ustawienie z real-time przeliczaniem
 12. **✅ Polski format liczb** - spójne formatowanie z przecinkami
+13. **✅ Kolumna wieku ETF** - rzeczywisty wiek ETF na rynku na podstawie daty IPO
 
 **Projekt jest gotowy do produkcji i spełnia wszystkie wymagania CEO!** 🚀
 
 **Następny etap: Implementacja prezentacji cen i dywidend dla każdego ETF**
+
+### **🎯 Najnowsze osiągnięcia:**
+- **✅ Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+- **✅ Poprawiono źródło danych** - zidentyfikowano że FMP API zwraca `ipoDate` zamiast `inceptionDate`
+- **✅ Zaktualizowano wszystkie ETF-y** - wszystkie mają teraz poprawną datę utworzenia na rynku
+- **✅ Sortowalna kolumna** - możliwość sortowania ETF według wieku na rynku
 
 ## 🚀 **Funkcjonalności**
 
@@ -650,6 +734,7 @@ MIT License - zobacz plik LICENSE
 - **Historia cen** - miesięczne ceny z ostatnich 15 lat
 - **Historia dywidend** - wszystkie dywidendy z ostatnich 15 lat
 - **Dividend Streak Growth (DSG)** - obliczanie streak wzrostu dywidend
+- **Wiek ETF** - kolumna pokazująca rzeczywisty wiek ETF na rynku w latach (na podstawie daty IPO)
 
 ### **🎯 Dividend Streak Growth (DSG):**
 - **Obliczanie streak** - liczba kolejnych lat wzrostu dywidend
@@ -660,12 +745,25 @@ MIT License - zobacz plik LICENSE
 - **Sortowanie po DSG** - ranking ETF według streak
 - **Tooltips** - szczegółowe informacje o DSG w dashboardzie
 
+### **📊 Wiek ETF:**
+- **Automatyczne obliczanie** - wiek na podstawie daty IPO z FMP API
+- **Rzeczywiste dane rynkowe** - nie na podstawie daty dodania do systemu
+- **Sortowalna kolumna** - możliwość sortowania według wieku na rynku
+- **Aktualizacje automatyczne** - wiek aktualizowany przy każdej aktualizacji danych
+- **Przykłady**: SPY (32 lata), VTI (24 lata), SCHD (14 lat), KBWY (15 lat)
+
 ### System podatku od dywidend
 - **Globalna stawka podatku** - ustawienie jednej stawki dla wszystkich ETF
 - **Automatyczne przeliczanie** - wszystkie wartości yield i kwoty dywidend są przeliczane po podatku
 - **Wizualne rozróżnienie** - wartości po podatku (pogrubione) i oryginalne (szare)
 - **Persystentne przechowywanie** - stawka zapisywana w bazie danych
 - **API endpointy** - możliwość programistycznego zarządzania stawką podatku
+
+### Wiek ETF
+- **Automatyczne obliczanie** - wiek na podstawie daty IPO z FMP API
+- **Rzeczywiste dane rynkowe** - nie na podstawie daty dodania do systemu
+- **Sortowalna kolumna** - możliwość sortowania według wieku na rynku
+- **Aktualizacje automatyczne** - wiek aktualizowany przy każdej aktualizacji danych
 
 ### Polski format liczb
 - **Separatory dziesiętne** - wszystkie liczby używają przecinków zamiast kropek
@@ -677,9 +775,34 @@ MIT License - zobacz plik LICENSE
 - **Codzienne aktualizacje** - automatyczne pobieranie nowych danych o 09:00 UTC
 - **Scheduler** - zarządzanie zadaniami cyklicznymi z możliwością zmiany czasu
 - **Strefy czasowe** - wyświetlanie czasu w UTC i CET
+- **Aktualizacja wieku ETF** - automatyczne pobieranie najnowszych dat IPO z FMP API
 
 ### 📊 **Wykresy i wizualizacje**
 - **Wykres cen miesięcznych** - pokazuje ceny zamknięcia z ostatnich 15 lat (jedna cena na miesiąc)
 - **Wykres kończy się na ostatnio zakończonym miesiącu** - nie pokazuje niekompletnych danych z bieżącego miesiąca
 - **Interaktywne wykresy** z użyciem Chart.js
 - **Historia cen z normalizacją split** - automatyczne dostosowanie cen historycznych do aktualnych splitów
+- **Kolumna wieku ETF** - sortowalna kolumna pokazująca rzeczywisty wiek ETF na rynku
+
+## 📊 **Wiek ETF - Nowa funkcjonalność**
+
+### **🎯 Co to jest?**
+Kolumna "Wiek ETF" na dashboard pokazuje rzeczywisty wiek ETF na rynku w latach, obliczany na podstawie daty IPO (Initial Public Offering) z FMP API.
+
+### **🔧 Jak działa?**
+1. **Pobieranie danych** - system automatycznie pobiera `ipoDate` z FMP API
+2. **Obliczanie wieku** - JavaScript oblicza różnicę między datą IPO a bieżącą datą
+3. **Wyświetlanie** - wiek jest pokazywany w latach (np. "32 lata", "14 lat")
+4. **Sortowanie** - kolumna jest sortowalna (od najstarszych do najmłodszych)
+
+### **📈 Przykłady wieku ETF:**
+- **SPY**: 32 lata (IPO: 1993-01-29)
+- **VTI**: 24 lata (IPO: 2001-06-15)
+- **SCHD**: 14 lat (IPO: 2011-10-20)
+- **KBWY**: 15 lat (IPO: 2010-12-02)
+
+### **💡 Korzyści:**
+- **Analiza długoterminowa** - wiek ETF pomaga w ocenie stabilności
+- **Porównanie ETF** - możliwość sortowania według doświadczenia na rynku
+- **Automatyczne aktualizacje** - wiek jest aktualizowany przy każdej aktualizacji danych
+- **Rzeczywiste dane** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
