@@ -242,6 +242,7 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Wiek ETF**: Kolumna pokazująca rzeczywisty wiek ETF na rynku w latach (sortowalna)
 - **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
 - **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
+- **Wersja systemu**: Karta pokazująca aktualną wersję systemu (v1.9.3)
 
 ## 🔍 **Szczegóły ETF**
 
@@ -381,6 +382,7 @@ docker-compose up -d
 - **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
 - **Sortowanie według wieku** - możliwość sortowania ETF według wieku na rynku
 - **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
+- **Informacja o wersji systemu** - karta "Wersja systemu" na dashboard
 
 ### **🚀 Nowe funkcjonalności dostępne po uruchomieniu:**
 - **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend
@@ -415,6 +417,7 @@ docker-compose up -d
 - **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
 - **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
 - **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
+- **Informacja o wersji systemu** - automatyczne wyświetlanie aktualnej wersji systemu
 
 ## 📈 **Prognozowany Wzrost Dywidendy**
 
@@ -465,6 +468,9 @@ GET /api/system/dividend-tax-rate
 POST /api/system/dividend-tax-rate
 Content-Type: application/json
 {"tax_rate": 15.0}
+
+# Pobieranie wersji systemu
+GET /api/system/version
 ```
 
 ## 🇵🇱 **Polski Format Liczb**

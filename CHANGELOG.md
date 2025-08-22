@@ -11,6 +11,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 - **Kolumna "Wiek ETF" na dashboard** - nowa kolumna obok DSG pokazująca rzeczywisty wiek ETF na rynku w latach
 - **Automatyczne pobieranie dat IPO** - system używa `ipoDate` z FMP API zamiast `inceptionDate`
 - **Obliczanie wieku na podstawie rzeczywistych danych rynkowych** - wiek jest obliczany od daty IPO ETF, nie od daty dodania do systemu
+- **Informacja o wersji systemu na dashboard** - nowa karta "Wersja systemu" pokazująca aktualną wersję (v1.9.3)
 
 ### Fixed
 - **Poprawiono źródło danych dla wieku ETF** - zidentyfikowano że FMP API zwraca `ipoDate` zamiast `inceptionDate`

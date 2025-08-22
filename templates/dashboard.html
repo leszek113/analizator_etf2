@@ -436,8 +436,10 @@
                 const response = await fetch('/api/system/version');
                 const result = await response.json();
                 
+                console.log('📊 API response:', result);
+                
                 if (result.success) {
-                    const version = result.data.version;
+                    const version = result.version; // Usunięto .data
                     console.log('📊 System version loaded:', version);
                     
                     // Aktualizacja pola wersji systemu
