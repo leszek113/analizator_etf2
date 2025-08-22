@@ -87,7 +87,7 @@
 
         <!-- Stats Cards -->
         <div class="row mt-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="stats-card">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -98,7 +98,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="stats-card">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -109,7 +109,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <a href="/system/status" class="text-decoration-none">
                     <div class="stats-card">
                         <div class="d-flex justify-content-between">
@@ -121,6 +121,17 @@
                         </div>
                     </div>
                 </a>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="mb-1">Wersja systemu</h6>
+                            <h6 class="mb-0" id="systemVersion">-</h6>
+                        </div>
+                        <i class="bi bi-info-circle display-6"></i>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -341,6 +352,9 @@
                     
                     // Po załadowaniu wszystkich danych ETF, ładujemy stawkę podatku i przeliczamy
                     await loadTaxRate();
+                    
+                    // Ładowanie wersji systemu
+                    await loadSystemVersion();
                 } else {
                     showAlert('Błąd podczas ładowania danych: ' + result.error, 'danger');
                 }
@@ -413,6 +427,28 @@
                 }
             } catch (error) {
                 console.error('Error loading tax rate:', error);
+            }
+        }
+
+        async function loadSystemVersion() {
+            try {
+                console.log('🔄 Loading system version from API...');
+                const response = await fetch('/api/system/version');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const version = result.data.version;
+                    console.log('📊 System version loaded:', version);
+                    
+                    // Aktualizacja pola wersji systemu
+                    document.getElementById('systemVersion').textContent = `v${version}`;
+                } else {
+                    console.error('❌ Failed to load system version:', result.error);
+                    document.getElementById('systemVersion').textContent = 'N/A';
+                }
+            } catch (error) {
+                console.error('❌ Error loading system version:', error);
+                document.getElementById('systemVersion').textContent = 'N/A';
             }
         }
 

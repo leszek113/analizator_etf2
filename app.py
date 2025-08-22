@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 
+# Wersja systemu
+__version__ = "1.9.3"
+
 from config import Config
 from models import db
 from services.database_service import DatabaseService
@@ -736,6 +739,16 @@ def create_app():
             except Exception as e:
                 logger.error(f"Error rendering system status page: {str(e)}")
                 return render_template('error.html', error=str(e))
+    
+    # API endpoint do pobierania wersji systemu
+    @app.route('/api/system/version')
+    def get_system_version():
+        """Zwraca wersję systemu"""
+        return jsonify({
+            'success': True,
+            'version': __version__,
+            'timestamp': datetime.utcnow().isoformat()
+        })
     
     # Error handlers
     @app.errorhandler(404)
