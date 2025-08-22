@@ -234,28 +234,42 @@ class DatabaseService:
             return []
     
     def get_monthly_prices(self, etf_id: int) -> List[ETFPrice]:
-        """Pobiera ceny miesięczne ETF z bazy danych - jedna cena na miesiąc"""
+        """Pobiera ceny miesięczne ETF z bazy danych - jedna cena na miesiąc, kończy się na ostatnio zakończonym miesiącu"""
         try:
             # Pobieranie cen miesięcznych, grupowane po roku i miesiącu
             # Używamy raw SQL dla lepszej kontroli nad grupowaniem
+            # Wykres kończy się na ostatnio zakończonym miesiącu, nie na bieżącym
             from sqlalchemy import text
-            from datetime import datetime
+            from datetime import datetime, date
+            
+            # Obliczanie ostatniego zakończonego miesiąca
+            today = date.today()
+            # Zawsze kończymy na poprzednim miesiącu względem bieżącego
+            if today.month == 1:
+                last_completed_month = date(today.year - 1, 12, 1)
+            else:
+                last_completed_month = date(today.year, today.month - 1, 1)
             
             query = text("""
                 SELECT 
                     id, etf_id, date, close_price, normalized_close_price, split_ratio_applied
                 FROM etf_prices 
                 WHERE etf_id = :etf_id 
+                AND date <= :last_completed_month
                 AND date IN (
                     SELECT MAX(date) 
                     FROM etf_prices 
                     WHERE etf_id = :etf_id 
+                    AND date <= :last_completed_month
                     GROUP BY strftime('%Y-%m', date)
                 )
                 ORDER BY date ASC
             """)
             
-            result = db.session.execute(query, {'etf_id': etf_id})
+            result = db.session.execute(query, {
+                'etf_id': etf_id, 
+                'last_completed_month': last_completed_month.strftime('%Y-%m-%d')
+            })
             prices = []
             
             for row in result:
@@ -272,7 +286,7 @@ class DatabaseService:
                 price.split_ratio_applied = row.split_ratio_applied
                 prices.append(price)
             
-            logger.info(f"Retrieved {len(prices)} monthly prices (one per month) for ETF ID {etf_id}")
+            logger.info(f"Retrieved {len(prices)} monthly prices (one per month, ending at {last_completed_month.strftime('%Y-%m')}) for ETF ID {etf_id}")
             return prices
             
         except Exception as e:

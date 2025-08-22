@@ -5,6 +5,16 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.2] - 2025-08-22
+
+### Fixed
+- **Wykres cen miesięcznych** - wykres kończy się teraz na ostatnio zakończonym miesiącu (lipiec 2025) zamiast na bieżącym (sierpień 2025)
+- **Lepsze zarządzanie danymi historycznymi** - system nie pokazuje niekompletnych danych z bieżącego miesiąca
+
+### Technical
+- Poprawiono funkcję `get_monthly_prices()` w `database_service.py` - zawsze kończy na poprzednim miesiącu względem bieżącego
+- Usunięto niepotrzebne funkcje związane z cenami miesięcznymi
+
 ## [1.9.1] - 2025-08-22
 
 ### Added

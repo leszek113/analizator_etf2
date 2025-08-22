@@ -1,9 +1,7 @@
-# 🚀 **ETF Analyzer - System Analizy ETF**
+# ETF Analyzer
 
-**Wersja**: v1.9.1 (2025-08-22)  
-**Status projektu**: ✅ **FUNKCJONALNY** - System działa z prawdziwymi danymi z FMP API, obsługuje prognozowany wzrost dywidendy, system podatku i polski format liczb
-
-System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywidend, prognozowanym wzrostem dywidendy, systemem podatku oraz dashboardem do monitorowania. **Zbudowany zgodnie z wymaganiami CEO - żadnych mock danych, tylko prawdziwe informacje z wiarygodnych źródeł.**
+**Wersja:** v1.9.2  
+**Ostatnia aktualizacja:** 22 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
 
@@ -679,3 +677,9 @@ MIT License - zobacz plik LICENSE
 - **Codzienne aktualizacje** - automatyczne pobieranie nowych danych o 09:00 UTC
 - **Scheduler** - zarządzanie zadaniami cyklicznymi z możliwością zmiany czasu
 - **Strefy czasowe** - wyświetlanie czasu w UTC i CET
+
+### 📊 **Wykresy i wizualizacje**
+- **Wykres cen miesięcznych** - pokazuje ceny zamknięcia z ostatnich 15 lat (jedna cena na miesiąc)
+- **Wykres kończy się na ostatnio zakończonym miesiącu** - nie pokazuje niekompletnych danych z bieżącego miesiąca
+- **Interaktywne wykresy** z użyciem Chart.js
+- **Historia cen z normalizacją split** - automatyczne dostosowanie cen historycznych do aktualnych splitów
