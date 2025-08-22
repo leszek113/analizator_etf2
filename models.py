@@ -164,3 +164,24 @@ class APILimit(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+class DividendTaxRate(db.Model):
+    __tablename__ = 'dividend_tax_rates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    tax_rate = db.Column(db.Float, nullable=False, default=0.0)  # Stawka w procentach (0.0 = 0%)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<DividendTaxRate {self.tax_rate}%>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tax_rate': self.tax_rate,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

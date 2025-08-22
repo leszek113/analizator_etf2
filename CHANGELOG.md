@@ -5,6 +5,28 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.8.0] - 2025-08-22
+
+### Added
+- **System podatku od dywidend** - nowa funkcjonalność pozwalająca na globalne ustawienie stawki podatku od dywidend
+- **Pole podatku w dashboard** - edytowalne pole "Podatek od dyw.: X%" obok pola wyszukiwania
+- **Automatyczne przeliczanie** - wszystkie wartości yield i kwoty dywidend są automatycznie przeliczane po podatku
+- **Wyświetlanie wartości po podatku** - w dashboard i szczegółach ETF pokazywane są wartości po podatku (pogrubione) i oryginalne (mniejsze, szare)
+- **API endpointy** - `/api/system/dividend-tax-rate` (GET/POST) do zarządzania stawką podatku
+- **Persystentne przechowywanie** - stawka podatku jest zapisywana w bazie danych w tabeli `dividend_tax_rates`
+
+### Changed
+- **Dashboard layout** - pole wyszukiwania zmniejszone, dodane pole podatku
+- **Tabela ETF** - kolumna Yield pokazuje wartość po podatku i oryginalną
+- **Szczegóły ETF** - nagłówek zawiera informację o podatku, wszystkie kwoty przeliczane
+- **Macierz dywidend** - wszystkie kwoty miesięczne i roczne są przeliczane po podatku
+
+### Technical
+- **Nowy model** - `DividendTaxRate` w `models.py`
+- **Metody pomocnicze** - `calculate_after_tax_yield()`, `calculate_after_tax_amount()` w `DatabaseService`
+- **JavaScript** - funkcje przeliczania w dashboard i szczegółach ETF
+- **Migracja bazy** - automatyczne tworzenie tabeli `dividend_tax_rates`
+
 ## [1.7.0] - 2025-08-20
 
 ### Added

@@ -109,17 +109,34 @@ def migrate_database():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
-        # Inicjalizacja domyślnych limitów API
+
+        # Dodanie domyślnych limitów API
         cursor.execute('''
             INSERT OR IGNORE INTO api_limits (api_type, current_count, daily_limit, last_reset)
             VALUES 
                 ('fmp', 0, 500, CURRENT_TIMESTAMP),
-                ('eodhd', 0, 100, CURRENT_TIMESTAMP),
-                ('tiingo', 0, 50, CURRENT_TIMESTAMP)
+                ('eodhd', 0, 1000, CURRENT_TIMESTAMP),
+                ('tiingo', 0, 1000, CURRENT_TIMESTAMP)
         ''')
-        
-        print("✅ Tabela api_limits została utworzona i zainicjalizowana")
+
+        # Tworzenie tabeli dividend_tax_rates
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS dividend_tax_rates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tax_rate REAL NOT NULL DEFAULT 0.0,
+                is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Dodanie domyślnej stawki podatku 0%
+        cursor.execute('''
+            INSERT OR IGNORE INTO dividend_tax_rates (tax_rate, is_active)
+            VALUES (0.0, 1)
+        ''')
+
+        print("✅ Tabela api_limits i dividend_tax_rates utworzona/aktualizowana")
         
         # 5. Inicjalizacja istniejących danych
         print("Inicjalizuję istniejące dane...")

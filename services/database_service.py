@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.exc import IntegrityError
 import logging
-from models import db, ETF, ETFPrice, ETFDividend, ETFSplit, SystemLog
+from models import db, ETF, ETFPrice, ETFDividend, ETFSplit, SystemLog, DividendTaxRate
 from services.api_service import APIService
 
 logger = logging.getLogger(__name__)
@@ -1066,3 +1066,54 @@ class DatabaseService:
                 continue
         
         return standard_dividends
+
+    def get_etf_splits(self, etf_id: int) -> List[ETFSplit]:
+        """Pobiera wszystkie splity dla danego ETF"""
+        return ETFSplit.query.filter_by(etf_id=etf_id).order_by(ETFSplit.split_date.desc()).all()
+
+    def get_dividend_tax_rate(self) -> float:
+        """Pobiera aktualną stawkę podatku od dywidend"""
+        try:
+            tax_rate = DividendTaxRate.query.filter_by(is_active=True).first()
+            return tax_rate.tax_rate if tax_rate else 0.0
+        except Exception as e:
+            logger.error(f"Error getting dividend tax rate: {str(e)}")
+            return 0.0
+
+    def update_dividend_tax_rate(self, new_tax_rate: float) -> bool:
+        """Aktualizuje stawkę podatku od dywidend"""
+        try:
+            # Dezaktywuj poprzednie stawki
+            DividendTaxRate.query.update({'is_active': False})
+            
+            # Dodaj nową stawkę
+            new_tax = DividendTaxRate(tax_rate=new_tax_rate, is_active=True)
+            db.session.add(new_tax)
+            db.session.commit()
+            
+            logger.info(f"Dividend tax rate updated to {new_tax_rate}%")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating dividend tax rate: {str(e)}")
+            db.session.rollback()
+            return False
+
+    def calculate_after_tax_amount(self, original_amount: float, tax_rate: float = None) -> float:
+        """Oblicza kwotę po podatku od dywidend"""
+        if tax_rate is None:
+            tax_rate = self.get_dividend_tax_rate()
+        
+        if tax_rate <= 0:
+            return original_amount
+        
+        return original_amount * (1 - tax_rate / 100)
+
+    def calculate_after_tax_yield(self, original_yield: float, tax_rate: float = None) -> float:
+        """Oblicza yield po podatku od dywidend"""
+        if tax_rate is None:
+            tax_rate = self.get_dividend_tax_rate()
+        
+        if tax_rate <= 0:
+            return original_yield
+        
+        return original_yield * (1 - tax_rate / 100)

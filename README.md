@@ -357,3 +357,15 @@ MIT License - zobacz plik LICENSE
 - **Szczegółowe informacje** - okres streak, ostatnia zmiana dywidendy
 - **Sortowanie po DSG** - ranking ETF według streak
 - **Tooltips** - szczegółowe informacje o DSG w dashboardzie
+
+### System podatku od dywidend
+- **Globalna stawka podatku** - ustawienie jednej stawki dla wszystkich ETF
+- **Automatyczne przeliczanie** - wszystkie wartości yield i kwoty dywidend są przeliczane po podatku
+- **Wizualne rozróżnienie** - wartości po podatku (pogrubione) i oryginalne (szare)
+- **Persystentne przechowywanie** - stawka zapisywana w bazie danych
+- **API endpointy** - możliwość programistycznego zarządzania stawką podatku
+
+### Automatyzacja
+- **Codzienne aktualizacje** - automatyczne pobieranie nowych danych o 09:00 UTC
+- **Scheduler** - zarządzanie zadaniami cyklicznymi z możliwością zmiany czasu
+- **Strefy czasowe** - wyświetlanie czasu w UTC i CET

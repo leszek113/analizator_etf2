@@ -562,111 +562,153 @@ def create_app():
                 'error': str(e)}
             ), 500
 
+    @app.route('/api/system/dividend-tax-rate', methods=['GET'])
+    def get_dividend_tax_rate():
+        """Pobiera aktualną stawkę podatku od dywidend"""
+        try:
+            tax_rate = db_service.get_dividend_tax_rate()
+            return jsonify({
+                'success': True,
+                'data': {
+                    'tax_rate': tax_rate
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error getting dividend tax rate: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/system/dividend-tax-rate', methods=['POST'])
+    def update_dividend_tax_rate():
+        """Aktualizuje stawkę podatku od dywidend"""
+        try:
+            data = request.get_json()
+            new_tax_rate = data.get('tax_rate')
+            
+            if new_tax_rate is None:
+                return jsonify({'success': False, 'error': 'Brak stawki podatku'}), 400
+            
+            if not isinstance(new_tax_rate, (int, float)) or new_tax_rate < 0 or new_tax_rate > 100:
+                return jsonify({'success': False, 'error': 'Nieprawidłowa stawka podatku (0-100%)'}), 400
+            
+            success = db_service.update_dividend_tax_rate(float(new_tax_rate))
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': f'Stawka podatku od dywidend zaktualizowana na {new_tax_rate}%'
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Błąd podczas aktualizacji stawki podatku'}), 500
+                
+        except Exception as e:
+            logger.error(f"Error updating dividend tax rate: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/system/status')
     def system_status_page():
-        """Strona z systemowymi informacjami"""
-        try:
-            from models import ETF, ETFPrice, ETFDividend, SystemLog
-            from services.api_service import APIService
-            
-            # Pobieranie statystyk systemu
-            etf_count = ETF.query.count()
-            price_count = ETFPrice.query.count()
-            dividend_count = ETFDividend.query.count()
-            log_count = SystemLog.query.count()
-            
-            # Sprawdzanie ostatniej aktualizacji
-            latest_update = ETF.query.order_by(ETF.last_updated.desc()).first()
-            last_update = latest_update.last_updated if latest_update else None
-            
-            # Status tokenów API
-            api_health = {}
-            api_status = {}
+            """Strona z systemowymi informacjami"""
             try:
-                api_service = APIService()
-                api_health = api_service.check_api_health()
-                api_status = api_service.get_api_status()  # Dodanie pełnego statusu API
-            except Exception as e:
-                api_health = {'error': str(e)}
-                api_status = {'error': str(e)}
-            
-            # Informacje o schedulerze
-            scheduler_info = {}
-            try:
-                if hasattr(app, 'scheduler') and app.scheduler:
-                    jobs = app.scheduler.get_jobs()
-                    scheduler_info = {
-                        'status': 'RUNNING' if app.scheduler.running else 'STOPPED',
-                        'job_count': len(jobs),
-                        'jobs': []
-                    }
-                    
-                    for job in jobs:
-                        # Konwersja czasu na różne strefy czasowe
-                        next_run_utc = job.next_run_time
-                        next_run_cet = None
-                        if next_run_utc:
-                            # CET = UTC+1 (lato) lub UTC+2 (zima)
-                            # Uproszczone: używamy UTC+1
-                            next_run_cet = next_run_utc.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1)))
-                        
-                        # Czytelne opisy dla użytkownika
-                        job_display_name = "Aktualizacja danych dla wszystkich ETF"
-                        job_description = "Codziennie o 09:00 UTC (10:00 CET)"
-                        
-                        # Parsowanie harmonogramu cron dla lepszego wyświetlania
-                        trigger_str = str(job.trigger)
-                        if 'cron' in trigger_str:
-                            # Próbujemy wyciągnąć godzinę i minutę z cron
-                            import re
-                            hour_match = re.search(r"hour='(\d+)'", trigger_str)
-                            minute_match = re.search(r"minute='(\d+)'", trigger_str)
-                            
-                            if hour_match and minute_match:
-                                hour = int(hour_match.group(1))
-                                minute = int(minute_match.group(1))
-                                # Konwersja na CET
-                                cet_hour = (hour + 1) % 24
-                                job_description = f"Codziennie o {hour:02d}:{minute:02d} UTC ({cet_hour:02d}:{minute:02d} CET)"
-                        
-                        job_info = {
-                            'id': job.id,
-                            'name': job.name or 'Unnamed',
-                            'display_name': job_display_name,
-                            'description': job_description,
-                            'trigger': str(job.trigger),
-                            'next_run_utc': next_run_utc.isoformat() if next_run_utc else None,
-                            'next_run_cet': next_run_cet.isoformat() if next_run_cet else None,
-                            'func_name': job.func.__name__ if hasattr(job.func, '__name__') else str(job.func)
+                from models import ETF, ETFPrice, ETFDividend, SystemLog
+                from services.api_service import APIService
+                
+                # Pobieranie statystyk systemu
+                etf_count = ETF.query.count()
+                price_count = ETFPrice.query.count()
+                dividend_count = ETFDividend.query.count()
+                log_count = SystemLog.query.count()
+                
+                # Sprawdzanie ostatniej aktualizacji
+                latest_update = ETF.query.order_by(ETF.last_updated.desc()).first()
+                last_update = latest_update.last_updated if latest_update else None
+                
+                # Status tokenów API
+                api_health = {}
+                api_status = {}
+                try:
+                    api_service = APIService()
+                    api_health = api_service.check_api_health()
+                    api_status = api_service.get_api_status()  # Dodanie pełnego statusu API
+                except Exception as e:
+                    api_health = {'error': str(e)}
+                    api_status = {'error': str(e)}
+                
+                # Informacje o schedulerze
+                scheduler_info = {}
+                try:
+                    if hasattr(app, 'scheduler') and app.scheduler:
+                        jobs = app.scheduler.get_jobs()
+                        scheduler_info = {
+                            'status': 'RUNNING' if app.scheduler.running else 'STOPPED',
+                            'job_count': len(jobs),
+                            'jobs': []
                         }
-                        scheduler_info['jobs'].append(job_info)
-                else:
-                    scheduler_info = {'status': 'NOT_AVAILABLE', 'error': 'Scheduler not initialized'}
+                        
+                        for job in jobs:
+                            # Konwersja czasu na różne strefy czasowe
+                            next_run_utc = job.next_run_time
+                            next_run_cet = None
+                            if next_run_utc:
+                                # CET = UTC+1 (lato) lub UTC+2 (zima)
+                                # Uproszczone: używamy UTC+1
+                                next_run_cet = next_run_utc.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1)))
+                            
+                            # Czytelne opisy dla użytkownika
+                            job_display_name = "Aktualizacja danych dla wszystkich ETF"
+                            job_description = "Codziennie o 09:00 UTC (10:00 CET)"
+                            
+                            # Parsowanie harmonogramu cron dla lepszego wyświetlania
+                            trigger_str = str(job.trigger)
+                            if 'cron' in trigger_str:
+                                # Próbujemy wyciągnąć godzinę i minutę z cron
+                                import re
+                                hour_match = re.search(r"hour='(\d+)'", trigger_str)
+                                minute_match = re.search(r"minute='(\d+)'", trigger_str)
+                                
+                                if hour_match and minute_match:
+                                    hour = int(hour_match.group(1))
+                                    minute = int(minute_match.group(1))
+                                    # Konwersza na CET
+                                    cet_hour = (hour + 1) % 24
+                                    job_description = f"Codziennie o {hour:02d}:{minute:02d} UTC ({cet_hour:02d}:{minute:02d} CET)"
+                            
+                            job_info = {
+                                'id': job.id,
+                                'name': job.name or 'Unnamed',
+                                'display_name': job_display_name,
+                                'description': job_description,
+                                'trigger': str(job.trigger),
+                                'next_run_utc': next_run_utc.isoformat() if next_run_utc else None,
+                                'next_run_cet': next_run_cet.isoformat() if next_run_cet else None,
+                                'func_name': job.func.__name__ if hasattr(job.func, '__name__') else str(job.func)
+                            }
+                            scheduler_info['jobs'].append(job_info)
+                    else:
+                        scheduler_info = {'status': 'NOT_AVAILABLE', 'error': 'Scheduler not initialized'}
+                except Exception as e:
+                    scheduler_info = {'status': 'ERROR', 'error': str(e)}
+                
+                # Dodanie informacji o strefach czasowych
+                timezone_info = {
+                    'current_utc': datetime.utcnow().isoformat(),
+                    'current_cet': datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1))).isoformat(),
+                    'scheduler_timezone': 'UTC (domyślnie)',
+                    'note': 'CET = UTC+1 (czas środkowoeuropejski)'
+                }
+                
+                return render_template('system_status.html', 
+                                    etf_count=etf_count,
+                                    price_count=price_count,
+                                    dividend_count=dividend_count,
+                                    log_count=log_count,
+                                    last_update=last_update,
+                                    api_health=api_health,
+                                    api_status=api_status,
+                                    scheduler_info=scheduler_info,
+                                    timezone_info=timezone_info)
+                
             except Exception as e:
-                scheduler_info = {'status': 'ERROR', 'error': str(e)}
-            
-            # Dodanie informacji o strefach czasowych
-            timezone_info = {
-                'current_utc': datetime.utcnow().isoformat(),
-                'current_cet': datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1))).isoformat(),
-                'scheduler_timezone': 'UTC (domyślnie)',
-                'note': 'CET = UTC+1 (czas środkowoeuropejski)'
-            }
-            
-            return render_template('system_status.html', 
-                                etf_count=etf_count,
-                                price_count=price_count,
-                                dividend_count=dividend_count,
-                                log_count=log_count,
-                                last_update=last_update,
-                                api_health=api_health,
-                                api_status=api_status,
-                                scheduler_info=scheduler_info,
-                                timezone_info=timezone_info)
-            
-        except Exception as e:
-            logger.error(f"Error rendering system status page: {str(e)}")
-            return render_template('error.html', error=str(e))
+                logger.error(f"Error rendering system status page: {str(e)}")
+                return render_template('error.html', error=str(e))
     
     # Error handlers
     @app.errorhandler(404)

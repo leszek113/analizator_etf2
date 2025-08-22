@@ -124,30 +124,25 @@
             </div>
         </div>
 
-        <!-- Search and Filters -->
-        <div class="search-box">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" id="searchInput" placeholder="Szukaj po tickerze lub nazwie...">
-                    </div>
+        <!-- Search and Filter Section -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="searchInput" 
+                           placeholder="Szukaj po tickerze lub nazwie" style="max-width: 300px;">
                 </div>
-                <div class="col-md-3">
-                    <select class="form-select" id="frequencyFilter">
-                        <option value="">Wszystkie częstotliwości</option>
-                        <option value="monthly">Miesięczne</option>
-                        <option value="quarterly">Kwartalne</option>
-                        <option value="annual">Roczne</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select class="form-select" id="yieldFilter">
-                        <option value="">Wszystkie yield</option>
-                        <option value="high">Wysoki (>5%)</option>
-                        <option value="medium">Średni (2-5%)</option>
-                        <option value="low">Niski (<2%)</option>
-                    </select>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group" style="max-width: 300px;">
+                    <span class="input-group-text">
+                        <i class="bi bi-percent"></i>
+                    </span>
+                    <input type="number" class="form-control" id="taxRateInput" 
+                           placeholder="Podatek od dyw.: 0%" min="0" max="100" step="0.1" value="0">
+                    <span class="input-group-text">%</span>
                 </div>
             </div>
         </div>
@@ -243,10 +238,12 @@
         let etfData = [];
         let currentSort = { column: 0, direction: 'asc' };
         let filteredData = [];
+        let currentTaxRate = 0.0;
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             loadDashboard();
+            loadTaxRate();
             setupEventListeners();
         });
 
@@ -257,6 +254,15 @@
             // Filters
             document.getElementById('frequencyFilter').addEventListener('change', filterData);
             document.getElementById('yieldFilter').addEventListener('change', filterData);
+
+            // Tax rate change
+            document.getElementById('taxRateInput').addEventListener('input', function() {
+                const newTaxRate = parseFloat(this.value) || 0;
+                if (newTaxRate !== currentTaxRate) {
+                    currentTaxRate = newTaxRate;
+                    updateTaxRate(newTaxRate);
+                }
+            });
         }
 
         async function loadDashboard() {
@@ -323,6 +329,73 @@
             await Promise.all(dsgPromises);
         }
 
+        async function loadTaxRate() {
+            try {
+                const response = await fetch('/api/system/dividend-tax-rate');
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentTaxRate = result.data.tax_rate;
+                    document.getElementById('taxRateInput').value = currentTaxRate;
+                    updateTaxRate(currentTaxRate);
+                }
+            } catch (error) {
+                console.error('Error loading tax rate:', error);
+            }
+        }
+
+        async function updateTaxRate(newTaxRate) {
+            try {
+                const response = await fetch('/api/system/dividend-tax-rate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tax_rate: newTaxRate
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log('Tax rate updated:', result.message);
+                    // Przelicz wszystkie wartości
+                    recalculateAllValues();
+                } else {
+                    console.error('Error updating tax rate:', result.error);
+                }
+            } catch (error) {
+                console.error('Error updating tax rate:', error);
+            }
+        }
+
+        function recalculateAllValues() {
+            // Przelicz yield i kwoty dywidend dla wszystkich ETF
+            etfData.forEach(etf => {
+                if (etf.current_yield && etf.current_yield > 0) {
+                    etf.after_tax_yield = calculateAfterTaxYield(etf.current_yield, currentTaxRate);
+                }
+                
+                if (etf.annual_dividend && etf.annual_dividend > 0) {
+                    etf.after_tax_annual_dividend = calculateAfterTaxAmount(etf.annual_dividend, currentTaxRate);
+                }
+            });
+            
+            // Odśwież tabelę
+            renderTable();
+            updateStats();
+        }
+
+        function calculateAfterTaxYield(originalYield, taxRate) {
+            if (taxRate <= 0) return originalYield;
+            return originalYield * (1 - taxRate / 100);
+        }
+
+        function calculateAfterTaxAmount(originalAmount, taxRate) {
+            if (taxRate <= 0) return originalAmount;
+            return originalAmount * (1 - taxRate / 100);
+        }
+
         function renderTable() {
             const tbody = document.getElementById('etfTableBody');
             
@@ -342,7 +415,14 @@
                     <td>${etf.current_price ? '$' + etf.current_price.toFixed(5) : 'N/A'}</td>
                     <td>
                         ${etf.current_yield ? 
-                            `<span class="yield-${getYieldClass(etf.current_yield)}">${etf.current_yield.toFixed(5)}%</span>` : 
+                            `<div class="text-center">
+                                <div class="fw-bold yield-${getYieldClass(etf.current_yield)}">
+                                    ${(etf.after_tax_yield || calculateAfterTaxYield(etf.current_yield, currentTaxRate)).toFixed(5)}%
+                                </div>
+                                <small class="text-muted">
+                                    ${etf.current_yield.toFixed(5)}%
+                                </small>
+                            </div>` : 
                             '<span class="yield-unknown">N/A</span>'
                         }
                     </td>
