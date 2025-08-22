@@ -5,6 +5,53 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.1] - 2025-08-22
+
+### Added
+- **Separator dziesiętny z przecinkami** - nowa funkcjonalność pozwalająca na wyświetlanie liczb z przecinkami jako separatorami dziesiętnymi (polski format)
+- **Filtry Jinja2** - `comma_format` dla wyświetlania z przecinkami, `dot_format` dla atrybutów JavaScript
+- **JavaScript formatowanie** - funkcja `formatNumber()` do formatowania liczb z przecinkami w interfejsie
+
+### Changed
+- **Formatowanie liczb** - wszystkie liczby w systemie używają teraz przecinków jako separatorów dziesiętnych
+- **Dashboard** - yield i ceny wyświetlane z przecinkami
+- **Szczegóły ETF** - ceny, yield, dywidendy i suma roczna wyświetlane z przecinkami
+- **JavaScript parsing** - atrybuty `data-original` używają kropek dla kompatybilności z `parseFloat()`
+
+### Technical
+- **Nowe filtry Jinja2** - `comma_format` i `dot_format` w `app.py`
+- **JavaScript compatibility** - rozdzielenie formatowania wyświetlania (przecinki) od parsowania (kropki)
+- **Template updates** - wszystkie szablony używają nowych filtrów dla spójnego formatowania
+
+### Fixed
+- **Prognozowany wzrost dywidendy** - naprawiono wyświetlanie w szczegółach ETF
+- **Suma ostatnich dywidend** - przywrócono wyświetlanie wartości brutto i netto
+- **Formatowanie liczb** - spójne używanie przecinków w całym systemie
+
+## [1.9.0] - 2025-08-22
+
+### Added
+- **Prognozowany wzrost dywidendy** - nowa funkcjonalność obliczająca prognozowany wzrost porównując sumę ostatnich dywidend z roczną dywidendą z poprzedniego roku
+- **Inteligentne obliczenia** - system automatycznie wykrywa częstotliwość wypłat (miesięczna/kwartalna) i oblicza odpowiednie sumy
+- **Wizualne wskaźniki** - zielone badge dla wzrostu, czerwone dla spadku dywidendy
+- **Tooltip informacyjny** - ikona z wyjaśnieniem jak obliczany jest prognozowany wzrost
+
+### Changed
+- **Nagłówek ETF** - dodano badge "Prognozowany wzrost dyw.: X,XX%" obok sumy ostatnich dywidend
+- **Kolorowanie wzrostu** - zielony kolor dla pozytywnego wzrostu, czerwony dla negatywnego
+- **Layout badge'ów** - lepsze rozmieszczenie informacji w nagłówku szczegółów ETF
+
+### Technical
+- **Nowa funkcja** - `calculate_dividend_growth_forecast()` w `DatabaseService`
+- **Inteligentne wykrywanie częstotliwości** - `_is_monthly_frequency()` sprawdza odstępy między datami
+- **Obliczenia procentowe** - wzrost = (suma ostatnich dywidend - suma roczna z poprzedniego roku) / suma roczna × 100%
+- **Fallback logic** - jeśli brak danych z poprzedniego roku, używa roku bieżącego
+
+### UI/UX
+- **Czytelne wskaźniki** - kolorowe badge'y dla szybkiej identyfikacji trendu dywidendy
+- **Informacyjne tooltipy** - szczegółowe wyjaśnienie obliczeń po najechaniu myszką
+- **Spójny design** - nowe badge'y pasują do istniejącego stylu interfejsu
+
 ## [1.8.1] - 2025-08-22
 
 ### Fixed

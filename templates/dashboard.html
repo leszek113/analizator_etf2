@@ -372,6 +372,12 @@
             // Czekamy na załadowanie wszystkich DSG
             await Promise.all(dsgPromises);
         }
+        
+        // Funkcja do formatowania liczb z przecinkiem (polski format)
+        function formatNumber(number, decimals = 2) {
+            if (isNaN(number)) return 'N/A';
+            return number.toFixed(decimals).replace('.', ',');
+        }
 
         async function loadTaxRate() {
             try {
@@ -483,15 +489,15 @@
                 <tr>
                     <td><strong>${etf.ticker}</strong></td>
                     <td>${etf.name || 'N/A'}</td>
-                    <td>${etf.current_price ? '$' + etf.current_price.toFixed(2) : 'N/A'}</td>
+                    <td>${etf.current_price ? '$' + formatNumber(etf.current_price, 2) : 'N/A'}</td>
                     <td>
                         ${etf.current_yield ? 
                             `<div class="text-center">
                                 <div class="fw-bold yield-${getYieldClass(etf.current_yield)}">
-                                    ${(etf.after_tax_yield || calculateAfterTaxYield(etf.current_yield, currentTaxRate)).toFixed(2)}%
+                                    ${formatNumber(etf.after_tax_yield || calculateAfterTaxYield(etf.current_yield, currentTaxRate), 2)}%
                                 </div>
                                 <small class="text-muted">
-                                    ${etf.current_yield.toFixed(2)}%
+                                    ${formatNumber(etf.current_yield, 2)}%
                                 </small>
                             </div>` : 
                             '<span class="yield-unknown">N/A</span>'

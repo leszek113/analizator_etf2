@@ -30,6 +30,29 @@ def create_app():
     db.init_app(app)
     CORS(app)
     
+    # Dodanie własnego filtra Jinja2 do formatowania liczb z przecinkiem
+    @app.template_filter('comma_format')
+    def comma_format_filter(value, decimals=2):
+        """Filtr do formatowania liczb z przecinkiem (polski format)"""
+        if value is None:
+            return 'N/A'
+        try:
+            formatted = f"{float(value):.{decimals}f}"
+            return formatted.replace('.', ',')
+        except (ValueError, TypeError):
+            return 'N/A'
+    
+    # Dodanie filtra Jinja2 do formatowania liczb z kropką (dla JavaScript)
+    @app.template_filter('dot_format')
+    def dot_format_filter(value, decimals=2):
+        """Filtr do formatowania liczb z kropką (dla JavaScript)"""
+        if value is None:
+            return 'N/A'
+        try:
+            return f"{float(value):.{decimals}f}"
+        except (ValueError, TypeError):
+            return 'N/A'
+    
     # Inicjalizacja serwisu API
     api_service = APIService()
     
@@ -100,10 +123,14 @@ def create_app():
             # Obliczanie sumy ostatnich dywidend w zależności od częstotliwości
             last_dividends_sum = db_service.calculate_recent_dividend_sum(etf.id, etf.frequency)
             
+            # Obliczanie prognozowanego wzrostu dywidendy
+            dividend_growth_forecast = db_service.calculate_dividend_growth_forecast(etf.id, etf.frequency)
+            
             return render_template('etf_details.html', 
                                  etf=etf, 
                                  dividends=dividends,
-                                 last_dividends_sum=last_dividends_sum)
+                                 last_dividends_sum=last_dividends_sum,
+                                 dividend_growth_forecast=dividend_growth_forecast)
         except Exception as e:
             logger.error(f"Error loading ETF details for {ticker}: {str(e)}")
             return render_template('error.html', error=str(e))

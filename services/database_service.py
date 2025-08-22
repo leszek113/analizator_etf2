@@ -938,6 +938,57 @@ class DatabaseService:
             logger.error(f"Error calculating dividend sum for ETF {etf_id}: {str(e)}")
             return 0.0
 
+    def calculate_dividend_growth_forecast(self, etf_id: int, frequency: str = None) -> float:
+        """
+        Oblicza prognozowany wzrost dywidendy porównując sumę ostatnich dywidend z roczną dywidendą z poprzedniego roku
+        
+        Args:
+            etf_id: ID ETF
+            frequency: Częstotliwość wypłat ('monthly', 'quarterly', 'annual')
+        
+        Returns:
+            Prognozowany wzrost w procentach lub 0.0 jeśli brak danych
+        """
+        try:
+            # Pobieranie dywidend posortowanych od najnowszej
+            dividends = ETFDividend.query.filter_by(etf_id=etf_id).order_by(ETFDividend.payment_date.desc()).all()
+            
+            if not dividends:
+                return 0.0
+            
+            # Obliczenie sumy ostatnich dywidend
+            recent_sum = self.calculate_recent_dividend_sum(etf_id, frequency)
+            if recent_sum == 0.0:
+                return 0.0
+            
+            # Znalezienie ostatniego zakończonego roku kalendarzowego
+            current_year = datetime.now().year
+            last_completed_year = current_year - 1
+            
+            # Pobieranie dywidend z ostatniego zakończonego roku
+            yearly_dividends = [div for div in dividends if div.payment_date.year == last_completed_year]
+            
+            if not yearly_dividends:
+                # Jeśli brak danych z poprzedniego roku, spróbuj z roku bieżącego
+                yearly_dividends = [div for div in dividends if div.payment_date.year == current_year]
+                if not yearly_dividends:
+                    return 0.0
+            
+            # Sumowanie dywidend z roku
+            yearly_total = sum(div.normalized_amount for div in yearly_dividends)
+            
+            if yearly_total == 0.0:
+                return 0.0
+            
+            # Obliczenie wzrostu w procentach
+            growth_percentage = ((recent_sum - yearly_total) / yearly_total) * 100
+            
+            return round(growth_percentage, 2)  # 2 miejsca po przecinku
+            
+        except Exception as e:
+            logger.error(f"Error calculating dividend growth forecast for ETF {etf_id}: {str(e)}")
+            return 0.0
+
     def _is_monthly_frequency(self, dates: List[date]) -> bool:
         """
         Sprawdza czy daty sugerują miesięczną częstotliwość
