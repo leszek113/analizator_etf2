@@ -1,5 +1,6 @@
 # 🚀 **ETF Analyzer - System Analizy ETF**
 
+**Wersja**: v1.8.1 (2025-08-22)  
 **Status projektu**: ✅ **FUNKCJONALNY** - System działa z prawdziwymi danymi z FMP API
 
 System do analizy ETF z automatycznym pobieraniem danych, historią cen i dywidend, oraz dashboardem do monitorowania. **Zbudowany zgodnie z wymaganiami CEO - żadnych mock danych, tylko prawdziwe informacje z wiarygodnych źródeł.**

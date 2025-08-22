@@ -98,12 +98,12 @@ def create_app():
             dividends = db_service.get_etf_dividends(etf.id)
             
             # Obliczanie sumy ostatnich dywidend w zależności od częstotliwości
-            dividend_sum = db_service.calculate_recent_dividend_sum(etf.id, etf.frequency)
+            last_dividends_sum = db_service.calculate_recent_dividend_sum(etf.id, etf.frequency)
             
             return render_template('etf_details.html', 
                                  etf=etf, 
                                  dividends=dividends,
-                                 dividend_sum=dividend_sum)
+                                 last_dividends_sum=last_dividends_sum)
         except Exception as e:
             logger.error(f"Error loading ETF details for {ticker}: {str(e)}")
             return render_template('error.html', error=str(e))

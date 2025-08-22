@@ -5,6 +5,25 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.8.1] - 2025-08-22
+
+### Fixed
+- **Błąd składni Jinja2** - naprawiono problem z metodą `.replace()` w szablonach
+- **Strona szczegółów ETF** - przywrócono działanie po zmianie separatora dziesiętnego
+- **Wirtualne środowisko** - naprawiono problem z aktywacją środowiska `.venv` vs `venv`
+- **Formatowanie liczb** - uproszczono system formatowania, usunięto problematyczne filtry
+
+### Changed
+- **Separator dziesiętny** - przywrócono kropki w szablonach Jinja2 (stabilność)
+- **JavaScript formatowanie** - uproszczono funkcje formatowania liczb
+- **Usunięto problematyczne filtry** - `comma_format` i `formatNumber` które powodowały błędy
+
+### Technical
+- **Jinja2 compatibility** - usunięto nieobsługiwane metody `.replace()` w szablonach
+- **Environment management** - rozróżnienie między `venv/` (z zależnościami) a `.venv/` (pusty)
+- **Template cleanup** - usunięto wszystkie problematyczne filtry i funkcje formatowania
+- **Error handling** - naprawiono błędy składni które uniemożliwiały wyświetlanie stron
+
 ## [1.8.0] - 2025-08-22
 
 ### Added

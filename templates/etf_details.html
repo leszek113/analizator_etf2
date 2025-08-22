@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -116,11 +117,11 @@
                                 <div class="etf-info">
                                     <span class="badge bg-primary me-2">
                                         <i class="bi bi-currency-dollar"></i>
-                                        Cena: ${{ "%.5f"|format(etf.current_price) if etf.current_price else 'N/A' }}
+                                        Cena: ${{ "%.2f"|format(etf.current_price) if etf.current_price else 'N/A' }}
                                     </span>
                                     <span class="badge bg-success me-2">
                                         <i class="bi bi-percent"></i>
-                                        Yield: {{ "%.5f"|format(etf.current_yield) if etf.current_yield else 'N/A' }}%
+                                        Yield: <span id="currentYield" data-original="{{ "%.2f"|format(etf.current_yield) if etf.current_yield else 'N/A' }}">{{ "%.2f"|format(etf.current_yield) if etf.current_yield else 'N/A' }}</span>%
                                     </span>
                                     <span class="badge bg-warning text-dark me-2" id="taxRateBadge">
                                         <i class="bi bi-receipt"></i>
@@ -132,8 +133,8 @@
                                     </span>
                                     <span class="badge bg-secondary me-2">
                                         <i class="bi bi-calculator"></i>
-                                        Suma {{ "12" if etf.frequency == "monthly" else "4" }} ostatnich: 
-                                        $<span id="lastDividendsSum">{{ "%.5f"|format(last_dividends_sum) if last_dividends_sum else 'N/A' }}</span>
+                                        Suma {{ "12" if etf.frequency == "monthly" else "4" }} ost.: 
+                                        $<span id="lastDividendsSum" data-original="{{ "%.5f"|format(last_dividends_sum) if last_dividends_sum else 'N/A' }}">{{ "%.5f"|format(last_dividends_sum) if last_dividends_sum else 'N/A' }}</span>
                                     </span>
                                 </div>
                             </div>
@@ -160,6 +161,7 @@
                 <i class="bi bi-calendar-check"></i>
                 Historia wypłaconych dywidend
             </h3>
+
             
             <div class="table-responsive">
                 <table class="table matrix-table">
@@ -221,7 +223,7 @@
                             {% endif %}
                             
                                                                     <tr>
-                                            <td class="{{ total_class }}" title="{{ total_title }}">
+                                            <td class="{{ total_class }} yearly-total" title="{{ total_title }}" data-original="{{ "%.5f"|format(current_total) }}">
                                                 <strong>{{ "%.5f"|format(current_total) }}</strong>
                                             </td>
                                             <td class="year-column">{{ year }}</td>
@@ -231,11 +233,11 @@
                                                     {% set total = amounts|sum %}
                                                     {% set count = amounts|length %}
                                                     {% if count > 1 %}
-                                                        <td class="dividend-value" title="Liczba wypłat: {{ count }}">
+                                                        <td class="dividend-value monthly-dividend" title="Liczba wypłat: {{ count }}" data-original="{{ "%.5f"|format(total) }}">
                                                             {{ "%.5f"|format(total) }}
                                                         </td>
                                                     {% else %}
-                                                        <td class="dividend-value">
+                                                        <td class="dividend-value monthly-dividend" data-original="{{ "%.5f"|format(total) }}">
                                                             {{ "%.5f"|format(total) }}
                                                         </td>
                                                     {% endif %}
@@ -407,6 +409,8 @@
             });
         }
 
+
+        
         function calculateAfterTaxYield(originalYield, taxRate) {
             if (taxRate <= 0) return originalYield;
             return originalYield * (1 - taxRate / 100);
@@ -466,7 +470,7 @@
                                         callbacks: {
                                             label: function(context) {
                                                 const price = context.parsed.y;
-                                                return `Cena: $${price.toFixed(5)}`;
+                                                return `Cena: $${price.toFixed(2)}`;
                                             }
                                         }
                                     },
@@ -521,7 +525,92 @@
         document.addEventListener('DOMContentLoaded', function() {
             const ticker = '{{ etf.ticker }}';
             createPriceChart(ticker);
+            
+            // Ładowanie stawki podatku i przeliczanie wartości
+            loadTaxRate();
         });
+        
+        // Funkcje do obsługi podatku od dywidend
+        
+        async function loadTaxRate() {
+            try {
+                const response = await fetch('/api/system/dividend-tax-rate');
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentTaxRate = result.data.tax_rate;
+                    console.log('📊 Tax rate loaded:', currentTaxRate);
+                    
+                    // Aktualizacja badge z stawką podatku
+                    document.getElementById('currentTaxRate').textContent = currentTaxRate;
+                    
+                    // Przeliczenie wszystkich wartości
+                    recalculateAllValues();
+                }
+            } catch (error) {
+                console.error('Error loading tax rate:', error);
+            }
+        }
+        
+        function recalculateAllValues() {
+            console.log('🔢 Recalculating values with tax rate:', currentTaxRate);
+            
+            // Przeliczenie yield w nagłówku - BRUTTO i NETTO w formacie 2 miejsc po przecinku
+            const currentYieldElement = document.getElementById('currentYield');
+            if (currentYieldElement) {
+                const originalYield = parseFloat(currentYieldElement.getAttribute('data-original'));
+                if (originalYield && !isNaN(originalYield)) {
+                    const afterTaxYield = calculateAfterTaxYield(originalYield, currentTaxRate);
+                    currentYieldElement.textContent = `${originalYield.toFixed(2)} (B), ${afterTaxYield.toFixed(2)} (N)`;
+                }
+            }
+            
+            // Przeliczenie sumy ostatnich dywidend w nagłówku - BRUTTO i NETTO w jednej linii
+            const lastDividendsSumElement = document.getElementById('lastDividendsSum');
+            if (lastDividendsSumElement) {
+                const originalValue = parseFloat(lastDividendsSumElement.getAttribute('data-original'));
+                if (originalValue && !isNaN(originalValue)) {
+                    const afterTaxValue = calculateAfterTaxAmount(originalValue, currentTaxRate);
+                    lastDividendsSumElement.textContent = `${originalValue.toFixed(5)} (B), ${afterTaxValue.toFixed(5)} (N)`;
+                }
+            }
+            
+            // Przeliczenie kolumny "Suma Roczna" w tabeli dywidend
+            recalculateYearlyTotals();
+        }
+        
+        function recalculateYearlyTotals() {
+            // Przeliczenie kolumny "Suma Roczna"
+            const yearlyTotalCells = document.querySelectorAll('.yearly-total');
+            yearlyTotalCells.forEach(cell => {
+                const originalValue = parseFloat(cell.getAttribute('data-original'));
+                if (originalValue && !isNaN(originalValue)) {
+                    const afterTaxValue = calculateAfterTaxAmount(originalValue, currentTaxRate);
+                    cell.innerHTML = `
+                        <div class="text-center">
+                            <div class="fw-bold">${originalValue.toFixed(5)}</div>
+                            <small class="text-muted">${afterTaxValue.toFixed(5)}</small>
+                        </div>
+                    `;
+                }
+            });
+            
+            // Przeliczenie komórek miesięcznych/kwartalnych
+            const monthlyDividendCells = document.querySelectorAll('.monthly-dividend');
+            monthlyDividendCells.forEach(cell => {
+                const originalValue = parseFloat(cell.getAttribute('data-original'));
+                if (originalValue && !isNaN(originalValue)) {
+                    const afterTaxValue = calculateAfterTaxAmount(originalValue, currentTaxRate);
+                    cell.innerHTML = `
+                        <div class="text-center">
+                            <div class="fw-bold">${originalValue.toFixed(5)}</div>
+                            <small class="text-muted">${afterTaxValue.toFixed(5)}</small>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
