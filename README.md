@@ -184,7 +184,13 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
 
-## 🔧 **Ostatnie naprawy (v1.9.5)**
+## 🔧 **Ostatnie naprawy (v1.9.6)**
+
+### **Krytyczne naprawy v1.9.6:**
+- ✅ **Naprawiono utratę danych historycznych** - funkcja `cleanup_old_price_history()` niszczyła ceny miesięczne
+- ✅ **Przywrócono wykresy cen** - odzyskano utracone dane z ostatnich 5 lat dla wszystkich ETF
+- ✅ **Wyłączono niszczącą funkcję** - `cleanup_old_price_history()` usunięta ze schedulera
+- ✅ **Poprawiono logikę uzupełniania** - automatyczne przywracanie brakujących danych historycznych
 
 ### **Nowe funkcje v1.9.5:**
 - ✅ **System logowania zadań w tle** - szczegółowe śledzenie wykonania każdego zadania scheduler'a

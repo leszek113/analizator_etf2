@@ -261,13 +261,26 @@ class DatabaseService:
             from sqlalchemy import text
             from datetime import datetime, date
             
-            # Obliczanie ostatniego zakończonego miesiąca
+            # Obliczanie ostatniego miesiąca z danymi
             today = date.today()
-            # Zawsze kończymy na poprzednim miesiącu względem bieżącego
-            if today.month == 1:
-                last_completed_month = date(today.year - 1, 12, 1)
+            # Sprawdzamy czy mamy dane z bieżącego miesiąca
+            current_month_start = date(today.year, today.month, 1)
+            
+            # Sprawdź czy są ceny z bieżącego miesiąca
+            current_month_prices = ETFPrice.query.filter(
+                ETFPrice.etf_id == etf_id,
+                ETFPrice.date >= current_month_start
+            ).first()
+            
+            if current_month_prices:
+                # Mamy ceny z bieżącego miesiąca - używamy dzisiejszej daty
+                last_completed_month = today
             else:
-                last_completed_month = date(today.year, today.month - 1, 1)
+                # Brak cen z bieżącego miesiąca - używamy poprzedniego miesiąca
+                if today.month == 1:
+                    last_completed_month = date(today.year - 1, 12, 1)
+                else:
+                    last_completed_month = date(today.year, today.month - 1, 1)
             
             query = text("""
                 SELECT 
@@ -1416,14 +1429,24 @@ class DatabaseService:
             dividends_filled = 0
             
             # Uzupełnianie brakujących cen miesięcznych
-            if not completeness['prices_complete'] and completeness['missing_price_months']:
-                logger.info(f"ETF {ticker} missing {len(completeness['missing_price_months'])} price months, attempting to fill")
+            if not completeness['prices_complete']:
+                if completeness['missing_price_months']:
+                    logger.info(f"ETF {ticker} missing {len(completeness['missing_price_months'])} price months, attempting to fill")
+                else:
+                    logger.warning(f"ETF {ticker} has NO price data at all - fetching full 15-year history!")
                 
                 # Pobierz brakujące ceny z API
-                missing_months = completeness['missing_price_months']
-                oldest_missing = min(missing_months)
+                if completeness['missing_price_months']:
+                    missing_months = completeness['missing_price_months']
+                    oldest_missing = min(missing_months)
+                    logger.info(f"Fetching prices from {oldest_missing} for {ticker}")
+                else:
+                    # Brak cen w bazie - pobierz pełną historię
+                    missing_months = []
+                    oldest_missing = None
+                    logger.info(f"ETF {ticker} has no price data - fetching full 15-year history")
                 
-                # Pobierz ceny od najstarszego brakującego miesiąca
+                # Pobierz ceny z API
                 historical_prices = self.api_service.get_historical_prices(
                     ticker, 
                     years=15, 
@@ -1433,30 +1456,58 @@ class DatabaseService:
                 if historical_prices:
                     api_calls_used += 1
                     
-                    # Dodaj tylko brakujące ceny
-                    for price_data in historical_prices:
-                        price_date = price_data['date']
+                    # Dodaj ceny do bazy
+                    if missing_months:
+                        # Dodaj tylko brakujące ceny
+                        for price_data in historical_prices:
+                            price_date = price_data['date']
+                            
+                            # Sprawdź czy to brakujący miesiąc
+                            if price_date in missing_months:
+                                # Sprawdź czy już nie mamy tej ceny
+                                existing_price = ETFPrice.query.filter_by(
+                                    etf_id=etf_id,
+                                    date=price_date
+                                ).first()
+                                
+                                if not existing_price:
+                                    price = ETFPrice(
+                                        etf_id=etf_id,
+                                        date=price_date,
+                                        close_price=price_data['close'],
+                                        normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
+                                    )
+                                    db.session.add(price)
+                                    prices_filled += 1
                         
-                        # Sprawdź czy to brakujący miesiąc
-                        if price_date in missing_months:
-                            # Sprawdź czy już nie mamy tej ceny
+                        logger.info(f"Filled {prices_filled} missing price months for {ticker}")
+                    else:
+                        # Brak cen w bazie - dodaj wszystkie pobrane ceny
+                        for price_data in historical_prices:
+                            # Sprawdź czy już nie mamy tej ceny (zabezpieczenie przed duplikatami)
                             existing_price = ETFPrice.query.filter_by(
                                 etf_id=etf_id,
-                                date=price_date
+                                date=price_data['date']
                             ).first()
                             
                             if not existing_price:
                                 price = ETFPrice(
                                     etf_id=etf_id,
-                                    date=price_date,
+                                    date=price_data['date'],
                                     close_price=price_data['close'],
                                     normalized_close_price=price_data.get('normalized_close', price_data['close']),
                                     split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
                                 )
                                 db.session.add(price)
                                 prices_filled += 1
+                        
+                        logger.info(f"Added {prices_filled} historical prices for {ticker} (no existing data)")
                     
-                    logger.info(f"Filled {prices_filled} missing price months for {ticker}")
+                    # Zatwierdź zmiany w bazie
+                    if prices_filled > 0:
+                        db.session.commit()
+                        logger.info(f"Successfully committed {prices_filled} new prices to database for {ticker}")
             
             # Uzupełnianie brakujących dywidend
             if not completeness['dividends_complete'] and completeness['missing_dividend_years']:
@@ -1589,11 +1640,28 @@ class DatabaseService:
             return False
     
     def cleanup_old_price_history(self) -> int:
-        """Czyści stare rekordy cen (retencja 2 tygodnie)"""
+        """
+        UWAGA: Ta funkcja została wyłączona ze schedulera!
+        Czyści TYLKO codzienne ceny aktualne (retencja 2 tygodnie)
+        NIE dotyka historycznych cen miesięcznych z zadania "Aktualizacja wszystkich ETF"
+        """
         try:
             cutoff_date = date.today() - timedelta(days=14)
             
-            # Usuń stare rekordy cen (ale nie aktualną cenę w tabeli ETF)
+            # UWAGA: NIE usuwamy historycznych cen miesięcznych!
+            # Usuwamy TYLKO codzienne ceny aktualne starsze niż 2 tygodnie
+            
+            # Sprawdzamy czy są jakieś historyczne ceny miesięczne
+            monthly_prices = ETFPrice.query.filter(
+                ETFPrice.date < cutoff_date
+            ).all()
+            
+            if monthly_prices:
+                logger.warning(f"FOUND {len(monthly_prices)} historical prices older than {cutoff_date}")
+                logger.warning("ABORTING cleanup to prevent data loss - historical monthly prices should be preserved!")
+                return 0
+            
+            # Jeśli nie ma historycznych cen, możemy bezpiecznie czyścić codzienne
             deleted_count = ETFPrice.query.filter(
                 ETFPrice.date < cutoff_date
             ).delete()
@@ -1601,7 +1669,7 @@ class DatabaseService:
             db.session.commit()
             
             if deleted_count > 0:
-                logger.info(f"Cleaned up {deleted_count} old price history records (older than {cutoff_date})")
+                logger.info(f"Cleaned up {deleted_count} daily price records (older than {cutdown_date})")
             
             return deleted_count
             

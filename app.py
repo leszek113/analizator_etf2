@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.5"
+__version__ = "1.9.6"
 
 from config import Config
 import pytz
@@ -220,8 +220,8 @@ def create_app():
                 
                 logger.info(f"Price update completed: {updated_count} out of {len(etfs)} ETFs updated")
                 
-                # Czyszczenie starych rekordów cen (retencja 2 tygodnie)
-                db_service.cleanup_old_price_history()
+                # UWAGA: cleanup_old_price_history() został usunięty - niszczył historyczne ceny miesięczne!
+                # Retencja cen historycznych: NIEKONIECZNA - dane historyczne są zachowywane na zawsze
                 
             except Exception as e:
                 execution_time_ms = int((time.time() - start_time) * 1000)

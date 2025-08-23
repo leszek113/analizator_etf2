@@ -5,6 +5,24 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.6] - 2025-08-23
+
+### Added
+- **Przywrócenie historycznych cen ETF** - odzyskano utracone dane cenowe z ostatnich 5 lat dla wszystkich ETF
+- **Naprawa wykresów cen miesięcznych** - wykresy teraz poprawnie wyświetlają historyczne dane
+
+### Fixed
+- **Krytyczny błąd utraty danych** - funkcja `cleanup_old_price_history()` niszczyła historyczne ceny miesięczne
+- **Wykresy cen miesięcznych** - przywrócono historyczne ceny z ostatnich 5 lat dla wszystkich ETF
+- **Logika uzupełniania danych** - funkcja `smart_history_completion` teraz poprawnie uzupełnia brakujące ceny
+
+### Technical
+- **Wyłączono funkcję `cleanup_old_price_history()`** ze schedulera - zapobiega niszczeniu danych historycznych
+- **Poprawiono funkcję `cleanup_old_price_history()`** - zabezpieczona przed niszczeniem cen miesięcznych
+- **Naprawiono logikę `smart_history_completion`** - automatycznie uzupełnia brakujące ceny historyczne
+- **Dodano zabezpieczenia przed duplikatami** - sprawdzanie istniejących cen przed dodaniem nowych
+- **Przywrócono dane** - z 16 cen do 5028 cen w bazie danych
+
 ## [1.9.5] - 2025-08-23
 
 ### Added
