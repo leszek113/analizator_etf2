@@ -5,6 +5,17 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.8] - 2025-08-23
+
+### Fixed
+- **Naprawiono tooltip na wykresie dywidend** - usunięto duplikację sekcji `plugins` w konfiguracji Chart.js
+- **Optymalizacja JavaScript** - połączono rozdzielone sekcje konfiguracji w jedną spójną strukturę
+- **Poprawione wyłączenie tooltip** - teraz tooltip jest całkowicie wyłączony na wykresie rocznych dywidend
+
+### Technical
+- **Refactoring Chart.js** - scalono duplikowane sekcje `plugins` w `updateDividendChart()`
+- **Cleanup kodu** - usunięto redundantną konfigurację tooltip w `templates/etf_details.html`
+
 ## [1.9.7] - 2025-08-23
 
 ### Added

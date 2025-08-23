@@ -1,6 +1,6 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.7  
+**Wersja:** v1.9.8  
 **Ostatnia aktualizacja:** 23 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -184,6 +184,13 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Normalne aktualizacje**: 60-80% mniej wywołań API
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
+
+## 🔧 **Najnowsze poprawki (v1.9.8)**
+
+### **Poprawki v1.9.8:**
+- ✅ **Naprawiono tooltip** - usunięto duplikację sekcji `plugins` w konfiguracji Chart.js
+- ✅ **Optymalizacja JavaScript** - połączono rozdzielone sekcje konfiguracji wykresu dywidend
+- ✅ **Poprawione wyłączenie tooltip** - tooltip całkowicie wyłączony na wykresie rocznych dywidend
 
 ## 🔧 **Ostatnie ulepszenia (v1.9.7)**
 

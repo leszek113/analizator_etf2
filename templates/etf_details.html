@@ -493,7 +493,19 @@
                     datasets: [{
                         label: label,
                         data: data,
-                        backgroundColor: backgroundColor,
+                        backgroundColor: data.map((value, index) => {
+                            const year = parseInt(labels[index]);
+                            const currentYear = new Date().getFullYear();
+                            // Bieżący rok - jaśniejszy kolor dla estymacji
+                            if (year === currentYear) {
+                                if (type === 'gross') {
+                                    return 'rgba(54, 162, 235, 0.4)'; // Jaśniejszy niebieski
+                                } else {
+                                    return 'rgba(75, 192, 192, 0.4)'; // Jaśniejszy zielony
+                                }
+                            }
+                            return backgroundColor;
+                        }),
                         borderColor: borderColor,
                         borderWidth: 1
                     }]
@@ -512,24 +524,33 @@
                     },
                     plugins: {
                         tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const value = context.parsed.y;
-                                    const growth = growthPercentages[context.dataIndex];
-                                    let tooltipText = `${label}: $${formatNumber(value, 4)}`;
-                                    
-                                    if (growth !== null) {
-                                        const growthSymbol = parseFloat(growth) >= 0 ? '↗' : '↘';
-                                        tooltipText += ` (${growthSymbol} ${growth}%)`;
-                                    }
-                                    
-                                    return tooltipText;
-                                }
-                            }
+                            enabled: false
                         },
                         legend: {
                             display: true,
                             position: 'top'
+                        },
+                        datalabels: {
+                            display: true,
+                            color: '#333',
+                            anchor: 'end',
+                            align: 'top',
+                            offset: 4,
+                            font: {
+                                weight: 'bold',
+                                size: 10
+                            },
+                            formatter: function(value, context) {
+                                const growth = growthPercentages[context.dataIndex];
+                                let label = `$${formatNumber(value, 4)}`;
+                                
+                                if (growth !== null) {
+                                    const growthSymbol = parseFloat(growth) >= 0 ? '↗' : '↘';
+                                    label += `\n${growthSymbol} ${growth}%`;
+                                }
+                                
+                                return label;
+                            }
                         }
                     },
                     scales: {
@@ -553,30 +574,6 @@
                                 callback: function(value) {
                                     return '$' + formatNumber(value, 4);
                                 }
-                            }
-                        }
-                    },
-                    plugins: {
-                        datalabels: {
-                            display: true,
-                            color: '#333',
-                            anchor: 'end',
-                            align: 'top',
-                            offset: 4,
-                            font: {
-                                weight: 'bold',
-                                size: 10
-                            },
-                            formatter: function(value, context) {
-                                const growth = growthPercentages[context.dataIndex];
-                                let label = `$${formatNumber(value, 4)}`;
-                                
-                                if (growth !== null) {
-                                    const growthSymbol = parseFloat(growth) >= 0 ? '↗' : '↘';
-                                    label += `\n${growthSymbol} ${growth}%`;
-                                }
-                                
-                                return label;
                             }
                         }
                     }
