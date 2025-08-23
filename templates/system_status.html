@@ -249,14 +249,14 @@
 
 
 
-        <!-- Scheduler Management -->
+        <!-- Zaplanowane zadania w tle -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card status-card">
                     <div class="card-header bg-success text-white">
                         <h4 class="mb-0">
                             <i class="bi bi-clock-history"></i>
-                            Zarządzanie schedulerem
+                            Zaplanowane zadania w tle
                         </h4>
                     </div>
                     <div class="card-body">
@@ -273,8 +273,8 @@
                                     <div class="job-item mb-2 p-2 border rounded">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
-                                                                                <strong>Poniedziałek-piątek o 5:00 CET</strong><br>
-                                <small class="text-muted">Aktualizacja wszystkich ETF</small>
+                                                <strong>Poniedziałek-piątek o 5:00 CET</strong><br>
+                                                <small class="text-muted">Aktualizacja wszystkich ETF</small>
                                             </div>
                                             <span class="badge bg-success">Aktywne</span>
                                         </div>
@@ -282,137 +282,102 @@
                                     <div class="job-item mb-2 p-2 border rounded">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
-                                                                                <strong>Co 15 min (pon-piątek 13:00-23:00 CET)</strong><br>
-                                <small class="text-muted">Aktualizacja cen ETF</small>
+                                                <strong>Co 15 min (pon-piątek 13:00-23:00 CET)</strong><br>
+                                                <small class="text-muted">Aktualizacja cen ETF</small>
                                             </div>
                                             <span class="badge bg-success">Aktywne</span>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <div class="mt-3">
-                                    <h6>Dodaj nowe zadanie:</h6>
-                                    <div class="row g-2 mb-2">
-                                        <div class="col-6">
-                                            <select class="form-select form-select-sm" id="newJobType">
-                                                <option value="price_update">Aktualizacja cen ETF</option>
-                                                <option value="dividend_check">Sprawdzenie dywidend</option>
-                                                <option value="data_cleanup">Czyszczenie danych</option>
-                                                <option value="custom">Własne zadanie</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-6">
-                                            <select class="form-select form-select-sm" id="newJobFrequency">
-                                                <option value="daily">Codziennie</option>
-                                                <option value="weekly">Co tydzień</option>
-                                                <option value="monthly">Co miesiąc</option>
-                                                <option value="custom">Własne</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <button class="btn btn-outline-info btn-sm w-100" onclick="addNewJob()">
-                                        <i class="bi bi-plus-circle"></i> Dodaj zadanie
-                                    </button>
-                                </div>
                             </div>
                             
-                                                            <div class="col-md-6">
-                                    <div class="mt-3">
-                                        <small class="text-muted">
-                                            <i class="bi bi-lightbulb"></i>
-                                            <strong>Tip:</strong> Scheduler automatycznie zarządza danymi. 
-                                            <br><strong>"Aktualizacja wszystkich ETF":</strong> Sprawdza nowe dywidendy, ceny i uzupełnia brakującą historię
-                                            <br><strong>"Aktualizacja cen ETF":</strong> Aktualizuje tylko ceny co 15 min w dni robocze
-                                        </small>
-                                    </div>
+                            <div class="col-md-6">
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="bi bi-lightbulb"></i>
+                                        <strong>Tip:</strong> Scheduler automatycznie zarządza danymi. 
+                                        <br><strong>"Aktualizacja wszystkich ETF":</strong> Sprawdza nowe dywidendy, ceny i uzupełnia brakującą historię
+                                        <br><strong>"Aktualizacja cen ETF":</strong> Aktualizuje tylko ceny co 15 min w dni robocze
+                                    </small>
                                 </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Job Execution Logs -->
+        <!-- Logi i status zadań wykonanych w tle -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card status-card">
-                    <div class="card-header bg-info text-white">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                         <h4 class="mb-0">
                             <i class="bi bi-list-check"></i>
-                            Logi wykonanych zadań
+                            Logi i status zadań wykonanych w tle
                         </h4>
+                        <button class="btn btn-outline-light btn-sm" onclick="refreshAllJobLogs()">
+                            <i class="bi bi-arrow-clockwise"></i> Odśwież wszystkie logi
+                        </button>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>Ostatnie wykonania:</h6>
-                                <div id="jobLogs" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-                                                                            <div class="job-log-item mb-2 p-2 bg-light rounded">
-                                            <div class="d-flex justify-content-between">
-                                                <strong>Aktualizacja wszystkich ETF</strong>
-                                                <small class="text-muted">2 godziny temu</small>
-                                            </div>
-                                            <small class="text-success">✓ Ukończone pomyślnie</small>
-                                            <div class="mt-1">
-                                                <small class="text-muted">Zaktualizowano 5 ETF, uzupełniono 12 cen, 3 dywidendy</small>
-                                            </div>
-                                        </div>
-                                                                            <div class="job-log-item mb-2 p-2 bg-light rounded">
-                                            <div class="d-flex justify-content-between">
-                                                <strong>Aktualizacja cen ETF</strong>
-                                                <small class="text-muted">15 minut temu</small>
-                                            </div>
-                                            <small class="text-success">✓ Ukończone pomyślnie</small>
-                                            <div class="mt-1">
-                                                <small class="text-muted">Zaktualizowano ceny 5 ETF</small>
-                                            </div>
-                                        </div>
-                                </div>
-                                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="refreshJobLogs()">
-                                    <i class="bi bi-arrow-clockwise"></i> Odśwież logi
-                                </button>
+                        <!-- Tabela 1: Aktualizacja wszystkich ETF -->
+                        <div class="mb-4">
+                            <h5 class="text-primary">
+                                <i class="bi bi-arrow-repeat"></i>
+                                Aktualizacja wszystkich ETF
+                                <small class="text-muted">(Historia: 3 miesiące)</small>
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm" id="updateAllEtfsTable">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Data i godzina</th>
+                                            <th>Status</th>
+                                            <th>Czas wykonania</th>
+                                            <th>ETF zaktualizowane</th>
+                                            <th>Ceny uzupełnione</th>
+                                            <th>Dywidendy uzupełnione</th>
+                                            <th>Wywołania API</th>
+                                            <th>Szczegóły</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="updateAllEtfsBody" style="max-height: 200px; overflow-y: auto;">
+                                        <!-- Dynamicznie wypełniane przez JavaScript -->
+                                    </tbody>
+                                </table>
                             </div>
-                            <div class="col-md-6">
-                                <h6>Statystyki wykonania:</h6>
-                                <div class="row text-center">
-                                    <div class="col-4">
-                                        <div class="border rounded p-2">
-                                            <h5 class="text-success mb-0">24</h5>
-                                            <small class="text-muted">Dzisiaj</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="border rounded p-2">
-                                            <h5 class="text-primary mb-0">168</h5>
-                                            <small class="text-muted">Ten tydzień</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="border rounded p-2">
-                                            <h5 class="text-info mb-0">98.5%</h5>
-                                            <small class="text-muted">Sukces</small>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="mt-3">
-                                    <h6>Filtruj logi:</h6>
-                                    <div class="row g-2">
-                                        <div class="col-6">
-                                            <select class="form-select form-select-sm" id="logFilter">
-                                                <option value="all">Wszystkie</option>
-                                                <option value="success">Tylko sukcesy</option>
-                                                <option value="error">Tylko błędy</option>
-                                                <option value="today">Dzisiaj</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-6">
-                                            <button class="btn btn-outline-warning btn-sm w-100" onclick="exportJobLogs()">
-                                                <i class="bi bi-download"></i> Eksportuj
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div class="text-center mt-2">
+                                <small class="text-muted">Wyświetlanie: 5 wierszy + scroll (ostatnie 20 wykonań)</small>
+                            </div>
+                        </div>
+
+                        <!-- Tabela 2: Aktualizacja cen ETF -->
+                        <div class="mb-4">
+                            <h5 class="text-success">
+                                <i class="bi bi-graph-up"></i>
+                                Aktualizacja cen ETF
+                                <small class="text-muted">(Historia: 2 tygodnie)</small>
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm" id="updateEtfPricesTable">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Data i godzina</th>
+                                            <th>Status</th>
+                                            <th>Czas wykonania</th>
+                                            <th>Ceny zaktualizowane</th>
+                                            <th>ETF z błędami</th>
+                                            <th>Szczegóły</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="updateEtfPricesBody" style="max-height: 200px; overflow-y: auto;">
+                                        <!-- Dynamicznie wypełniane przez JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-center mt-2">
+                                <small class="text-muted">Wyświetlanie: 5 wierszy + scroll (ostatnie 20 wykonań)</small>
                             </div>
                         </div>
                     </div>
@@ -545,90 +510,214 @@
             }
         }
         
-        // Nowe funkcje do zarządzania zadaniami
-        function addNewJob() {
-            const jobType = document.getElementById('newJobType').value;
-            const jobFrequency = document.getElementById('newJobFrequency').value;
-            
-            if (confirm(`Czy chcesz dodać nowe zadanie typu "${jobType}" z częstotliwością "${jobFrequency}"?`)) {
-                // Tutaj można dodać logikę do tworzenia nowych zadań
-                alert('Funkcja dodawania nowych zadań będzie dostępna w następnej wersji.\n\n' +
-                      'Na razie możesz:\n' +
-                      '1. Zmienić czas istniejących zadań\n' +
-                      '2. Uruchomić zadania ręcznie\n' +
-                      '3. Sprawdzić status i logi');
-            }
+        // Funkcje do zarządzania logami zadań schedulera
+        function refreshAllJobLogs() {
+            refreshUpdateAllEtfsLogs();
+            refreshUpdateEtfPricesLogs();
         }
         
-        function refreshJobLogs() {
-            // Symulacja odświeżenia logów
-            const logsContainer = document.getElementById('jobLogs');
-            const now = new Date();
-            const timeAgo = Math.floor(Math.random() * 60) + ' minut temu';
+        function refreshUpdateAllEtfsLogs() {
+            fetch('/api/system/job-logs/update_all_etfs')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        populateUpdateAllEtfsTable(data.logs);
+                    } else {
+                        console.error('Błąd pobierania logów update_all_etfs:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+        
+        function refreshUpdateEtfPricesLogs() {
+            fetch('/api/system/job-logs/update_etf_prices')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        populateUpdateEtfPricesTable(data.logs);
+                    } else {
+                        console.error('Błąd pobierania logów update_etf_prices:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+        
+        function populateUpdateAllEtfsTable(logs) {
+            const tbody = document.getElementById('updateAllEtfsBody');
+            tbody.innerHTML = '';
             
-            const newLog = document.createElement('div');
-            newLog.className = 'job-log-item mb-2 p-2 bg-light rounded';
-            newLog.innerHTML = `
-                <div class="d-flex justify-content-between">
-                    <strong>Manual Refresh</strong>
-                    <small class="text-muted">${timeAgo}</small>
-                </div>
-                <small class="text-info">ℹ Odświeżono logi</small>
-                <div class="mt-1">
-                    <small class="text-muted">Logi zostały odświeżone o ${now.toLocaleTimeString('pl-PL')}</small>
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Brak logów dla tego zadania</td></tr>';
+                return;
+            }
+            
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                const timestamp = new Date(log.timestamp).toLocaleString('pl-PL');
+                const status = log.success ? 
+                    '<span class="badge bg-success">✅ Sukces</span>' : 
+                    '<span class="badge bg-danger">❌ Błąd</span>';
+                const executionTime = log.execution_time_ms ? `${log.execution_time_ms}ms` : 'N/A';
+                
+                // Parsowanie metadanych
+                let etfsUpdated = 'N/A';
+                let pricesFilled = 'N/A';
+                let dividendsFilled = 'N/A';
+                let apiCallsUsed = 'N/A';
+                
+                if (log.metadata) {
+                    etfsUpdated = log.metadata.etfs_updated || 'N/A';
+                    pricesFilled = log.metadata.prices_filled || 'N/A';
+                    dividendsFilled = log.metadata.dividends_filled || 'N/A';
+                    apiCallsUsed = log.metadata.api_calls_used || 'N/A';
+                }
+                
+                row.innerHTML = `
+                    <td><small>${timestamp}</small></td>
+                    <td>${status}</td>
+                    <td><small>${executionTime}</small></td>
+                    <td><small>${etfsUpdated}</small></td>
+                    <td><small>${pricesFilled}</small></td>
+                    <td><small>${dividendsFilled}</small></td>
+                    <td><small>${apiCallsUsed}</small></td>
+                    <td>
+                        <button class="btn btn-outline-info btn-sm" onclick="showJobDetails('${log.id}', 'update_all_etfs')">
+                            <i class="bi bi-info-circle"></i> Szczegóły
+                        </button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function populateUpdateEtfPricesTable(logs) {
+            const tbody = document.getElementById('updateEtfPricesBody');
+            tbody.innerHTML = '';
+            
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Brak logów dla tego zadania</td></tr>';
+                return;
+            }
+            
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                const timestamp = new Date(log.timestamp).toLocaleString('pl-PL');
+                const status = log.success ? 
+                    '<span class="badge bg-success">✅ Sukces</span>' : 
+                    '<span class="badge bg-danger">❌ Błąd</span>';
+                const executionTime = log.execution_time_ms ? `${log.execution_time_ms}ms` : 'N/A';
+                
+                // Parsowanie metadanych
+                let etfsUpdated = 'N/A';
+                let errors = 'N/A';
+                
+                if (log.metadata) {
+                    etfsUpdated = log.metadata.etfs_updated || 'N/A';
+                    errors = log.metadata.errors || '0';
+                }
+                
+                row.innerHTML = `
+                    <td><small>${timestamp}</small></td>
+                    <td>${status}</td>
+                    <td><small>${executionTime}</small></td>
+                    <td><small>${etfsUpdated}</small></td>
+                    <td><small>${errors}</small></td>
+                    <td>
+                        <button class="btn btn-outline-info btn-sm" onclick="showJobDetails('${log.id}', 'update_etf_prices')">
+                            <i class="bi bi-info-circle"></i> Szczegóły
+                        </button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function showJobDetails(logId, jobType) {
+            // Pobierz szczegóły zadania z bazy danych
+            fetch(`/api/system/job-logs?job_name=${jobType}&limit=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.logs.length > 0) {
+                        const log = data.logs.find(l => l.id == logId);
+                        if (log) {
+                            displayJobDetailsModal(log);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+        
+        function displayJobDetailsModal(log) {
+            const details = log.details || 'Brak szczegółów';
+            const errorMessage = log.error_message || 'Brak';
+            const metadata = log.metadata ? JSON.stringify(log.metadata, null, 2) : 'Brak';
+            
+            const modalContent = `
+                <div class="modal fade" id="jobDetailsModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Szczegóły zadania: ${log.job_name}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Podstawowe informacje:</h6>
+                                        <ul class="list-unstyled">
+                                            <li><strong>Status:</strong> ${log.success ? '✅ Sukces' : '❌ Błąd'}</li>
+                                            <li><strong>Data:</strong> ${new Date(log.timestamp).toLocaleString('pl-PL')}</li>
+                                            <li><strong>Czas wykonania:</strong> ${log.execution_time_ms || 'N/A'}ms</li>
+                                            <li><strong>Rekordy:</strong> ${log.records_processed || 'N/A'}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Szczegóły:</h6>
+                                        <p class="text-muted">${details}</p>
+                                        ${log.error_message ? `<h6>Błąd:</h6><p class="text-danger">${errorMessage}</p>` : ''}
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <h6>Metadane:</h6>
+                                        <pre class="bg-light p-2 rounded"><code>${metadata}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
             
-            logsContainer.insertBefore(newLog, logsContainer.firstChild);
-            
-            // Usuń stare logi jeśli jest ich za dużo
-            const logs = logsContainer.querySelectorAll('.job-log-item');
-            if (logs.length > 10) {
-                logs[logs.length - 1].remove();
+            // Usuń istniejący modal jeśli istnieje
+            const existingModal = document.getElementById('jobDetailsModal');
+            if (existingModal) {
+                existingModal.remove();
             }
             
-            alert('Logi zostały odświeżone!');
-        }
-        
-        function exportJobLogs() {
-            // Symulacja eksportu logów
-            const exportData = {
-                timestamp: new Date().toISOString(),
-                logs: [
-                    {
-                                                            job: 'Aktualizacja wszystkich ETF',
-                        status: 'success',
-                        timestamp: '2 godziny temu',
-                        details: 'Zaktualizowano 5 ETF, uzupełniono 12 cen, 3 dywidendy'
-                    },
-                                            {
-                            job: 'Aktualizacja cen ETF',
-                            status: 'success',
-                            timestamp: '15 minut temu',
-                            details: 'Zaktualizowano ceny 5 ETF'
-                        }
-                ]
-            };
+            // Dodaj nowy modal do body
+            document.body.insertAdjacentHTML('beforeend', modalContent);
             
-            const dataStr = JSON.stringify(exportData, null, 2);
-            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(dataBlob);
-            link.download = `job_logs_${new Date().toISOString().split('T')[0]}.json`;
-            link.click();
-            
-            alert('Logi zostały wyeksportowane do pliku JSON!');
+            // Pokaż modal
+            const modal = new bootstrap.Modal(document.getElementById('jobDetailsModal'));
+            modal.show();
         }
         
         // Inicjalizacja przy ładowaniu strony
         document.addEventListener('DOMContentLoaded', function() {
-            // Dodaj event listener do filtra logów
-            document.getElementById('logFilter').addEventListener('change', function() {
-                const filter = this.value;
-                console.log('Filtrowanie logów:', filter);
-                // Tutaj można dodać logikę filtrowania
-            });
+            // Załaduj logi zadań przy starcie
+            refreshAllJobLogs();
         });
     </script>
 </body>

@@ -5,6 +5,41 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.5] - 2025-08-23
+
+### Added
+- **System logowania zadań w tle** - dodano szczegółowe logowanie wykonania zadań scheduler'a
+- **Rozszerzony model SystemLog** - nowe pola: job_name, execution_time_ms, records_processed, success, error_message
+- **Nowe API endpoints dla logów zadań**:
+  - `/api/system/job-logs` - ogólny endpoint z filtrami
+  - `/api/system/job-logs/<job_name>` - endpoint dla konkretnego zadania
+  - `/api/system/trigger-job/<job_name>` - ręczne uruchamianie zadań
+- **Interaktywny interfejs logów** na stronie `/system/status`:
+  - Dwie tabele: "Aktualizacja wszystkich ETF" i "Aktualizacja cen ETF" 
+  - Modal ze szczegółowymi informacjami po kliknięciu "Szczegóły"
+  - Wyświetlanie 20 najnowszych wykonań z przewijaniem (5 wierszy)
+  - Różne okresy historii: 3 miesiące dla aktualizacji ETF, 2 tygodnie dla cen
+- **Migracja bazy danych** - automatyczne dodanie nowych kolumn do tabeli system_logs
+
+### Changed
+- **Ulepszone nazwy sekcji** w interfejsie:
+  - "Zarządzanie schedulerem" → "Zaplanowane zadania w tle"
+  - "Zadania schedulera" → "Logi i status zadań wykonanych w tle"
+- **Usunięto możliwość dodawania nowych zadań** - pozostawiono tylko podgląd zaplanowanych zadań
+- **Lepsze obsługa błędów** - status `success` ustawiany na `false` gdy występują błędy API
+
+### Fixed
+- **Błąd `_increment_api_count`** - poprawiono nazwę metody na `_increment_api_call`
+- **Szczegółowe logowanie błędów** - błędy API są teraz zapisywane w polu error_message
+- **Poprawione endpointy API** - wszystkie nowe endpointy działają poprawnie
+
+### Technical
+- Dodano kolumny do tabeli system_logs: job_name, execution_time_ms, records_processed, success, error_message
+- Utworzono metodę `SystemLog.create_job_log()` dla łatwego tworzenia logów zadań
+- Zintegrowano logowanie z funkcjami `update_all_etfs()` i `update_etf_prices()`
+- Dodano skrypt migracji bazy danych `scripts/migrate_db.py`
+- Zaktualizowano `templates/system_status.html` z nowymi tabelami i JavaScript
+
 ## [1.9.4] - 2025-08-23
 
 ### Added

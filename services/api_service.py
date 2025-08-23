@@ -1159,7 +1159,7 @@ class APIService:
                 try:
                     fmp_price = self._get_fmp_current_price(ticker)
                     if fmp_price:
-                        self._increment_api_count('fmp')
+                        self._increment_api_call('fmp')
                         logger.info(f"Got current price for {ticker} from FMP: ${fmp_price}")
                         return fmp_price
                 except Exception as e:
@@ -1170,7 +1170,7 @@ class APIService:
                 try:
                     eodhd_price = self._get_eodhd_current_price(ticker)
                     if eodhd_price:
-                        self._increment_api_count('eodhd')
+                        self._increment_api_call('eodhd')
                         logger.info(f"Got current price for {ticker} from EODHD: ${eodhd_price}")
                         return eodhd_price
                 except Exception as e:
@@ -1181,7 +1181,7 @@ class APIService:
                 try:
                     tiingo_price = self._get_tiingo_current_price(ticker)
                     if tiingo_price:
-                        self._increment_api_count('tiingo')
+                        self._increment_api_call('tiingo')
                         logger.info(f"Got current price for {ticker} from Tiingo: ${tiingo_price}")
                         return tiingo_price
                 except Exception as e:

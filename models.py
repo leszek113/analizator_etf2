@@ -129,6 +129,13 @@ class SystemLog(db.Model):
     level = db.Column(db.String(20), default='INFO')  # INFO, WARNING, ERROR
     metadata_json = db.Column(JSON)
     
+    # Nowe pola dla logowania zadań schedulera
+    job_name = db.Column(db.String(100), index=True)  # Nazwa zadania (np. "update_all_etfs", "update_etf_prices")
+    execution_time_ms = db.Column(db.Integer)  # Czas wykonania w milisekundach
+    records_processed = db.Column(db.Integer)  # Liczba przetworzonych rekordów
+    success = db.Column(db.Boolean, default=True)  # Czy zadanie się udało
+    error_message = db.Column(db.Text)  # Szczegóły błędu (jeśli success=False)
+    
     def __repr__(self):
         return f'<SystemLog {self.timestamp}: {self.action}>'
     
@@ -139,8 +146,29 @@ class SystemLog(db.Model):
             'action': self.action,
             'details': self.details,
             'level': self.level,
-            'metadata': self.metadata_json
+            'metadata': self.metadata_json,
+            'job_name': self.job_name,
+            'execution_time_ms': self.execution_time_ms,
+            'records_processed': self.records_processed,
+            'success': self.success,
+            'error_message': self.error_message
         }
+    
+    @classmethod
+    def create_job_log(cls, job_name, success=True, execution_time_ms=None, records_processed=None, 
+                      details=None, error_message=None, metadata=None):
+        """Tworzy log zadania schedulera"""
+        return cls(
+            action=f"Scheduler Job: {job_name}",
+            job_name=job_name,
+            success=success,
+            execution_time_ms=execution_time_ms,
+            records_processed=records_processed,
+            details=details,
+            error_message=error_message,
+            level='ERROR' if not success else 'INFO',
+            metadata_json=metadata
+        )
 
 class APILimit(db.Model):
     __tablename__ = 'api_limits'

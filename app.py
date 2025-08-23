@@ -5,12 +5,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta, timezone
 import logging
 import os
+import time
 
 # Wersja systemu
-__version__ = "1.9.4"
+__version__ = "1.9.5"
 
 from config import Config
-from models import db
+from models import db, SystemLog
 from services.database_service import DatabaseService
 from services.api_service import APIService
 
@@ -74,6 +75,7 @@ def create_app():
     # Dodawanie zadań do schedulera
     def update_all_etfs():
         """Zadanie schedulera do codziennej aktualizacji wszystkich ETF (Aktualizacja wszystkich ETF)"""
+        start_time = time.time()
         with app.app_context():
             try:
                 etfs = db_service.get_all_etfs()
@@ -105,6 +107,28 @@ def create_app():
                     history_completion_stats['dividends_filled_total'] += completion_result['dividends_filled']
                     history_completion_stats['api_calls_used_total'] += completion_result['api_calls_used']
                 
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                total_records = history_completion_stats['prices_filled_total'] + history_completion_stats['dividends_filled_total']
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="update_all_etfs",
+                    success=True,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=total_records,
+                    details=f"Zaktualizowano {updated_count}/{len(etfs)} ETF, uzupełniono {history_completion_stats['prices_filled_total']} cen, {history_completion_stats['dividends_filled_total']} dywidend, użyto {history_completion_stats['api_calls_used_total']} wywołań API",
+                    metadata={
+                        'etfs_updated': updated_count,
+                        'total_etfs': len(etfs),
+                        'prices_filled': history_completion_stats['prices_filled_total'],
+                        'dividends_filled': history_completion_stats['dividends_filled_total'],
+                        'api_calls_used': history_completion_stats['api_calls_used_total'],
+                        'etfs_with_complete_history': history_completion_stats['etfs_with_complete_history']
+                    }
+                )
+                db.session.add(job_log)
+                db.session.commit()
+                
                 logger.info(f"Daily update completed: {updated_count} out of {len(etfs)} ETFs updated")
                 logger.info(f"History completion: {history_completion_stats['etfs_with_complete_history']}/{history_completion_stats['total_etfs']} ETFs have complete history")
                 logger.info(f"Data filled: {history_completion_stats['prices_filled_total']} prices, {history_completion_stats['dividends_filled_total']} dividends")
@@ -114,16 +138,32 @@ def create_app():
                 db_service.cleanup_old_data()
                 
             except Exception as e:
-                logger.error(f"Error in scheduled update: {str(e)}")
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in scheduled update: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="update_all_etfs",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas aktualizacji wszystkich ETF",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
     
     def update_etf_prices():
         """Zadanie schedulera do aktualizacji cen ETF co 15 minut w dni robocze (Aktualizacja cen ETF)"""
+        start_time = time.time()
         with app.app_context():
             try:
                 etfs = db_service.get_all_etfs()
                 logger.info(f"Starting scheduled ETF price update for {len(etfs)} ETFs...")
                 
                 updated_count = 0
+                error_count = 0
                 for etf in etfs:
                     try:
                         logger.info(f"Updating price for ETF {etf.ticker}...")
@@ -142,10 +182,31 @@ def create_app():
                             logger.info(f"Successfully updated price for {etf.ticker}: ${current_price}")
                         else:
                             logger.warning(f"Failed to get current price for {etf.ticker}")
+                            error_count += 1
                             
                     except Exception as e:
                         logger.error(f"Error updating price for ETF {etf.ticker}: {str(e)}")
+                        error_count += 1
                         continue
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="update_etf_prices",
+                    success=True if error_count == 0 else False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=updated_count,
+                    details=f"Zaktualizowano ceny {updated_count}/{len(etfs)} ETF, błędy: {error_count}",
+                    error_message=f"Błędy API dla {error_count} ETF: problemy z pobieraniem cen z zewnętrznych źródeł" if error_count > 0 else None,
+                    metadata={
+                        'etfs_updated': updated_count,
+                        'total_etfs': len(etfs),
+                        'errors': error_count
+                    }
+                )
+                db.session.add(job_log)
+                db.session.commit()
                 
                 logger.info(f"Price update completed: {updated_count} out of {len(etfs)} ETFs updated")
                 
@@ -153,7 +214,21 @@ def create_app():
                 db_service.cleanup_old_price_history()
                 
             except Exception as e:
-                logger.error(f"Error in scheduled price update: {str(e)}")
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in scheduled price update: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="update_etf_prices",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas aktualizacji cen ETF",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
     
     # Uruchamianie aktualizacji wszystkich ETF raz dziennie o 5:00 CET (poniedziałek-piątek)
     scheduler.add_job(
@@ -674,6 +749,138 @@ def create_app():
                 
         except Exception as e:
             logger.error(f"Error updating dividend tax rate: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/system/job-logs')
+    def get_job_logs():
+        """Pobiera logi zadań schedulera z filtrowaniem"""
+        try:
+            # Parametry filtrowania
+            job_name = request.args.get('job_name', 'all')
+            status = request.args.get('status', 'all')
+            time_range = request.args.get('time_range', 'all')
+            limit = int(request.args.get('limit', 20))
+            
+            # Budowanie zapytania
+            query = SystemLog.query.filter(SystemLog.job_name.isnot(None))
+            
+            if job_name != 'all':
+                query = query.filter(SystemLog.job_name == job_name)
+            
+            if status != 'all':
+                query = query.filter(SystemLog.success == (status == 'success'))
+            
+            # Filtrowanie po czasie
+            if time_range == '24h':
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+                query = query.filter(SystemLog.timestamp >= cutoff)
+            elif time_range == '7d':
+                cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+                query = query.filter(SystemLog.timestamp >= cutoff)
+            elif time_range == '30d':
+                cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+                query = query.filter(SystemLog.timestamp >= cutoff)
+            elif time_range == '3m':
+                cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+                query = query.filter(SystemLog.timestamp >= cutoff)
+            
+            # Sortowanie i limit
+            logs = query.order_by(SystemLog.timestamp.desc()).limit(limit).all()
+            
+            return jsonify({
+                'success': True,
+                'logs': [log.to_dict() for log in logs],
+                'total': len(logs)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting job logs: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/system/job-logs/<job_name>')
+    def get_job_logs_by_name(job_name):
+        """Pobiera logi dla konkretnego zadania z różnymi okresami historii"""
+        try:
+            # Okresy historii dla różnych zadań
+            if job_name == 'update_all_etfs':
+                # 3 miesiące dla aktualizacji wszystkich ETF
+                cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+            elif job_name == 'update_etf_prices':
+                # 2 tygodnie dla aktualizacji cen
+                cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+            else:
+                # Domyślnie 30 dni
+                cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+            
+            # Pobieranie logów
+            logs = SystemLog.query.filter(
+                SystemLog.job_name == job_name,
+                SystemLog.timestamp >= cutoff
+            ).order_by(SystemLog.timestamp.desc()).limit(20).all()
+            
+            return jsonify({
+                'success': True,
+                'logs': [log.to_dict() for log in logs],
+                'total': len(logs),
+                'history_period_days': (datetime.now(timezone.utc) - cutoff).days
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting job logs for {job_name}: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/system/trigger-job/<job_name>', methods=['POST'])
+    def trigger_job(job_name):
+        """Ręcznie uruchamia zadanie scheduler'a"""
+        try:
+            if not hasattr(app, 'scheduler') or not app.scheduler:
+                return jsonify({'success': False, 'error': 'Scheduler not available'}), 500
+            
+            # Sprawdzanie czy zadanie istnieje
+            jobs = app.scheduler.get_jobs()
+            job_found = False
+            for job in jobs:
+                if job_name in str(job.func):
+                    job_found = True
+                    break
+            
+            if not job_found:
+                return jsonify({'success': False, 'error': f'Job {job_name} not found'}), 404
+            
+            # Uruchamianie zadania
+            if job_name == 'update_all_etfs':
+                # Uruchomienie w tle
+                app.scheduler.add_job(
+                    func=update_all_etfs,
+                    trigger='date',
+                    run_date=datetime.now(timezone.utc),
+                    id=f'manual_{job_name}_{int(time.time())}',
+                    replace_existing=True
+                )
+                message = "Zadanie 'Aktualizacja wszystkich ETF' zostało uruchomione"
+            elif job_name == 'update_etf_prices':
+                # Uruchomienie w tle
+                app.scheduler.add_job(
+                    func=update_etf_prices,
+                    trigger='date',
+                    run_date=datetime.now(timezone.utc),
+                    id=f'manual_{job_name}_{int(time.time())}',
+                    replace_existing=True
+                )
+                message = "Zadanie 'Aktualizacja cen ETF' zostało uruchomione"
+            else:
+                return jsonify({'success': False, 'error': f'Unknown job: {job_name}'}), 400
+            
+            logger.info(f"Manually triggered job: {job_name}")
+            return jsonify({
+                'success': True,
+                'message': message,
+                'job_name': job_name,
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error triggering job {job_name}: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/system/status')

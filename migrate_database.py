@@ -1,225 +1,94 @@
 #!/usr/bin/env python3
 """
-Skrypt migracji bazy danych dla normalizacji splitów
-Dodaje nowe kolumny do istniejących tabel i tworzy nową tabelę ETFSplit
+Skrypt migracji bazy danych dla ETF Analyzer
+Dodaje nowe pola do tabeli system_logs dla logowania zadań schedulera
 """
 
-import sqlite3
 import os
-from datetime import datetime
+import sys
+from sqlalchemy import text
+from datetime import datetime, timezone
 
-def migrate_database():
-    """Główna funkcja migracji bazy danych"""
-    print("Rozpoczynam migrację bazy danych...")
+# Dodaj katalog główny do ścieżki
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from app import create_app
+from models import db
+
+def migrate_system_logs_table():
+    """Migruje tabelę system_logs dodając nowe pola dla zadań schedulera"""
+    app = create_app()
+    
+    with app.app_context():
+        try:
+            print("🔧 Rozpoczynam migrację tabeli system_logs...")
+            
+            # Sprawdź czy nowe kolumny już istnieją
+            inspector = db.inspect(db.engine)
+            existing_columns = [col['name'] for col in inspector.get_columns('system_logs')]
+            
+            new_columns = [
+                'job_name',
+                'execution_time_ms', 
+                'records_processed',
+                'success',
+                'error_message'
+            ]
+            
+            missing_columns = [col for col in new_columns if col not in existing_columns]
+            
+            if not missing_columns:
+                print("✅ Wszystkie kolumny już istnieją - migracja nie jest potrzebna")
+                return
+            
+            print(f"📋 Dodaję brakujące kolumny: {', '.join(missing_columns)}")
+            
+            # Dodaj nowe kolumny
+            for column in missing_columns:
+                if column == 'job_name':
+                    sql = text("ALTER TABLE system_logs ADD COLUMN job_name VARCHAR(100)")
+                elif column == 'execution_time_ms':
+                    sql = text("ALTER TABLE system_logs ADD COLUMN execution_time_ms INTEGER")
+                elif column == 'records_processed':
+                    sql = text("ALTER TABLE system_logs ADD COLUMN records_processed INTEGER")
+                elif column == 'success':
+                    sql = text("ALTER TABLE system_logs ADD COLUMN success BOOLEAN DEFAULT TRUE")
+                elif column == 'error_message':
+                    sql = text("ALTER TABLE system_logs ADD COLUMN error_message TEXT")
+                
+                db.session.execute(sql)
+                print(f"  ✅ Dodano kolumnę: {column}")
+            
+            # Dodaj indeks dla job_name
+            try:
+                sql = text("CREATE INDEX IF NOT EXISTS ix_system_logs_job_name ON system_logs (job_name)")
+                db.session.execute(sql)
+                print("  ✅ Dodano indeks dla job_name")
+            except Exception as e:
+                print(f"  ⚠️ Indeks job_name już istnieje lub błąd: {e}")
+            
+            # Zatwierdź zmiany
+            db.session.commit()
+            print("✅ Migracja zakończona pomyślnie!")
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"❌ Błąd podczas migracji: {e}")
+            raise
+
+def main():
+    """Główna funkcja migracji"""
+    print("🚀 ETF Analyzer - Migracja bazy danych")
+    print("=" * 50)
     
     try:
-        # Połączenie z bazą danych
-        conn = sqlite3.connect('instance/etf_analyzer.db')
-        cursor = conn.cursor()
-        
-        # 1. Sprawdzenie i dodanie kolumn do tabeli etf_dividends
-        print("Sprawdzam kolumny w tabeli etf_dividends...")
-        
-        # Sprawdzenie czy kolumna normalized_amount już istnieje
-        cursor.execute("PRAGMA table_info(etf_dividends)")
-        columns = [column[1] for column in cursor.fetchall()]
-        
-        if 'normalized_amount' not in columns:
-            print("Dodaję kolumnę normalized_amount do tabeli etf_dividends...")
-            cursor.execute("""
-                ALTER TABLE etf_dividends
-                ADD COLUMN normalized_amount REAL
-            """)
-        else:
-            print("✅ Kolumna normalized_amount już istnieje")
-            
-        if 'split_ratio_applied' not in columns:
-            print("Dodaję kolumnę split_ratio_applied do tabeli etf_dividends...")
-            cursor.execute("""
-                ALTER TABLE etf_dividends
-                ADD COLUMN split_ratio_applied REAL DEFAULT 1.0
-            """)
-        else:
-            print("✅ Kolumna split_ratio_applied już istnieje")
-        
-        # 2. Sprawdzenie i dodanie kolumn do tabeli etf_prices
-        print("Sprawdzam kolumny w tabeli etf_prices...")
-        
-        cursor.execute("PRAGMA table_info(etf_prices)")
-        columns = [column[1] for column in cursor.fetchall()]
-        
-        if 'normalized_close_price' not in columns:
-            print("Dodaję kolumnę normalized_close_price do tabeli etf_prices...")
-            cursor.execute("""
-                ALTER TABLE etf_prices
-                ADD COLUMN normalized_close_price REAL
-            """)
-        else:
-            print("✅ Kolumna normalized_close_price już istnieje")
-            
-        if 'split_ratio_applied' not in columns:
-            print("Dodaję kolumnę split_ratio_applied do tabeli etf_prices...")
-            cursor.execute("""
-                ALTER TABLE etf_prices
-                ADD COLUMN split_ratio_applied REAL DEFAULT 1.0
-            """)
-        else:
-            print("✅ Kolumna split_ratio_applied już istnieje")
-        
-        # 3. Tworzenie nowej tabeli etf_splits
-        print("Tworzę tabelę etf_splits...")
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS etf_splits (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                etf_id INTEGER NOT NULL,
-                split_date DATE NOT NULL,
-                split_ratio REAL NOT NULL,
-                description TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (etf_id) REFERENCES etfs (id) ON DELETE CASCADE
-            )
-        """)
-        
-        # 4. Tworzenie indeksów
-        print("Tworzę indeksy...")
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_etf_splits_etf_id 
-            ON etf_splits (etf_id)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_etf_splits_split_date 
-            ON etf_splits (split_date)
-        """)
-        
-        cursor.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_etf_splits_etf_date 
-            ON etf_splits (etf_id, split_date)
-        """)
-        
-        # Tworzenie tabeli api_limits
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS api_limits (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                api_type VARCHAR(20) UNIQUE NOT NULL,
-                current_count INTEGER DEFAULT 0 NOT NULL,
-                daily_limit INTEGER NOT NULL,
-                last_reset DATETIME NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
-        # Dodanie domyślnych limitów API
-        cursor.execute('''
-            INSERT OR IGNORE INTO api_limits (api_type, current_count, daily_limit, last_reset)
-            VALUES 
-                ('fmp', 0, 500, CURRENT_TIMESTAMP),
-                ('eodhd', 0, 1000, CURRENT_TIMESTAMP),
-                ('tiingo', 0, 1000, CURRENT_TIMESTAMP)
-        ''')
-
-        # Tworzenie tabeli dividend_tax_rates
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS dividend_tax_rates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tax_rate REAL NOT NULL DEFAULT 0.0,
-                is_active BOOLEAN DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
-        # Dodanie domyślnej stawki podatku 0%
-        cursor.execute('''
-            INSERT OR IGNORE INTO dividend_tax_rates (tax_rate, is_active)
-            VALUES (0.0, 1)
-        ''')
-
-        print("✅ Tabela api_limits i dividend_tax_rates utworzona/aktualizowana")
-        
-        # 5. Inicjalizacja istniejących danych
-        print("Inicjalizuję istniejące dane...")
-        
-        # Dla dywidend - ustaw normalized_amount = amount i split_ratio_applied = 1.0
-        cursor.execute("""
-            UPDATE etf_dividends 
-            SET normalized_amount = amount, split_ratio_applied = 1.0
-            WHERE normalized_amount IS NULL
-        """)
-        
-        # Dla cen - ustaw normalized_close_price = close_price i split_ratio_applied = 1.0
-        cursor.execute("""
-            UPDATE etf_prices 
-            SET normalized_close_price = close_price, split_ratio_applied = 1.0
-            WHERE normalized_close_price IS NULL
-        """)
-        
-        # 6. Dodanie hardcoded split dla SCHD
-        print("Dodaję split dla SCHD...")
-        cursor.execute("SELECT id FROM etfs WHERE ticker = 'SCHD'")
-        schd_result = cursor.fetchone()
-        
-        if schd_result:
-            schd_id = schd_result[0]
-            cursor.execute("""
-                INSERT OR IGNORE INTO etf_splits (etf_id, split_date, split_ratio, description)
-                VALUES (?, '2024-10-11', 3.0, '3:1 Stock Split')
-            """, (schd_id,))
-            
-            # Aktualizacja dywidend SCHD z 2023 i wcześniej
-            print("Aktualizuję dywidendy SCHD...")
-            cursor.execute("""
-                UPDATE etf_dividends 
-                SET normalized_amount = amount / 3.0, split_ratio_applied = 3.0
-                WHERE etf_id = ? AND payment_date < '2024-10-11'
-            """, (schd_id,))
-            
-            # Aktualizacja cen ETF SCHD z 2023 i wcześniej
-            print("Aktualizuję ceny SCHD...")
-            cursor.execute("""
-                UPDATE etf_prices 
-                SET normalized_close_price = close_price / 3.0, split_ratio_applied = 3.0
-                WHERE etf_id = ? AND date < '2024-10-11'
-            """, (schd_id,))
-        
-        conn.commit()
-        print("Migracja zakończona pomyślnie!")
-        
-        # 7. Sprawdzenie wyników
-        print("\nSprawdzam wyniki migracji...")
-        
-        cursor.execute("SELECT COUNT(*) FROM etf_dividends WHERE normalized_amount IS NOT NULL")
-        dividend_count = cursor.fetchone()[0]
-        print(f"Dywidendy z normalized_amount: {dividend_count}")
-        
-        cursor.execute("SELECT COUNT(*) FROM etf_prices WHERE normalized_close_price IS NOT NULL")
-        price_count = cursor.fetchone()[0]
-        print(f"Ceny z normalized_close_price: {price_count}")
-        
-        cursor.execute("SELECT COUNT(*) FROM etf_splits")
-        split_count = cursor.fetchone()[0]
-        print(f"Splitów w bazie: {split_count}")
-        
-        if schd_result:
-            cursor.execute("""
-                SELECT amount, normalized_amount, split_ratio_applied 
-                FROM etf_dividends 
-                WHERE etf_id = ? AND payment_date < '2024-10-11' 
-                LIMIT 3
-            """, (schd_id,))
-            
-            schd_dividends = cursor.fetchall()
-            print(f"\nPrzykłady dywidend SCHD (przed splitem):")
-            for amount, normalized, ratio in schd_dividends:
-                print(f"  Oryginalna: {amount}, Znormalizowana: {normalized}, Ratio: {ratio}")
+        migrate_system_logs_table()
+        print("\n🎉 Migracja zakończona pomyślnie!")
+        print("Możesz teraz uruchomić aplikację z nowymi funkcjami logowania zadań.")
         
     except Exception as e:
-        print(f"Błąd podczas migracji: {e}")
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+        print(f"\n💥 Błąd podczas migracji: {e}")
+        sys.exit(1)
 
-if __name__ == "__main__":
-    migrate_database()
+if __name__ == '__main__':
+    main()

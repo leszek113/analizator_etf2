@@ -1,6 +1,6 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.4  
+**Wersja:** v1.9.5  
 **Ostatnia aktualizacja:** 23 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -26,6 +26,9 @@
 ✅ **Polski format liczb** - wszystkie liczby wyświetlane z przecinkami jako separatorami dziesiętnymi
 ✅ **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
 ✅ **Sortowanie według wieku** - możliwość sortowania ETF według wieku na rynku
+✅ **System logowania zadań w tle** - szczegółowe logowanie wykonania wszystkich zadań scheduler'a
+✅ **Interaktywne logi zadań** - podgląd historii wykonania zadań z czasami wykonania, statusami i błędami
+✅ **Ręczne uruchamianie zadań** - możliwość ręcznego uruchomienia zadań scheduler'a przez API
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
@@ -180,19 +183,20 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
 
-## 🔧 **Ostatnie naprawy (v1.9.4)**
+## 🔧 **Ostatnie naprawy (v1.9.5)**
 
-### **Krytyczne naprawy:**
-- ✅ **Problem z uruchamianiem aplikacji** - naprawiono błąd kontekstu Flask w APIService
-- ✅ **Ujednolicenie wersji** - wszystkie pliki używają v1.9.4
-- ✅ **Ujednolicenie portów** - wszystkie pliki używają portu 5005
-- ✅ **Ujednolicenie stref czasowych** - scheduler używa Europe/Warsaw
+### **Nowe funkcje v1.9.5:**
+- ✅ **System logowania zadań w tle** - szczegółowe śledzenie wykonania każdego zadania scheduler'a
+- ✅ **Interaktywne tabele logów** - dwie tabele z 20 ostatnimi wykonaniami na `/system/status`
+- ✅ **Modal ze szczegółami** - kliknięcie "Szczegóły" pokazuje pełne informacje o zadaniu
+- ✅ **API do ręcznego uruchamiania zadań** - endpoint `/api/system/trigger-job/<job_name>`
+- ✅ **Różne okresy historii** - 3 miesiące dla aktualizacji ETF, 2 tygodnie dla cen
+- ✅ **Ulepszone nazwy sekcji** - bardziej intuicyjne nazwy w interfejsie
 
-### **Techniczne ulepszenia:**
-- ✅ **Migracja z deprecated datetime.utcnow** - nowoczesna składnia Python
-- ✅ **Poprawka składni** - naprawiono wcięcia w models.py
-- ✅ **Lazy loading** - APIService ładuje limity tylko gdy potrzebne
-- **Wiek ETF**: Automatyczne pobieranie dat IPO przy każdej aktualizacji
+### **Naprawione błędy:**
+- ✅ **Błąd `_increment_api_count`** - poprawiono nazwę metody API
+- ✅ **Lepsze logowanie błędów** - błędy API zapisywane w error_message
+- ✅ **Status zadań** - poprawnie ustawiany success=false przy błędach
 
 ### **Monitoring tokenów:**
 - **Status systemu** - `/system/status`
@@ -660,7 +664,7 @@ Prognozowany wzrost = (Suma ostatnich dywidend - Suma roczna z poprzedniego roku
 
 ### **✅ Nowa funkcjonalność: Scheduler Management - DZIAŁA!**
 - **Dodano**: Interfejs użytkownika do zarządzania zadaniami automatycznymi
-- **Funkcjonalność**: Zarządzanie schedulerem z czytelnymi opisami zadań
+- **Funkcjonalność**: Automatyczne zadania scheduler'a z logowaniem wykonania
 - **Ujednolicone nazwy**: "Aktualizacja wszystkich ETF" i "Aktualizacja cen ETF"
 - **Strefy czasowe**: Automatyczne przełączanie UTC ↔ CET (czas polski)
 - **Interfejs**: Czysty i intuicyjny bez niepotrzebnych przycisków
