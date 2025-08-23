@@ -1,6 +1,6 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.5  
+**Wersja:** v1.9.7  
 **Ostatnia aktualizacja:** 23 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -10,6 +10,7 @@
 ✅ **Tabela dywidend** - macierz miesięczna/kwartalna z sumami rocznymi
 ✅ **Normalizacja splitów** - automatyczne dostosowanie historycznych danych do splitów akcji
 ✅ **Wykres cen miesięcznych** - interaktywny wykres cen zamknięcia z ostatnich 15 lat
+✅ **Wykres rocznych dywidend** - interaktywny wykres słupkowy z przełącznikiem brutto/netto, etykietami kwot i procentami wzrostu
 ✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend (12 miesięcznych, 4 kwartalnych, 1 rocznej)
 ✅ **System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
 ✅ **Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu, bazie danych i tokenach API
@@ -184,7 +185,15 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
 
-## 🔧 **Ostatnie naprawy (v1.9.6)**
+## 🔧 **Ostatnie ulepszenia (v1.9.7)**
+
+### **Nowe funkcje v1.9.7:**
+- ✅ **Wykres słupkowy rocznych dywidend** - interaktywny wykres na stronach szczegółów ETF
+- ✅ **Przełącznik brutto/netto** - dynamiczne przełączanie między widokami
+- ✅ **Etykiety na słupkach** - wartości z dokładnością do 4 miejsc po przecinku
+- ✅ **Procenty wzrostu** - automatyczne obliczanie wzrostu/spadku względem poprzedniego roku
+- ✅ **Estymacja bieżącego roku** - integracja z sekcją "Suma 4 ost."
+- ✅ **Responsywny design** - automatyczne dostosowanie do stawki podatku
 
 ### **Krytyczne naprawy v1.9.6:**
 - ✅ **Naprawiono utratę danych historycznych** - funkcja `cleanup_old_price_history()` niszczyła ceny miesięczne

@@ -285,6 +285,49 @@
                             </small>
                         </div>
         </div>
+        
+        <!-- Wykres rocznych dywidend -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-bar-chart"></i> 
+                            Wykres rocznych dywidend - ostatnie 15 lat
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Przełącznik brutto/netto -->
+                        <div class="row mb-3">
+                            <div class="col-12 text-center">
+                                <div class="btn-group" role="group" aria-label="Przełącznik typu dywidend">
+                                    <input type="radio" class="btn-check" name="dividendType" id="grossBtn" value="gross">
+                                    <label class="btn btn-outline-primary" for="grossBtn">
+                                        <i class="bi bi-cash-stack"></i> Dywidendy brutto
+                                    </label>
+                                    
+                                    <input type="radio" class="btn-check" name="dividendType" id="netBtn" value="net" checked>
+                                    <label class="btn btn-outline-success" for="netBtn">
+                                        <i class="bi bi-cash"></i> Dywidendy netto (po podatku)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container" style="position: relative; height:400px;">
+                            <canvas id="dividendChart"></canvas>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                Wykres pokazuje sumę rocznych dywidend brutto i netto (po podatku). 
+                                Bieżący rok to estymacja na podstawie wypłaconych dywidend.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Wykres cen miesięcznych -->
@@ -315,11 +358,231 @@
 
     <!-- Skrypty JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script>
+        // Rejestracja pluginu DataLabels
+        Chart.register(ChartDataLabels);
+        
         let currentTaxRate = 0.0;
         
-        // Inicjalizacja wykresu cen
+        // Inicjalizacja wykresów
         let priceChart = null;
+        let dividendChart = null;
+        
+        // Funkcja do tworzenia wykresu dywidend
+        function createDividendChart(ticker, currentYearEstimate) {
+            fetch(`/api/etfs/${ticker}/dividends`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const ctx = document.getElementById('dividendChart').getContext('2d');
+                        
+                        // Grupowanie dywidend po latach
+                        const dividendsByYear = {};
+                        data.data.forEach(dividend => {
+                            const year = new Date(dividend.payment_date).getFullYear();
+                            if (!dividendsByYear[year]) {
+                                dividendsByYear[year] = [];
+                            }
+                            dividendsByYear[year].push(dividend.normalized_amount);
+                        });
+                        
+                        // Przygotowanie danych dla wykresu
+                        const years = Object.keys(dividendsByYear).sort();
+                        const currentYear = new Date().getFullYear();
+                        
+                        // Ograniczenie do ostatnich 15 lat
+                        const startYear = Math.max(Math.min(...years), currentYear - 14);
+                        const filteredYears = years.filter(year => year >= startYear);
+                        
+                        const labels = filteredYears.map(year => year);
+                        const grossData = filteredYears.map(year => {
+                            const yearDividends = dividendsByYear[year] || [];
+                            let total = yearDividends.reduce((sum, amount) => sum + amount, 0);
+                            
+                            // Dla bieżącego roku dodaj estymację jeśli dostępna
+                            if (parseInt(year) === currentYear && currentYearEstimate) {
+                                total = Math.max(total, currentYearEstimate.gross);
+                            }
+                            
+                            return total;
+                        });
+                        
+                        const netData = filteredYears.map(year => {
+                            const yearDividends = dividendsByYear[year] || [];
+                            let total = yearDividends.reduce((sum, amount) => sum + amount, 0);
+                            
+                            // Dla bieżącego roku dodaj estymację jeśli dostępna
+                            if (parseInt(year) === currentYear && currentYearEstimate) {
+                                total = Math.max(total, currentYearEstimate.net);
+                            }
+                            
+                            // Zastosuj podatek
+                            return total * (1 - currentTaxRate / 100);
+                        });
+                        
+                        // Zapisanie danych globalnie dla przełącznika
+                        window.dividendChartData = {
+                            labels: labels,
+                            grossData: grossData,
+                            netData: netData,
+                            currentYear: currentYear
+                        };
+                        
+                        // Pobranie aktualnie wybranego typu
+                        const selectedType = document.querySelector('input[name="dividendType"]:checked').value;
+                        updateDividendChart(selectedType);
+                        
+                        console.log(`Wykres dywidend utworzony dla ${ticker}: ${labels.length} lat`);
+                    } else {
+                        console.error('Błąd pobierania danych dywidendowych:', data.error);
+                        document.getElementById('dividendChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu dywidend</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych dywidendowych:', error);
+                    document.getElementById('dividendChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu dywidend</div>';
+                });
+        }
+        
+        // Funkcja do aktualizacji wykresu na podstawie wybranego typu
+        function updateDividendChart(type) {
+            if (!window.dividendChartData) return;
+            
+            const { labels, grossData, netData, currentYear } = window.dividendChartData;
+            const currentYearEstimate = window.currentYearEstimate;
+            
+            // Wybór danych na podstawie typu
+            let data, backgroundColor, borderColor, label, yAxisTitle;
+            
+            if (type === 'gross') {
+                data = grossData;
+                backgroundColor = 'rgba(54, 162, 235, 0.8)';
+                borderColor = 'rgb(54, 162, 235)';
+                label = 'Dywidendy brutto';
+                yAxisTitle = 'Suma dywidend brutto ($)';
+            } else {
+                data = netData;
+                backgroundColor = 'rgba(75, 192, 192, 0.8)';
+                borderColor = 'rgb(75, 192, 192)';
+                label = 'Dywidendy netto (po podatku)';
+                yAxisTitle = 'Suma dywidend netto ($)';
+            }
+            
+            // Obliczenie procentów wzrostu względem poprzedniego roku
+            const growthPercentages = data.map((value, index) => {
+                if (index === 0) return null; // Pierwszy rok - brak poprzedniego
+                const previousValue = data[index - 1];
+                if (previousValue === 0) return null; // Unikanie dzielenia przez zero
+                return ((value - previousValue) / previousValue * 100).toFixed(1);
+            });
+            
+            // Usunięcie poprzedniego wykresu jeśli istnieje
+            if (dividendChart) {
+                dividendChart.destroy();
+            }
+            
+            // Tworzenie nowego wykresu
+            const ctx = document.getElementById('dividendChart').getContext('2d');
+            dividendChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: backgroundColor,
+                        borderColor: borderColor,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 50
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y;
+                                    const growth = growthPercentages[context.dataIndex];
+                                    let tooltipText = `${label}: $${formatNumber(value, 4)}`;
+                                    
+                                    if (growth !== null) {
+                                        const growthSymbol = parseFloat(growth) >= 0 ? '↗' : '↘';
+                                        tooltipText += ` (${growthSymbol} ${growth}%)`;
+                                    }
+                                    
+                                    return tooltipText;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Rok'
+                            },
+                            ticks: {
+                                maxRotation: 0
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: yAxisTitle
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + formatNumber(value, 4);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        datalabels: {
+                            display: true,
+                            color: '#333',
+                            anchor: 'end',
+                            align: 'top',
+                            offset: 4,
+                            font: {
+                                weight: 'bold',
+                                size: 10
+                            },
+                            formatter: function(value, context) {
+                                const growth = growthPercentages[context.dataIndex];
+                                let label = `$${formatNumber(value, 4)}`;
+                                
+                                if (growth !== null) {
+                                    const growthSymbol = parseFloat(growth) >= 0 ? '↗' : '↘';
+                                    label += `\n${growthSymbol} ${growth}%`;
+                                }
+                                
+                                return label;
+                            }
+                        }
+                    }
+                }
+            });
+        }
         
         // Funkcja do tworzenia wykresu cen
         function createPriceChart(ticker) {
@@ -426,6 +689,28 @@
             
             createPriceChart(ticker);
             
+            // Pobieranie estymacji bieżącego roku z nagłówka
+            const lastDividendsSumElement = document.getElementById('lastDividendsSum');
+            let currentYearEstimate = null;
+            if (lastDividendsSumElement) {
+                const originalValue = parseFloat(lastDividendsSumElement.getAttribute('data-original'));
+                if (originalValue && !isNaN(originalValue)) {
+                    currentYearEstimate = {
+                        gross: originalValue,
+                        net: originalValue // Będzie przeliczane po załadowaniu stawki podatku
+                    };
+                }
+            }
+            
+            createDividendChart(ticker, currentYearEstimate);
+            
+            // Dodanie event listener dla przełącznika brutto/netto
+            document.querySelectorAll('input[name="dividendType"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    updateDividendChart(this.value);
+                });
+            });
+            
             // Ładowanie stawki podatku i przeliczanie wartości
             console.log('🔄 Calling loadTaxRate()...');
             loadTaxRate();
@@ -506,6 +791,31 @@
             
             // Przeliczenie kolumny "Suma Roczna" w tabeli dywidend
             recalculateYearlyTotals();
+            
+            // Aktualizacja wykresu dywidend z nową stawką podatku
+            if (dividendChart && window.dividendChartData) {
+                // Aktualizacja danych netto z nową stawką podatku
+                const { labels, grossData, currentYear } = window.dividendChartData;
+                const lastDividendsSumElement = document.getElementById('lastDividendsSum');
+                
+                if (lastDividendsSumElement) {
+                    const originalValue = parseFloat(lastDividendsSumElement.getAttribute('data-original'));
+                    if (originalValue && !isNaN(originalValue)) {
+                        // Aktualizacja estymacji bieżącego roku
+                        window.currentYearEstimate = {
+                            gross: originalValue,
+                            net: originalValue * (1 - currentTaxRate / 100)
+                        };
+                        
+                        // Aktualizacja danych netto z nową stawką podatku
+                        window.dividendChartData.netData = grossData.map(gross => gross * (1 - currentTaxRate / 100));
+                        
+                        // Pobranie aktualnie wybranego typu i aktualizacja wykresu
+                        const selectedType = document.querySelector('input[name="dividendType"]:checked').value;
+                        updateDividendChart(selectedType);
+                    }
+                }
+            }
         }
         
         function recalculateYearlyTotals() {

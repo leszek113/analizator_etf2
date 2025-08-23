@@ -5,6 +5,28 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.7] - 2025-08-23
+
+### Added
+- **Wykres słupkowy rocznych dywidend** - nowy interaktywny wykres na stronach szczegółów ETF z ostatnich 15 lat
+- **Przełącznik brutto/netto** - możliwość przełączania między dywidendami brutto a netto (po podatku)
+- **Etykiety na słupkach** - wartości liczbowe z dokładnością do 4 miejsc po przecinku wyświetlane nad słupkami
+- **Procenty wzrostu** - automatyczne obliczanie i wyświetlanie procentowego wzrostu/spadku względem poprzedniego roku
+- **Estymacja bieżącego roku** - automatyczne uwzględnienie estymacji z sekcji "Suma 4 ost." w wykresie
+- **Plugin Chart.js DataLabels** - profesjonalne etykiety bezpośrednio na wykresach
+
+### Enhanced
+- **Domyślny widok netto** - wykres domyślnie pokazuje dywidendy po podatku dla lepszej użyteczności
+- **Interaktywne tooltips** - szczegółowe informacje w tooltipach z wartościami i procentami wzrostu
+- **Responsywny design** - wykres automatycznie dostosowuje się do zmiany stawki podatku
+- **Optymalne pozycjonowanie** - etykiety nad słupkami z odpowiednim marginesem dla lepszej czytelności
+
+### Technical
+- **Dynamiczne obliczenia** - automatyczne przeliczanie procentów wzrostu względem poprzedniego roku
+- **Globalne zmienne** - optymalizacja przechowywania danych wykresu dla lepszej wydajności
+- **Padding wykresu** - zwiększony margines górny (50px) dla lepszego wyświetlania etykiet
+- **Formatowanie liczb** - spójne formatowanie polskimi przecinkami w tooltipach i etykietach
+
 ## [1.9.6] - 2025-08-23
 
 ### Added

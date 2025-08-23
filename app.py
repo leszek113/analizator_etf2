@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.6"
+__version__ = "1.9.7"
 
 from config import Config
 import pytz
