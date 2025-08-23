@@ -155,22 +155,23 @@ def create_app():
             except Exception as e:
                 logger.error(f"Error in scheduled price update: {str(e)}")
     
-    # Uruchamianie aktualizacji raz dziennie o 9:00 CET (czas polski)
+    # Uruchamianie aktualizacji wszystkich ETF raz dziennie o 5:00 CET (poniedziałek-piątek)
     scheduler.add_job(
         func=update_all_etfs,
         trigger="cron",
-        hour=9,
+        day_of_week="mon-fri",
+        hour=5,
         minute=0,
         timezone="Europe/Warsaw",  # CET/CEST (czas polski)
         id="daily_etf_update"
     )
     
-    # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 9:00-17:00 CET)
+    # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 13:00-23:00 CET)
     scheduler.add_job(
         func=update_etf_prices,
         trigger="cron",
         day_of_week="mon-fri",
-        hour="9-17",  # 9:00-17:00 CET
+        hour="13-23",  # 13:00-23:00 CET
         minute="*/15",  # co 15 minut
         timezone="Europe/Warsaw",  # CET/CEST (czas polski)
         id="price_update_15min"

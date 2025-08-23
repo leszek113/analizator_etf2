@@ -161,7 +161,9 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 ### **Strefy czasowe i czytelne opisy:**
 - **Automatyczna konwersja** UTC ↔ CET (UTC+1)
 - **Czytelne opisy zadań** zamiast technicznych nazw
-- **Przykład**: "Codziennie o 09:00 UTC (10:00 CET)"
+- **Harmonogram zadań**:
+  - **Aktualizacja wszystkich ETF**: poniedziałek-piątek o 5:00 CET
+  - **Aktualizacja cen ETF**: poniedziałek-piątek co 15 min w godzinach 13:00-23:00 CET
 - **Intuicyjne nazwy**: "Aktualizacja danych dla wszystkich ETF"
 
 ## 💰 **API Token Optimization**

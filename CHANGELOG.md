@@ -21,6 +21,11 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 - **Migracja z deprecated datetime.utcnow** - zastąpiono nowoczesną składnią datetime.now(timezone.utc)
 - **Błędy składni w models.py** - poprawiono wcięcia w klasie APILimit
 
+### Changed
+- **Harmonogram zadań** - zaktualizowano czasy wykonywania:
+  - **Aktualizacja wszystkich ETF**: poniedziałek-piątek o 5:00 CET (zamiast 9:00 CET)
+  - **Aktualizacja cen ETF**: poniedziałek-piątek co 15 min w godzinach 13:00-23:00 CET (zamiast 9:00-17:00 CET)
+
 ### Fixed
 - **Poprawiono źródło danych dla wieku ETF** - zidentyfikowano że FMP API zwraca `ipoDate` zamiast `inceptionDate`
 - **Zaktualizowano wszystkie ETF-y** - wszystkie ETF-y mają teraz poprawną datę utworzenia na rynku
