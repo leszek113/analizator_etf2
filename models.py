@@ -1,6 +1,16 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
 from sqlalchemy.dialects.sqlite import JSON
+import pytz
+
+def utc_to_cet(utc_datetime):
+    """Konwertuje datetime UTC na CET/CEST"""
+    if utc_datetime is None:
+        return None
+    if utc_datetime.tzinfo is None:
+        utc_datetime = utc_datetime.replace(tzinfo=timezone.utc)
+    cet_tz = pytz.timezone('Europe/Warsaw')
+    return utc_datetime.astimezone(cet_tz)
 
 db = SQLAlchemy()
 
@@ -34,8 +44,8 @@ class ETF(db.Model):
             'current_yield': self.current_yield,
             'frequency': self.frequency,
             'inception_date': self.inception_date.isoformat() if self.inception_date else None,
-            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'last_updated': utc_to_cet(self.last_updated).isoformat() if self.last_updated else None,
+            'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None
         }
 
 class ETFPrice(db.Model):
@@ -62,7 +72,7 @@ class ETFPrice(db.Model):
             'close_price': self.close_price,
             'normalized_close_price': self.normalized_close_price,
             'split_ratio_applied': self.split_ratio_applied,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None
         }
 
 class ETFDividend(db.Model):
@@ -91,7 +101,7 @@ class ETFDividend(db.Model):
             'amount': self.amount,
             'normalized_amount': self.normalized_amount,
             'split_ratio_applied': self.split_ratio_applied,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None
         }
 
 class ETFSplit(db.Model):
@@ -142,7 +152,7 @@ class SystemLog(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': utc_to_cet(self.timestamp).isoformat() if self.timestamp else None,
             'action': self.action,
             'details': self.details,
             'level': self.level,

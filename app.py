@@ -11,6 +11,16 @@ import time
 __version__ = "1.9.5"
 
 from config import Config
+import pytz
+
+def utc_to_cet(utc_datetime):
+    """Konwertuje datetime UTC na CET/CEST"""
+    if utc_datetime is None:
+        return None
+    if utc_datetime.tzinfo is None:
+        utc_datetime = utc_datetime.replace(tzinfo=timezone.utc)
+    cet_tz = pytz.timezone('Europe/Warsaw')
+    return utc_datetime.astimezone(cet_tz)
 from models import db, SystemLog
 from services.database_service import DatabaseService
 from services.api_service import APIService
@@ -231,24 +241,26 @@ def create_app():
                 db.session.commit()
     
     # Uruchamianie aktualizacji wszystkich ETF raz dziennie o 5:00 CET (poniedziałek-piątek)
+    # Używamy UTC wewnętrznie: 5:00 CET = 4:00 UTC (zimą) lub 3:00 UTC (latem)
     scheduler.add_job(
         func=update_all_etfs,
         trigger="cron",
         day_of_week="mon-fri",
-        hour=5,
+        hour=4,  # UTC - odpowiada 5:00 CET
         minute=0,
-        timezone="Europe/Warsaw",  # CET/CEST (czas polski)
+        timezone="UTC",  # Używamy UTC wewnętrznie
         id="daily_etf_update"
     )
     
     # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 13:00-23:00 CET)
+    # Używamy UTC wewnętrznie: 13:00-23:00 CET = 12:00-22:00 UTC (zimą) lub 11:00-21:00 UTC (latem)
     scheduler.add_job(
         func=update_etf_prices,
         trigger="cron",
         day_of_week="mon-fri",
-        hour="13-23",  # 13:00-23:00 CET
+        hour="12-22",  # UTC - odpowiada 13:00-23:00 CET
         minute="*/15",  # co 15 minut
-        timezone="Europe/Warsaw",  # CET/CEST (czas polski)
+        timezone="UTC",  # Używamy UTC wewnętrznie
         id="price_update_15min"
     )
     
@@ -648,7 +660,7 @@ def create_app():
                 'data': {
                     'api_status': status,
                     'health_check': health,
-                    'timestamp': datetime.now(timezone.utc).isoformat()
+                    'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
                 }
             })
             
@@ -876,7 +888,7 @@ def create_app():
                 'success': True,
                 'message': message,
                 'job_name': job_name,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
             })
             
         except Exception as e:
@@ -939,7 +951,7 @@ def create_app():
         return jsonify({
             'success': True,
             'version': __version__,
-            'timestamp': datetime.now(timezone.utc).isoformat()
+            'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
         })
     
 

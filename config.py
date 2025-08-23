@@ -24,7 +24,7 @@ class Config:
 
     # Scheduler settings
     SCHEDULER_API_ENABLED = True
-    SCHEDULER_TIMEZONE = 'Europe/Warsaw'
+    SCHEDULER_TIMEZONE = 'UTC'
 
     # Data settings
     MAX_HISTORY_YEARS = 15

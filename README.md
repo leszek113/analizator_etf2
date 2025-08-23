@@ -29,6 +29,7 @@
 ✅ **System logowania zadań w tle** - szczegółowe logowanie wykonania wszystkich zadań scheduler'a
 ✅ **Interaktywne logi zadań** - podgląd historii wykonania zadań z czasami wykonania, statusami i błędami
 ✅ **Ręczne uruchamianie zadań** - możliwość ręcznego uruchomienia zadań scheduler'a przez API
+✅ **Spójne strefy czasowe** - UTC wewnętrznie + CET w interfejsie użytkownika
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
@@ -676,11 +677,12 @@ Prognozowany wzrost = (Suma ostatnich dywidend - Suma roczna z poprzedniego roku
 - **Korzyści**: Lepsza czytelność, mniej pomyłek, profesjonalny wygląd
 - **Implementacja**: Zaktualizowano HTML, JavaScript i komentarze w kodzie
 
-### **✅ Zmiana czasu w schedulerze z UTC na CET**
-- **Dodano**: `timezone="Europe/Warsaw"` do wszystkich zadań schedulera
-- **Automatyczne przełączanie**: CET (UTC+1) w zimie, CEST (UTC+2) w lecie
-- **Harmonogram**: Zadania uruchamiają się według czasu polskiego
-- **Korzyści**: Intuicyjny czas lokalny, automatyczne przełączanie między zimą a latem
+### **✅ Poprawiono strefy czasowe w całym systemie**
+- **Dodano**: Funkcję `utc_to_cet()` dla spójnej konwersji UTC na CET
+- **Scheduler**: Używa UTC wewnętrznie (4:00 UTC = 5:00 CET, 12:00-22:00 UTC = 13:00-23:00 CET)
+- **Interfejs**: Wszystkie czasy wyświetlane w CET (czas polski)
+- **API**: Automatyczna konwersja UTC → CET w odpowiedziach
+- **Korzyści**: Spójne strefy czasowe, UTC wewnętrznie (dobre praktyki), CET w UI (intuicyjne)
 
 ### **✅ Uproszczenie interfejsu schedulera**
 - **Usunięto**: Niepotrzebne przyciski akcji i zmiany czasu

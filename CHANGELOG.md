@@ -20,6 +20,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
   - Wyświetlanie 20 najnowszych wykonań z przewijaniem (5 wierszy)
   - Różne okresy historii: 3 miesiące dla aktualizacji ETF, 2 tygodnie dla cen
 - **Migracja bazy danych** - automatyczne dodanie nowych kolumn do tabeli system_logs
+- **Funkcja konwersji UTC na CET** - `utc_to_cet()` dla spójnego wyświetlania czasu w interfejsie
 
 ### Changed
 - **Ulepszone nazwy sekcji** w interfejsie:
@@ -27,15 +28,20 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
   - "Zadania schedulera" → "Logi i status zadań wykonanych w tle"
 - **Usunięto możliwość dodawania nowych zadań** - pozostawiono tylko podgląd zaplanowanych zadań
 - **Lepsze obsługa błędów** - status `success` ustawiany na `false` gdy występują błędy API
+- **Scheduler używa UTC wewnętrznie** - wszystkie zadania planowane w UTC, konwersja na CET w UI
+- **Interfejs pokazuje czas w CET** - wszystkie timestampy w API i UI wyświetlane w strefie czasowej użytkownika
 
 ### Fixed
 - **Błąd `_increment_api_count`** - poprawiono nazwę metody na `_increment_api_call`
 - **Szczegółowe logowanie błędów** - błędy API są teraz zapisywane w polu error_message
 - **Poprawione endpointy API** - wszystkie nowe endpointy działają poprawnie
+- **Nieścisłości w strefach czasowych** - spójne użycie UTC wewnętrznie + CET w UI
 
 ### Technical
 - Dodano kolumny do tabeli system_logs: job_name, execution_time_ms, records_processed, success, error_message
 - Utworzono metodę `SystemLog.create_job_log()` dla łatwego tworzenia logów zadań
+- Dodano `utc_to_cet()` w `app.py` i `models.py` dla konwersji stref czasowych
+- Zaktualizowano `config.py` - scheduler używa UTC zamiast Europe/Warsaw
 - Zintegrowano logowanie z funkcjami `update_all_etfs()` i `update_etf_prices()`
 - Dodano skrypt migracji bazy danych `scripts/migrate_db.py`
 - Zaktualizowano `templates/system_status.html` z nowymi tabelami i JavaScript
