@@ -1250,3 +1250,120 @@ class APIService:
         except Exception as e:
             logger.warning(f"Tiingo current price fetch error for {ticker}: {str(e)}")
             return None
+
+    def calculate_break_even_dividends(self, ticker: str, dividends_from_db: List = None, prices_from_db: List = None, target_percentage: float = 5.0) -> Dict:
+        """
+        Oblicza break-even time dla dywidend dla każdego miesiąca inwestycji
+        
+        Args:
+            ticker: Symbol ETF
+            dividends_from_db: Lista dywidend z bazy danych
+            prices_from_db: Lista cen miesięcznych z bazy danych
+            target_percentage: Docelowy procent ROI (domyślnie 5.0%)
+            
+        Returns:
+            Słownik z danymi break-even dla każdego miesiąca
+        """
+        try:
+            from models import db
+            from services.database_service import DatabaseService
+            
+            db_service = DatabaseService()
+            
+            # Pobieranie danych jeśli nie podano
+            if dividends_from_db is None:
+                etf = db_service.get_etf_by_ticker(ticker)
+                if not etf:
+                    return {'error': f'ETF {ticker} not found'}
+                dividends_from_db = db_service.get_etf_dividends(etf.id)
+            
+            if prices_from_db is None:
+                etf = db_service.get_etf_by_ticker(ticker)
+                if not etf:
+                    return {'error': f'ETF {ticker} not found'}
+                prices_from_db = db_service.get_monthly_prices(etf.id)
+            
+            # Pobieranie stawki podatku
+            tax_rate = db_service.get_dividend_tax_rate()
+            
+            # Przygotowanie danych
+            investment_amount = 1000  # $1000 miesięcznie
+            target_return = investment_amount * (target_percentage / 100)  # Dynamiczny cel ROI
+            
+            # Grupowanie dywidend po miesiącach
+            dividends_by_month = {}
+            for dividend in dividends_from_db:
+                month_key = f"{dividend.payment_date.year}-{dividend.payment_date.month:02d}"
+                if month_key not in dividends_by_month:
+                    dividends_by_month[month_key] = []
+                dividends_by_month[month_key].append(dividend.normalized_amount or dividend.amount)
+            
+            # Grupowanie cen po miesiącach
+            prices_by_month = {}
+            for price in prices_from_db:
+                month_key = f"{price.date.year}-{price.date.month:02d}"
+                prices_by_month[month_key] = price.close_price
+            
+            # Obliczanie break-even time dla każdego miesiąca
+            break_even_results = []
+            
+            for month_key in sorted(prices_by_month.keys()):
+                if month_key not in prices_by_month:
+                    continue
+                
+                price = prices_by_month[month_key]
+                year, month = month_key.split('-')
+                
+                # Obliczanie liczby jednostek (2 miejsca po przecinku)
+                units = round(investment_amount / price, 2)
+                
+                # Symulacja portfela - śledzenie dywidend netto
+                cumulative_dividends = 0
+                months_to_break_even = 0
+                break_even_achieved = False
+                
+                # Sprawdzanie kolejnych miesięcy po inwestycji
+                for future_month_key in sorted(dividends_by_month.keys()):
+                    if future_month_key < month_key:
+                        continue
+                    
+                    if future_month_key in dividends_by_month:
+                        # Suma dywidend netto z tego miesiąca dla naszych jednostek
+                        monthly_dividend = sum(dividends_by_month[future_month_key])
+                        net_dividend = monthly_dividend * units * (1 - tax_rate / 100)
+                        cumulative_dividends += net_dividend
+                        
+                        if cumulative_dividends >= target_return:
+                            months_to_break_even = months_to_break_even
+                            break_even_achieved = True
+                            break
+                    
+                    months_to_break_even += 1
+                
+                # Jeśli nie osiągnięto break-even, ustawiamy None
+                if not break_even_achieved:
+                    months_to_break_even = None
+                
+                break_even_results.append({
+                    'month': month_key,
+                    'year': int(year),
+                    'month_num': int(month),
+                    'price': round(price, 4),
+                    'units': units,
+                    'months_to_break_even': months_to_break_even,
+                    'cumulative_dividends': round(cumulative_dividends, 4)
+                })
+            
+            return {
+                'ticker': ticker.upper(),
+                'investment_amount': investment_amount,
+                'target_percentage': target_percentage,
+                'target_return': target_return,
+                'tax_rate': tax_rate,
+                'data': break_even_results,
+                'count': len(break_even_results)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating break-even dividends for {ticker}: {str(e)}")
+            return {'error': str(e)}

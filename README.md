@@ -1,6 +1,6 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.8  
+**Wersja:** v1.9.9  
 **Ostatnia aktualizacja:** 23 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -185,12 +185,19 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
 
-## 🔧 **Najnowsze poprawki (v1.9.8)**
+## 🆕 **Najnowsze funkcjonalności (v1.9.9)**
 
-### **Poprawki v1.9.8:**
+### **Nowa funkcjonalność - Dynamiczny cel ROI:**
+- 🎯 **Kontrolki interaktywne** - przyciski +/- do zmiany celu ROI (0.1% - 20.0%)
+- 📊 **Automatyczna aktualizacja wykresu** - wykres break-even odświeża się po każdej zmianie
+- 🔄 **Dynamiczne opisy** - wszystkie etykiety i opisy aktualizują się z nowym procentem ROI
+- 💡 **Intuicyjne sterowanie** - możliwość wpisania ręcznie lub użycia przycisków
+
+### **Poprawki v1.9.9:**
 - ✅ **Naprawiono tooltip** - usunięto duplikację sekcji `plugins` w konfiguracji Chart.js
 - ✅ **Optymalizacja JavaScript** - połączono rozdzielone sekcje konfiguracji wykresu dywidend
 - ✅ **Poprawione wyłączenie tooltip** - tooltip całkowicie wyłączony na wykresie rocznych dywidend
+- ✅ **Rozwiązano problem z ticker** - poprawiono logikę wyciągania tickera z HTML
 
 ## 🔧 **Ostatnie ulepszenia (v1.9.7)**
 

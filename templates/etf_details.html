@@ -330,6 +330,49 @@
         </div>
     </div>
 
+    <!-- Wykres break-even dywidend -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                                     <div class="card-header">
+                         <div class="d-flex justify-content-between align-items-center">
+                             <h5 class="mb-0">
+                                 <i class="bi bi-clock-history"></i> 
+                                 Break-even time dla dywidend - ostatnie 15 lat
+                             </h5>
+                             <div class="d-flex align-items-center">
+                                 <label class="me-2 mb-0">Cel ROI:</label>
+                                 <div class="input-group input-group-sm" style="width: 120px;">
+                                     <button class="btn btn-outline-secondary btn-sm" type="button" onclick="changeTargetPercentage(-0.1)">
+                                         <i class="bi bi-dash"></i>
+                                     </button>
+                                     <input type="number" class="form-control form-control-sm text-center" id="targetPercentage" 
+                                            value="5.00" step="0.1" min="0.1" max="20.0" 
+                                            onchange="updateBreakEvenChart()">
+                                     <button class="btn btn-outline-secondary btn-sm" type="button" onclick="changeTargetPercentage(0.1)">
+                                         <i class="bi bi-plus"></i>
+                                     </button>
+                                 </div>
+                                 <span class="ms-2">%</span>
+                             </div>
+                         </div>
+                     </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height:400px;">
+                        <canvas id="breakEvenChart"></canvas>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            Wykres pokazuje ile miesięcy potrzeba, żeby dywidenda netto z inwestycji $1000 osiągnęła <span id="targetAmount">$50</span> (<span id="targetPercentageDisplay">5.00</span>% ROI). 
+                            Każdy punkt to inwestycja w danym miesiącu po cenie zamknięcia tego miesiąca.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Wykres cen miesięcznych -->
     <div class="row mt-4">
         <div class="col-12">
@@ -368,6 +411,7 @@
         // Inicjalizacja wykresów
         let priceChart = null;
         let dividendChart = null;
+        let breakEvenChart = null;
         
         // Funkcja do tworzenia wykresu dywidend
         function createDividendChart(ticker, currentYearEstimate) {
@@ -581,6 +625,223 @@
             });
         }
         
+        // Funkcja do tworzenia wykresu break-even dywidend
+        function createBreakEvenChart(ticker) {
+            console.log(`🚀 Tworzenie wykresu break-even dla ticker: "${ticker}" (typ: ${typeof ticker}, długość: ${ticker ? ticker.length : 'undefined'})`);
+            
+            // Sprawdzenie czy ticker jest poprawny
+            if (!ticker || ticker.trim() === '') {
+                console.error('❌ Ticker jest pusty lub undefined!');
+                return;
+            }
+            
+            // Sprawdzenie czy Chart.js jest dostępny
+            if (typeof Chart === 'undefined') {
+                console.error('❌ Chart.js nie jest załadowany!');
+                return;
+            }
+            console.log(`📊 Chart.js dostępny:`, Chart);
+            
+            // Sprawdzenie czy element canvas istnieje
+            const canvasElement = document.getElementById('breakEvenChart');
+            if (!canvasElement) {
+                console.error('❌ Element breakEvenChart nie został znaleziony!');
+                return;
+            }
+            console.log(`🎨 Canvas element:`, canvasElement);
+            
+            // Pobieranie aktualnej wartości target percentage
+            const targetPercentageElement = document.getElementById('targetPercentage');
+            if (!targetPercentageElement) {
+                console.error('❌ Element targetPercentage nie został znaleziony w createBreakEvenChart!');
+                return;
+            }
+            const targetPercentage = targetPercentageElement.value;
+            console.log(`📊 Target percentage w createBreakEvenChart: ${targetPercentage}%`);
+            
+            console.log(`🔗 Tworzę URL: /api/etfs/${ticker}/break-even-dividends?target_percentage=${targetPercentage}`);
+            fetch(`/api/etfs/${ticker}/break-even-dividends?target_percentage=${targetPercentage}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`📊 Otrzymane dane break-even:`, data);
+                    if (data.success) {
+                        const ctx = canvasElement.getContext('2d');
+                        console.log(`🎨 Canvas context:`, ctx);
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.data.map(item => item.month);
+                        const breakEvenMonths = data.data.data.map(item => item.months_to_break_even);
+                        console.log(`📈 Labels:`, labels);
+                        console.log(`📊 Break-even months:`, breakEvenMonths);
+                        console.log(`📊 Liczba labels:`, labels.length);
+                        console.log(`📊 Liczba breakEvenMonths:`, breakEvenMonths.length);
+                        console.log(`📊 Pierwsze 5 labels:`, labels.slice(0, 5));
+                        console.log(`📊 Pierwsze 5 breakEvenMonths:`, breakEvenMonths.slice(0, 5));
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (breakEvenChart) {
+                            breakEvenChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu
+                        console.log(`🎨 Tworzenie obiektu Chart...`);
+                        breakEvenChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: `Break-even time ${ticker} (miesiące do ${targetPercentage}% ROI)`,
+                                    data: breakEvenMonths,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 6,
+                                    tension: 0.1,
+                                    fill: false
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const months = context.parsed.y;
+                                                if (months === null) {
+                                                    return 'Break-even nie osiągnięty';
+                                                }
+                                                return `Miesięcy do ${targetPercentage}% ROI: ${months}`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Miesiąc inwestycji'
+                                        },
+                                        ticks: {
+                                            maxTicksLimit: 15,
+                                            maxRotation: 45
+                                        }
+                                    },
+                                    y: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: `Miesięcy do ${targetPercentage}% ROI`
+                                        },
+                                        ticks: {
+                                            callback: function(value) {
+                                                if (value === null) return 'N/A';
+                                                return value;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Wykres break-even utworzony dla ${ticker}: ${data.data.data.length} punktów danych`);
+                        console.log(`🎯 Wykres obiekt:`, breakEvenChart);
+                        
+                        // Test renderowania
+                        console.log(`🔍 Test renderowania - canvas width:`, canvasElement.width);
+                        console.log(`🔍 Test renderowania - canvas height:`, canvasElement.height);
+                        console.log(`🔍 Test renderowania - chart options:`, breakEvenChart.options);
+                        
+                        // Test widoczności
+                        console.log(`🔍 Test widoczności - canvas display:`, window.getComputedStyle(canvasElement).display);
+                        console.log(`🔍 Test widoczności - canvas visibility:`, window.getComputedStyle(canvasElement).visibility);
+                        console.log(`🔍 Test widoczności - canvas opacity:`, window.getComputedStyle(canvasElement).opacity);
+                    } else {
+                        console.error('❌ Błąd pobierania danych break-even:', data.error);
+                        document.getElementById('breakEvenChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu break-even</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Błąd podczas pobierania danych break-even:', error);
+                    document.getElementById('breakEvenChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu break-even</div>';
+                });
+        }
+         
+        // Funkcja do zmiany target percentage
+        function changeTargetPercentage(delta) {
+            console.log(`🔄 Zmiana target percentage o ${delta}`);
+            const input = document.getElementById('targetPercentage');
+            if (!input) {
+                console.error('❌ Element targetPercentage nie został znaleziony!');
+                return;
+            }
+            let currentValue = parseFloat(input.value);
+            let newValue = currentValue + delta;
+            
+            // Ograniczenie wartości do zakresu 0.1 - 20.0
+            newValue = Math.max(0.1, Math.min(20.0, newValue));
+            
+            // Formatowanie do 2 miejsc po przecinku
+            input.value = newValue.toFixed(2);
+            console.log(`📊 Nowa wartość target percentage: ${newValue}%`);
+            
+            // Aktualizacja opisów na stronie
+            updateTargetDisplays();
+            
+            // Aktualizacja wykresu
+            updateBreakEvenChart();
+        }
+        
+        // Funkcja do aktualizacji wykresu break-even
+        function updateBreakEvenChart() {
+            console.log(`🔄 Aktualizacja wykresu break-even...`);
+            const h2Element = document.querySelector('h2');
+            if (!h2Element) {
+                console.error('❌ Element h2 nie został znaleziony!');
+                return;
+            }
+            console.log(`🔍 H2 element text: "${h2Element.textContent}"`);
+            // Poprawiona logika wyciągania tickera - ignorujemy puste elementy
+            const words = h2Element.textContent.trim().split(/\s+/).filter(word => word.length > 0);
+            const currentTicker = words[0];
+            console.log(`📊 Słowa po split: [${words.map(w => `"${w}"`).join(', ')}]`);
+            console.log(`📊 Znaleziony ticker: "${currentTicker}" (typ: ${typeof currentTicker}, długość: ${currentTicker ? currentTicker.length : 'undefined'})`);
+            updateTargetDisplays(); // Aktualizacja opisów przed wykresem
+            createBreakEvenChart(currentTicker);
+        }
+        
+        // Funkcja do aktualizacji opisów na stronie
+        function updateTargetDisplays() {
+            console.log(`🔄 Aktualizacja opisów na stronie...`);
+            const targetPercentage = document.getElementById('targetPercentage').value;
+            const targetAmount = (1000 * parseFloat(targetPercentage) / 100).toFixed(2);
+            console.log(`📊 Target percentage: ${targetPercentage}%, Target amount: $${targetAmount}`);
+            
+            // Aktualizacja opisu pod wykresem
+            const targetAmountElement = document.getElementById('targetAmount');
+            const targetPercentageElement = document.getElementById('targetPercentageDisplay');
+            
+            if (targetAmountElement && targetPercentageElement) {
+                targetAmountElement.textContent = `$${targetAmount}`;
+                targetPercentageElement.textContent = targetPercentage;
+                console.log(`✅ Opisy zaktualizowane`);
+            } else {
+                console.error('❌ Elementy opisów nie zostały znalezione!');
+            }
+        }
+        
         // Funkcja do tworzenia wykresu cen
         function createPriceChart(ticker) {
             fetch(`/api/etfs/${ticker}/prices`)
@@ -685,6 +946,10 @@
             console.log('📊 Ticker:', ticker);
             
             createPriceChart(ticker);
+            createBreakEvenChart(ticker);
+            
+            // Inicjalizacja opisów target percentage
+            updateTargetDisplays();
             
             // Pobieranie estymacji bieżącego roku z nagłówka
             const lastDividendsSumElement = document.getElementById('lastDividendsSum');

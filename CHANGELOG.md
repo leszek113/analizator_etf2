@@ -5,7 +5,13 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
-## [1.9.8] - 2025-08-23
+## [1.9.9] - 2025-08-23
+
+### Added
+- **Nowa funkcjonalność: Dynamiczny cel ROI dla wykresu break-even** - możliwość zmiany procentu ROI od 0.1% do 20.0%
+- **Kontrolki interaktywne** - przyciski +/- do zmiany celu ROI o 0.10%
+- **Automatyczna aktualizacja wykresu** - wykres break-even odświeża się po każdej zmianie celu ROI
+- **Dynamiczne opisy** - wszystkie etykiety i opisy automatycznie się aktualizują z nowym procentem ROI
 
 ### Fixed
 - **Naprawiono tooltip na wykresie dywidend** - usunięto duplikację sekcji `plugins` w konfiguracji Chart.js
@@ -15,6 +21,8 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 ### Technical
 - **Refactoring Chart.js** - scalono duplikowane sekcje `plugins` w `updateDividendChart()`
 - **Cleanup kodu** - usunięto redundantną konfigurację tooltip w `templates/etf_details.html`
+- **Nowy endpoint API** - `/api/etfs/<ticker>/break-even-dividends?target_percentage=X` z dynamicznym parametrem ROI
+- **Poprawiona logika wyciągania tickera** - rozwiązano problem z niewidzialnymi znakami w HTML
 
 ## [1.9.7] - 2025-08-23
 

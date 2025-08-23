@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.8"
+__version__ = "1.9.9"
 
 from config import Config
 import pytz
@@ -569,6 +569,45 @@ def create_app():
             
         except Exception as e:
             logger.error(f"Error calculating DSG for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/break-even-dividends', methods=['GET'])
+    def get_etf_break_even_dividends(ticker):
+        """API endpoint do obliczania break-even time dla dywidend ETF"""
+        try:
+            # Sprawdzanie czy ETF istnieje
+            etf = db_service.get_etf_by_ticker(ticker)
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie dywidend i cen z bazy danych
+            dividends = db_service.get_etf_dividends(etf.id)
+            prices = db_service.get_monthly_prices(etf.id)
+            
+            # Pobieranie parametru target_percentage z query string
+            target_percentage = request.args.get('target_percentage', 5.0, type=float)
+            
+            # Obliczanie break-even time dla każdego miesiąca
+            break_even_data = api_service.calculate_break_even_dividends(
+                ticker, 
+                dividends_from_db=dividends,
+                prices_from_db=prices,
+                target_percentage=target_percentage
+            )
+            
+            return jsonify({
+                'success': True,
+                'data': break_even_data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error calculating break-even dividends for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)
