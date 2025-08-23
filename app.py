@@ -895,6 +895,26 @@ def create_app():
             logger.error(f"Error triggering job {job_name}: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/system/update-all-etfs', methods=['POST'])
+    def manual_update_all_etfs():
+        """API endpoint do ręcznego uruchamiania aktualizacji wszystkich ETF"""
+        try:
+            # Uruchomienie zadania w tle
+            update_all_etfs()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Aktualizacja wszystkich ETF została uruchomiona',
+                'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in manual update_all_etfs: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
     @app.route('/system/status')
     def system_status():
         """Strona statusu systemu"""

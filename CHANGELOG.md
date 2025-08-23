@@ -14,6 +14,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
   - `/api/system/job-logs` - ogólny endpoint z filtrami
   - `/api/system/job-logs/<job_name>` - endpoint dla konkretnego zadania
   - `/api/system/trigger-job/<job_name>` - ręczne uruchamianie zadań
+  - `/api/system/update-all-etfs` - ręczne uruchamianie aktualizacji wszystkich ETF
 - **Interaktywny interfejs logów** na stronie `/system/status`:
   - Dwie tabele: "Aktualizacja wszystkich ETF" i "Aktualizacja cen ETF" 
   - Modal ze szczegółowymi informacjami po kliknięciu "Szczegóły"
@@ -21,6 +22,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
   - Różne okresy historii: 3 miesiące dla aktualizacji ETF, 2 tygodnie dla cen
 - **Migracja bazy danych** - automatyczne dodanie nowych kolumn do tabeli system_logs
 - **Funkcja konwersji UTC na CET** - `utc_to_cet()` dla spójnego wyświetlania czasu w interfejsie
+- **Ulepszony interfejs Dashboard** - dwa przyciski odświeżania: "Odśwież z DB" i "Odśwież API"
 
 ### Changed
 - **Ulepszone nazwy sekcji** w interfejsie:
@@ -30,6 +32,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 - **Lepsze obsługa błędów** - status `success` ustawiany na `false` gdy występują błędy API
 - **Scheduler używa UTC wewnętrznie** - wszystkie zadania planowane w UTC, konwersja na CET w UI
 - **Interfejs pokazuje czas w CET** - wszystkie timestampy w API i UI wyświetlane w strefie czasowej użytkownika
+- **Uproszczono interfejs Dashboard** - usunięto przyciski ODŚWIEŻ z kolumny Akcje, dodano centralne przyciski w header
 
 ### Fixed
 - **Błąd `_increment_api_count`** - poprawiono nazwę metody na `_increment_api_call`

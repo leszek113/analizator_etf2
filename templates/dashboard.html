@@ -75,7 +75,10 @@
                     </h1>
                     <div class="d-flex gap-2">
                         <button class="btn btn-outline-primary" onclick="refreshData()">
-                            <i class="bi bi-arrow-clockwise"></i> Odśwież
+                            <i class="bi bi-arrow-clockwise"></i> Odśwież z DB
+                        </button>
+                        <button class="btn btn-outline-success" onclick="refreshFromAPI()" id="refreshApiBtn">
+                            <i class="bi bi-cloud-download"></i> Odśwież API
                         </button>
                         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEtfModal">
                             <i class="bi bi-plus"></i> Dodaj ETF
@@ -593,9 +596,6 @@
                             <a href="/etf/${etf.ticker}" class="btn btn-outline-primary">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <button class="btn btn-outline-success" onclick="updateEtf('${etf.ticker}')">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </button>
                             <button class="btn btn-outline-danger" onclick="deleteEtf('${etf.ticker}')">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -772,24 +772,7 @@
             }
         }
 
-        async function updateEtf(ticker) {
-            try {
-                const response = await fetch(`/api/etfs/${ticker}/update`, {
-                    method: 'POST'
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showAlert(`ETF ${ticker} został zaktualizowany!`, 'success');
-                    loadDashboard(); // Reload data
-                } else {
-                    showAlert('Błąd podczas aktualizacji: ' + result.error, 'danger');
-                }
-            } catch (error) {
-                showAlert('Błąd połączenia: ' + error.message, 'danger');
-            }
-        }
+
         
         async function deleteEtf(ticker) {
             if (!confirm(`Czy na pewno chcesz usunąć ETF ${ticker}? Ta operacja usunie wszystkie powiązane dane (ceny, dywidendy) i nie może być cofnięta.`)) {
@@ -816,6 +799,79 @@
 
         function refreshData() {
             loadDashboard();
+        }
+
+        async function refreshFromAPI() {
+            const btn = document.getElementById('refreshApiBtn');
+            const originalText = btn.innerHTML;
+            
+            try {
+                // Pokazanie stanu loading
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Aktualizacja w toku...';
+                btn.classList.remove('btn-outline-success');
+                btn.classList.add('btn-warning');
+                
+                // Wywołanie API
+                const response = await fetch('/api/system/update-all-etfs', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Sukces - zmiana na zielony
+                    btn.classList.remove('btn-warning');
+                    btn.classList.add('btn-success');
+                    btn.innerHTML = '<i class="bi bi-check-circle"></i> Zakończono!';
+                    
+                    showAlert('Aktualizacja wszystkich ETF została uruchomiona! Sprawdź logi w sekcji System Status.', 'success');
+                    
+                    // Automatyczne odświeżenie dashboard po 3 sekundach
+                    setTimeout(() => {
+                        loadDashboard();
+                        // Przywrócenie oryginalnego wyglądu po 2 sekundach
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            btn.classList.remove('btn-success');
+                            btn.classList.add('btn-outline-success');
+                        }, 2000);
+                    }, 3000);
+                    
+                } else {
+                    // Błąd - zmiana na czerwony
+                    btn.classList.remove('btn-warning');
+                    btn.classList.add('btn-danger');
+                    btn.innerHTML = '<i class="bi bi-x-circle"></i> Błąd!';
+                    
+                    showAlert('Błąd podczas aktualizacji: ' + result.error, 'danger');
+                    
+                    // Przywrócenie oryginalnego wyglądu po 3 sekundach
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        btn.classList.remove('btn-danger');
+                        btn.classList.add('btn-outline-success');
+                    }, 3000);
+                }
+                
+            } catch (error) {
+                // Błąd połączenia - zmiana na czerwony
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-danger');
+                btn.innerHTML = '<i class="bi bi-x-circle"></i> Błąd połączenia!';
+                
+                showAlert('Błąd połączenia: ' + error.message, 'danger');
+                
+                // Przywrócenie oryginalnego wyglądu po 3 sekundach
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-danger');
+                    btn.classList.add('btn-outline-success');
+                }, 3000);
+            }
         }
 
         function showLoading(show) {
