@@ -43,6 +43,7 @@ print_status() {
 
 # Function to check if application is running
 is_running() {
+    # First check PID file
     if [ -f "$PID_FILE" ]; then
         local pid=$(cat "$PID_FILE")
         if ps -p "$pid" > /dev/null 2>&1; then
@@ -50,16 +51,61 @@ is_running() {
         else
             # PID file exists but process is dead
             rm -f "$PID_FILE"
-            return 1
         fi
     fi
+    
+    # Check if any Python process is running app.py
+    if pgrep -f "python.*app\.py" > /dev/null 2>&1; then
+        return 0
+    fi
+    
+    # Check if port is listening
+    if lsof -i :$APP_PORT > /dev/null 2>&1; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Function to get running PID
+get_running_pid() {
+    # First try PID file
+    if [ -f "$PID_FILE" ]; then
+        local pid=$(cat "$PID_FILE")
+        if ps -p "$pid" > /dev/null 2>&1; then
+            echo "$pid"
+            return 0
+        fi
+    fi
+    
+    # Try to find Python process running app.py
+    local python_pid=$(pgrep -f "python.*app\.py" | head -1)
+    if [ -n "$python_pid" ]; then
+        echo "$python_pid"
+        return 0
+    fi
+    
+    # Try to find process using the port
+    local port_pid=$(lsof -ti :$APP_PORT 2>/dev/null | head -1)
+    if [ -n "$port_pid" ]; then
+        echo "$port_pid"
+        return 0
+    fi
+    
+    echo ""
     return 1
 }
 
 # Function to get application status
 get_status() {
     if is_running; then
-        local pid=$(cat "$PID_FILE")
+        local pid=$(get_running_pid)
+        if [ -z "$pid" ]; then
+            echo -e "${RED}✗ $APP_NAME is NOT RUNNING${NC}"
+            echo -e "  Port $APP_PORT is available"
+            return 1
+        fi
+        
         local uptime=$(ps -o etime= -p "$pid" 2>/dev/null || echo "Unknown")
         local memory=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{print $1/1024 " MB"}' || echo "Unknown")
         local cpu=$(ps -o %cpu= -p "$pid" 2>/dev/null || echo "Unknown")
@@ -160,7 +206,12 @@ stop_app() {
         return 0
     fi
     
-    local pid=$(cat "$PID_FILE")
+    local pid=$(get_running_pid)
+    if [ -z "$pid" ]; then
+        print_status $RED "Could not determine PID of running application"
+        return 1
+    fi
+    
     print_status $BLUE "Stopping $APP_NAME (PID: $pid)..."
     
     # Try graceful shutdown first
@@ -301,3 +352,4 @@ case "${1:-help}" in
         exit 1
         ;;
 esac
+
