@@ -820,7 +820,7 @@ class DatabaseService:
                 dividend.normalized_amount = dividend.amount / split_ratio
                 dividend.split_ratio_applied = split_ratio
             
-            # Aktualizacja cen
+            # Aktualizacja cen ETF
             prices = ETFPrice.query.filter_by(etf_id=etf_id).all()
             for price in prices:
                 split_ratio = self._calculate_cumulative_split_ratio(all_splits, price.date)
@@ -1201,3 +1201,411 @@ class DatabaseService:
             return original_yield
         
         return original_yield * (1 - tax_rate / 100)
+
+    def verify_data_completeness(self, etf_id: int, ticker: str) -> Dict:
+        """
+        Sprawdza kompletność danych historycznych ETF względem rzeczywistego wieku ETF
+        
+        Args:
+            etf_id: ID ETF w bazie danych
+            ticker: Ticker ETF
+            
+        Returns:
+            Dict z informacjami o kompletności:
+            {
+                'prices_complete': bool,
+                'dividends_complete': bool,
+                'missing_price_months': List[date],
+                'missing_dividend_years': List[int],
+                'oldest_price_date': date,
+                'oldest_dividend_date': date,
+                'years_of_price_data': int,
+                'years_of_dividend_data': int,
+                'etf_inception_date': date,
+                'etf_age_years': float,
+                'expected_years': int
+            }
+        """
+        try:
+            from datetime import date, timedelta
+            
+            today = date.today()
+            
+            # Pobierz ETF aby sprawdzić datę inception
+            etf = ETF.query.filter_by(id=etf_id).first()
+            etf_inception_date = etf.inception_date if etf and etf.inception_date else None
+            
+            # Określ oczekiwaną liczbę lat historii
+            if etf_inception_date:
+                etf_age_years = (today - etf_inception_date).days / 365.25
+                expected_years = min(15, int(etf_age_years))  # Maksymalnie 15 lat lub wiek ETF
+                target_start_date = etf_inception_date
+                logger.info(f"ETF {ticker} has inception date {etf_inception_date}, age: {etf_age_years:.1f} years, expecting {expected_years} years of history")
+            else:
+                # Fallback - zakładamy 15 lat
+                etf_age_years = 15.0
+                expected_years = 15
+                target_start_date = today - timedelta(days=15*365)
+                logger.info(f"ETF {ticker} has no inception date, using 15-year fallback")
+            
+            # Sprawdzanie kompletności cen
+            prices = ETFPrice.query.filter_by(etf_id=etf_id).order_by(ETFPrice.date).all()
+            
+            if not prices:
+                return {
+                    'prices_complete': False,
+                    'dividends_complete': False,
+                    'missing_price_months': [],
+                    'missing_dividend_years': [],
+                    'oldest_price_date': None,
+                    'oldest_dividend_date': None,
+                    'years_of_price_data': 0,
+                    'years_of_dividend_data': 0,
+                    'etf_inception_date': etf_inception_date,
+                    'etf_age_years': etf_age_years,
+                    'expected_years': expected_years
+                }
+            
+            oldest_price_date = prices[0].date
+            newest_price_date = prices[-1].date
+            years_of_price_data = (newest_price_date - oldest_price_date).days / 365.25
+            
+            # Sprawdzanie brakujących miesięcy
+            missing_price_months = []
+            current_date = oldest_price_date.replace(day=1)  # Pierwszy dzień miesiąca
+            
+            while current_date <= newest_price_date:
+                month_start = current_date.replace(day=1)
+                month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                
+                # Sprawdź czy mamy cenę w tym miesiącu
+                month_price = ETFPrice.query.filter(
+                    ETFPrice.etf_id == etf_id,
+                    ETFPrice.date >= month_start,
+                    ETFPrice.date <= month_end
+                ).first()
+                
+                if not month_price:
+                    missing_price_months.append(month_start)
+                
+                current_date = month_end + timedelta(days=1)
+            
+            # Sprawdzanie kompletności dywidend
+            dividends = ETFDividend.query.filter_by(etf_id=etf_id).order_by(ETFDividend.payment_date).all()
+            
+            if not dividends:
+                return {
+                    'prices_complete': len(missing_price_months) == 0 and oldest_price_date <= target_start_date,
+                    'dividends_complete': False,
+                    'missing_price_months': missing_price_months,
+                    'missing_dividend_years': [],
+                    'oldest_price_date': oldest_price_date,
+                    'oldest_dividend_date': None,
+                    'years_of_price_data': years_of_price_data,
+                    'years_of_dividend_data': 0,
+                    'etf_inception_date': etf_inception_date,
+                    'etf_age_years': etf_age_years,
+                    'expected_years': expected_years
+                }
+            
+            oldest_dividend_date = dividends[0].payment_date
+            newest_dividend_date = dividends[-1].payment_date
+            years_of_dividend_data = (newest_dividend_date - oldest_dividend_date).days / 365.25
+            
+            # Sprawdzanie brakujących lat dywidend
+            missing_dividend_years = []
+            current_year = oldest_dividend_date.year
+            
+            while current_year <= newest_dividend_date.year:
+                year_start = date(current_year, 1, 1)
+                year_end = date(current_year, 12, 31)
+                
+                # Sprawdź czy mamy dywidendę w tym roku
+                year_dividend = ETFDividend.query.filter(
+                    ETFDividend.etf_id == etf_id,
+                    ETFDividend.payment_date >= year_start,
+                    ETFDividend.payment_date <= year_end
+                ).first()
+                
+                if not year_dividend:
+                    missing_dividend_years.append(current_year)
+                
+                current_year += 1
+            
+            # Określanie kompletności względem rzeczywistego wieku ETF
+            prices_complete = len(missing_price_months) == 0 and oldest_price_date <= target_start_date
+            dividends_complete = len(missing_dividend_years) == 0 and oldest_dividend_date <= target_start_date
+            
+            # Jeśli ETF jest młodszy niż 15 lat i mamy dane od inception, to jest kompletny
+            if etf_inception_date and years_of_price_data >= (etf_age_years * 0.9):  # 90% pokrycia
+                prices_complete = True
+            if etf_inception_date and years_of_dividend_data >= (etf_age_years * 0.9):  # 90% pokrycia
+                dividends_complete = True
+            
+            logger.info(f"Data completeness check for {ticker}: "
+                       f"ETF age: {etf_age_years:.1f} years, expected: {expected_years} years; "
+                       f"Prices: {years_of_price_data:.1f} years, complete: {prices_complete}, "
+                       f"missing months: {len(missing_price_months)}; "
+                       f"Dividends: {years_of_dividend_data:.1f} years, complete: {dividends_complete}, "
+                       f"missing years: {len(missing_dividend_years)}")
+            
+            return {
+                'prices_complete': prices_complete,
+                'dividends_complete': dividends_complete,
+                'missing_price_months': missing_price_months,
+                'missing_dividend_years': missing_dividend_years,
+                'oldest_price_date': oldest_price_date,
+                'oldest_dividend_date': oldest_dividend_date,
+                'years_of_price_data': years_of_price_data,
+                'years_of_dividend_data': years_of_dividend_data,
+                'etf_inception_date': etf_inception_date,
+                'etf_age_years': etf_age_years,
+                'expected_years': expected_years
+            }
+            
+        except Exception as e:
+            logger.error(f"Error verifying data completeness for ETF {ticker}: {str(e)}")
+            return {
+                'prices_complete': False,
+                'dividends_complete': False,
+                'missing_price_months': [],
+                'missing_dividend_years': [],
+                'oldest_price_date': None,
+                'oldest_dividend_date': None,
+                'years_of_price_data': 0,
+                'years_of_dividend_data': 0,
+                'etf_inception_date': None,
+                'etf_age_years': 0,
+                'expected_years': 0
+            }
+
+    def smart_history_completion(self, etf_id: int, ticker: str) -> Dict:
+        """
+        Inteligentnie uzupełnia brakujące dane historyczne ETF
+        
+        Args:
+            etf_id: ID ETF w bazie danych
+            ticker: Ticker ETF
+            
+        Returns:
+            Dict z informacjami o uzupełnieniu:
+            {
+                'prices_filled': int,
+                'dividends_filled': int,
+                'prices_complete': bool,
+                'dividends_complete': bool,
+                'api_calls_used': int
+            }
+        """
+        try:
+            # Sprawdź kompletność danych
+            completeness = self.verify_data_completeness(etf_id, ticker)
+            
+            if completeness['prices_complete'] and completeness['dividends_complete']:
+                logger.info(f"ETF {ticker} already has complete 15-year history")
+                return {
+                    'prices_filled': 0,
+                    'dividends_filled': 0,
+                    'prices_complete': True,
+                    'dividends_complete': True,
+                    'api_calls_used': 0
+                }
+            
+            api_calls_used = 0
+            prices_filled = 0
+            dividends_filled = 0
+            
+            # Uzupełnianie brakujących cen miesięcznych
+            if not completeness['prices_complete'] and completeness['missing_price_months']:
+                logger.info(f"ETF {ticker} missing {len(completeness['missing_price_months'])} price months, attempting to fill")
+                
+                # Pobierz brakujące ceny z API
+                missing_months = completeness['missing_price_months']
+                oldest_missing = min(missing_months)
+                
+                # Pobierz ceny od najstarszego brakującego miesiąca
+                historical_prices = self.api_service.get_historical_prices(
+                    ticker, 
+                    years=15, 
+                    normalize_splits=True
+                )
+                
+                if historical_prices:
+                    api_calls_used += 1
+                    
+                    # Dodaj tylko brakujące ceny
+                    for price_data in historical_prices:
+                        price_date = price_data['date']
+                        
+                        # Sprawdź czy to brakujący miesiąc
+                        if price_date in missing_months:
+                            # Sprawdź czy już nie mamy tej ceny
+                            existing_price = ETFPrice.query.filter_by(
+                                etf_id=etf_id,
+                                date=price_date
+                            ).first()
+                            
+                            if not existing_price:
+                                price = ETFPrice(
+                                    etf_id=etf_id,
+                                    date=price_date,
+                                    close_price=price_data['close'],
+                                    normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                                    split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
+                                )
+                                db.session.add(price)
+                                prices_filled += 1
+                    
+                    logger.info(f"Filled {prices_filled} missing price months for {ticker}")
+            
+            # Uzupełnianie brakujących dywidend
+            if not completeness['dividends_complete'] and completeness['missing_dividend_years']:
+                logger.info(f"ETF {ticker} missing {len(completeness['missing_dividend_years'])} dividend years, attempting to fill")
+                
+                # Pobierz brakujące dywidendy z API
+                missing_years = completeness['missing_dividend_years']
+                oldest_missing_year = min(missing_years)
+                
+                # Pobierz dywidendy od najstarszego brakującego roku
+                since_date = date(oldest_missing_year, 1, 1)
+                historical_dividends = self.api_service.get_dividend_history(
+                    ticker,
+                    years=15,
+                    normalize_splits=True,
+                    since_date=since_date
+                )
+                
+                if historical_dividends:
+                    api_calls_used += 1
+                    
+                    # Dodaj tylko brakujące dywidendy
+                    for dividend_data in historical_dividends:
+                        dividend_date = dividend_data['payment_date']
+                        dividend_year = dividend_date.year
+                        
+                        # Sprawdź czy to brakujący rok
+                        if dividend_year in missing_years:
+                            # Sprawdź czy już nie mamy tej dywidendy
+                            existing_dividend = ETFDividend.query.filter_by(
+                                etf_id=etf_id,
+                                payment_date=dividend_date
+                            ).first()
+                            
+                            if not existing_dividend:
+                                dividend = ETFDividend(
+                                    etf_id=etf_id,
+                                    payment_date=dividend_date,
+                                    ex_date=dividend_data.get('ex_date'),
+                                    amount=dividend_data.get('original_amount', dividend_data['amount']),
+                                    normalized_amount=dividend_data.get('normalized_amount', dividend_data['amount']),
+                                    split_ratio_applied=dividend_data.get('split_ratio_applied', 1.0)
+                                )
+                                db.session.add(dividend)
+                                dividends_filled += 1
+                    
+                    logger.info(f"Filled {dividends_filled} missing dividends for {ticker}")
+            
+            # Commit zmian
+            if prices_filled > 0 or dividends_filled > 0:
+                db.session.commit()
+                logger.info(f"Successfully filled {prices_filled} prices and {dividends_filled} dividends for {ticker}")
+            
+            # Sprawdź kompletność po uzupełnieniu
+            updated_completeness = self.verify_data_completeness(etf_id, ticker)
+            
+            return {
+                'prices_filled': prices_filled,
+                'dividends_filled': dividends_filled,
+                'prices_complete': updated_completeness['prices_complete'],
+                'dividends_complete': updated_completeness['dividends_complete'],
+                'api_calls_used': api_calls_used
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in smart history completion for ETF {ticker}: {str(e)}")
+            db.session.rollback()
+            return {
+                'prices_filled': 0,
+                'dividends_filled': 0,
+                'prices_complete': False,
+                'dividends_complete': False,
+                'api_calls_used': 0
+            }
+    
+    def update_etf_price(self, etf_id: int, new_price: float) -> bool:
+        """Aktualizuje aktualną cenę ETF w tabeli ETF"""
+        try:
+            etf = ETF.query.get(etf_id)
+            if not etf:
+                logger.error(f"ETF with ID {etf_id} not found")
+                return False
+            
+            etf.current_price = new_price
+            etf.last_updated = datetime.utcnow()
+            
+            db.session.commit()
+            logger.info(f"Updated price for ETF ID {etf_id} to ${new_price}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating price for ETF ID {etf_id}: {str(e)}")
+            db.session.rollback()
+            return False
+    
+    def add_price_history_record(self, etf_id: int, price: float) -> bool:
+        """Dodaje rekord do historii cen ETF"""
+        try:
+            # Sprawdź czy już mamy cenę na dzisiaj
+            today = date.today()
+            existing_record = ETFPrice.query.filter_by(
+                etf_id=etf_id,
+                date=today
+                ).first()
+            
+            if existing_record:
+                # Aktualizuj istniejący rekord
+                existing_record.close_price = price
+                existing_record.normalized_close_price = price
+                existing_record.last_updated = datetime.utcnow()
+                logger.info(f"Updated existing price record for ETF ID {etf_id} on {today}")
+            else:
+                # Dodaj nowy rekord
+                new_record = ETFPrice(
+                    etf_id=etf_id,
+                    date=today,
+                    close_price=price,
+                    normalized_close_price=price,
+                    split_ratio_applied=1.0
+                )
+                db.session.add(new_record)
+                logger.info(f"Added new price record for ETF ID {etf_id} on {today}: ${price}")
+            
+            db.session.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding price history record for ETF ID {etf_id}: {str(e)}")
+            db.session.rollback()
+            return False
+    
+    def cleanup_old_price_history(self) -> int:
+        """Czyści stare rekordy cen (retencja 2 tygodnie)"""
+        try:
+            cutoff_date = date.today() - timedelta(days=14)
+            
+            # Usuń stare rekordy cen (ale nie aktualną cenę w tabeli ETF)
+            deleted_count = ETFPrice.query.filter(
+                ETFPrice.date < cutoff_date
+            ).delete()
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} old price history records (older than {cutoff_date})")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up old price history: {str(e)}")
+            db.session.rollback()
+            return 0

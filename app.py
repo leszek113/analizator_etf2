@@ -7,7 +7,7 @@ import logging
 import os
 
 # Wersja systemu
-__version__ = "1.9.3"
+__version__ = "1.9.4"
 
 from config import Config
 from models import db
@@ -73,15 +73,42 @@ def create_app():
     
     # Dodawanie zadań do schedulera
     def update_all_etfs():
+        """Zadanie schedulera do codziennej aktualizacji wszystkich ETF (Aktualizacja wszystkich ETF)"""
         with app.app_context():
             try:
                 etfs = db_service.get_all_etfs()
                 updated_count = 0
+                history_completion_stats = {
+                    'total_etfs': len(etfs),
+                    'etfs_with_complete_history': 0,
+                    'prices_filled_total': 0,
+                    'dividends_filled_total': 0,
+                    'api_calls_used_total': 0
+                }
+                
                 for etf in etfs:
+                    logger.info(f"Processing ETF {etf.ticker} for daily update")
+                    
+                    # Standardowa aktualizacja (nowe ceny, dywidendy)
                     if db_service.update_etf_data(etf.ticker):
                         updated_count += 1
+                    
+                    # Inteligentne uzupełnianie historii (raz dziennie)
+                    logger.info(f"Checking history completion for ETF {etf.ticker}")
+                    completion_result = db_service.smart_history_completion(etf.id, etf.ticker)
+                    
+                    # Aktualizacja statystyk
+                    if completion_result['prices_complete'] and completion_result['dividends_complete']:
+                        history_completion_stats['etfs_with_complete_history'] += 1
+                    
+                    history_completion_stats['prices_filled_total'] += completion_result['prices_filled']
+                    history_completion_stats['dividends_filled_total'] += completion_result['dividends_filled']
+                    history_completion_stats['api_calls_used_total'] += completion_result['api_calls_used']
                 
-                logger.info(f"Updated {updated_count} out of {len(etfs)} ETFs")
+                logger.info(f"Daily update completed: {updated_count} out of {len(etfs)} ETFs updated")
+                logger.info(f"History completion: {history_completion_stats['etfs_with_complete_history']}/{history_completion_stats['total_etfs']} ETFs have complete history")
+                logger.info(f"Data filled: {history_completion_stats['prices_filled_total']} prices, {history_completion_stats['dividends_filled_total']} dividends")
+                logger.info(f"API calls used for history completion: {history_completion_stats['api_calls_used_total']}")
                 
                 # Czyszczenie starych logów
                 db_service.cleanup_old_data()
@@ -89,13 +116,64 @@ def create_app():
             except Exception as e:
                 logger.error(f"Error in scheduled update: {str(e)}")
     
-    # Uruchamianie aktualizacji raz dziennie o 9:00 UTC
+    def update_etf_prices():
+        """Zadanie schedulera do aktualizacji cen ETF co 15 minut w dni robocze (Aktualizacja cen ETF)"""
+        with app.app_context():
+            try:
+                etfs = db_service.get_all_etfs()
+                logger.info(f"Starting scheduled ETF price update for {len(etfs)} ETFs...")
+                
+                updated_count = 0
+                for etf in etfs:
+                    try:
+                        logger.info(f"Updating price for ETF {etf.ticker}...")
+                        
+                        # Pobieranie aktualnej ceny
+                        current_price = api_service.get_current_price(etf.ticker)
+                        
+                        if current_price:
+                            # Aktualizacja ceny w tabeli ETF
+                            db_service.update_etf_price(etf.id, current_price)
+                            
+                            # Dodanie rekordu do historii cen
+                            db_service.add_price_history_record(etf.id, current_price)
+                            
+                            updated_count += 1
+                            logger.info(f"Successfully updated price for {etf.ticker}: ${current_price}")
+                        else:
+                            logger.warning(f"Failed to get current price for {etf.ticker}")
+                            
+                    except Exception as e:
+                        logger.error(f"Error updating price for ETF {etf.ticker}: {str(e)}")
+                        continue
+                
+                logger.info(f"Price update completed: {updated_count} out of {len(etfs)} ETFs updated")
+                
+                # Czyszczenie starych rekordów cen (retencja 2 tygodnie)
+                db_service.cleanup_old_price_history()
+                
+            except Exception as e:
+                logger.error(f"Error in scheduled price update: {str(e)}")
+    
+    # Uruchamianie aktualizacji raz dziennie o 9:00 CET (czas polski)
     scheduler.add_job(
         func=update_all_etfs,
         trigger="cron",
         hour=9,
         minute=0,
+        timezone="Europe/Warsaw",  # CET/CEST (czas polski)
         id="daily_etf_update"
+    )
+    
+    # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 9:00-17:00 CET)
+    scheduler.add_job(
+        func=update_etf_prices,
+        trigger="cron",
+        day_of_week="mon-fri",
+        hour="9-17",  # 9:00-17:00 CET
+        minute="*/15",  # co 15 minut
+        timezone="Europe/Warsaw",  # CET/CEST (czas polski)
+        id="price_update_15min"
     )
     
     # Dodanie schedulera do app context
@@ -553,44 +631,7 @@ def create_app():
                 'error': str(e)
             }), 500
     
-    @app.route('/api/system/scheduler/status', methods=['GET'])
-    def get_scheduler_status():
-        """API endpoint do sprawdzania statusu schedulera"""
-        try:
-            if not hasattr(app, 'scheduler') or not app.scheduler:
-                return jsonify({
-                    'success': False,
-                    'error': 'Scheduler not available'
-                }), 500
-            
-            jobs = app.scheduler.get_jobs()
-            scheduler_status = {
-                'status': 'RUNNING' if app.scheduler.running else 'STOPPED',
-                'job_count': len(jobs),
-                'jobs': []
-            }
-            
-            for job in jobs:
-                job_info = {
-                    'id': job.id,
-                    'name': job.name or 'Unnamed',
-                    'trigger': str(job.trigger),
-                    'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
-                    'func_name': job.func.__name__ if hasattr(job.func, '__name__') else str(job.func)
-                }
-                scheduler_status['jobs'].append(job_info)
-            
-            return jsonify({
-                'success': True,
-                'data': scheduler_status
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting scheduler status: {str(e)}")
-            return jsonify({
-                'success': False,
-                'error': str(e)}
-            ), 500
+
 
     @app.route('/api/system/dividend-tax-rate', methods=['GET'])
     def get_dividend_tax_rate():
@@ -635,110 +676,53 @@ def create_app():
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/system/status')
-    def system_status_page():
-            """Strona z systemowymi informacjami"""
+    def system_status():
+        """Strona statusu systemu"""
+        try:
+            # Pobieranie statusu schedulera
+            scheduler_status = "Unknown"
+            if hasattr(app, 'scheduler') and app.scheduler:
+                try:
+                    jobs = app.scheduler.get_jobs()
+                    scheduler_status = f"Active with {len(jobs)} jobs"
+                except:
+                    scheduler_status = "Error getting status"
+            
+            # Pobieranie limitów API
+            api_limits = {}
             try:
-                from models import ETF, ETFPrice, ETFDividend, SystemLog
-                from services.api_service import APIService
-                
-                # Pobieranie statystyk systemu
-                etf_count = ETF.query.count()
-                price_count = ETFPrice.query.count()
-                dividend_count = ETFDividend.query.count()
-                log_count = SystemLog.query.count()
-                
-                # Sprawdzanie ostatniej aktualizacji
-                latest_update = ETF.query.order_by(ETF.last_updated.desc()).first()
-                last_update = latest_update.last_updated if latest_update else None
-                
-                # Status tokenów API
-                api_health = {}
-                api_status = {}
-                try:
-                    api_service = APIService()
-                    api_health = api_service.check_api_health()
-                    api_status = api_service.get_api_status()  # Dodanie pełnego statusu API
-                except Exception as e:
-                    api_health = {'error': str(e)}
-                    api_status = {'error': str(e)}
-                
-                # Informacje o schedulerze
-                scheduler_info = {}
-                try:
-                    if hasattr(app, 'scheduler') and app.scheduler:
-                        jobs = app.scheduler.get_jobs()
-                        scheduler_info = {
-                            'status': 'RUNNING' if app.scheduler.running else 'STOPPED',
-                            'job_count': len(jobs),
-                            'jobs': []
-                        }
-                        
-                        for job in jobs:
-                            # Konwersja czasu na różne strefy czasowe
-                            next_run_utc = job.next_run_time
-                            next_run_cet = None
-                            if next_run_utc:
-                                # CET = UTC+1 (lato) lub UTC+2 (zima)
-                                # Uproszczone: używamy UTC+1
-                                next_run_cet = next_run_utc.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1)))
-                            
-                            # Czytelne opisy dla użytkownika
-                            job_display_name = "Aktualizacja danych dla wszystkich ETF"
-                            job_description = "Codziennie o 09:00 UTC (10:00 CET)"
-                            
-                            # Parsowanie harmonogramu cron dla lepszego wyświetlania
-                            trigger_str = str(job.trigger)
-                            if 'cron' in trigger_str:
-                                # Próbujemy wyciągnąć godzinę i minutę z cron
-                                import re
-                                hour_match = re.search(r"hour='(\d+)'", trigger_str)
-                                minute_match = re.search(r"minute='(\d+)'", trigger_str)
-                                
-                                if hour_match and minute_match:
-                                    hour = int(hour_match.group(1))
-                                    minute = int(minute_match.group(1))
-                                    # Konwersza na CET
-                                    cet_hour = (hour + 1) % 24
-                                    job_description = f"Codziennie o {hour:02d}:{minute:02d} UTC ({cet_hour:02d}:{minute:02d} CET)"
-                            
-                            job_info = {
-                                'id': job.id,
-                                'name': job.name or 'Unnamed',
-                                'display_name': job_display_name,
-                                'description': job_description,
-                                'trigger': str(job.trigger),
-                                'next_run_utc': next_run_utc.isoformat() if next_run_utc else None,
-                                'next_run_cet': next_run_cet.isoformat() if next_run_cet else None,
-                                'func_name': job.func.__name__ if hasattr(job.func, '__name__') else str(job.func)
-                            }
-                            scheduler_info['jobs'].append(job_info)
-                    else:
-                        scheduler_info = {'status': 'NOT_AVAILABLE', 'error': 'Scheduler not initialized'}
-                except Exception as e:
-                    scheduler_info = {'status': 'ERROR', 'error': str(e)}
-                
-                # Dodanie informacji o strefach czasowych
-                timezone_info = {
-                    'current_utc': datetime.utcnow().isoformat(),
-                    'current_cet': datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1))).isoformat(),
-                    'scheduler_timezone': 'UTC (domyślnie)',
-                    'note': 'CET = UTC+1 (czas środkowoeuropejski)'
-                }
-                
-                return render_template('system_status.html', 
-                                    etf_count=etf_count,
-                                    price_count=price_count,
-                                    dividend_count=dividend_count,
-                                    log_count=log_count,
-                                    last_update=last_update,
-                                    api_health=api_health,
-                                    api_status=api_status,
-                                    scheduler_info=scheduler_info,
-                                    timezone_info=timezone_info)
-                
+                api_service = APIService()
+                api_limits = api_service.get_api_status()
             except Exception as e:
-                logger.error(f"Error rendering system status page: {str(e)}")
-                return render_template('error.html', error=str(e))
+                logger.error(f"Error getting API limits: {str(e)}")
+                api_limits = {}
+            
+
+            
+            # Sprawdzanie kompletności danych ETF
+            etfs = db_service.get_all_etfs()
+            etfs_completeness = []
+            
+            for etf in etfs[:5]:  # Sprawdź pierwsze 5 ETF dla wydajności
+                completeness = db_service.verify_data_completeness(etf.id, etf.ticker)
+                etfs_completeness.append({
+                    'ticker': etf.ticker,
+                    'prices_complete': completeness['prices_complete'],
+                    'dividends_complete': completeness['dividends_complete'],
+                    'years_of_price_data': round(completeness['years_of_price_data'], 1),
+                    'years_of_dividend_data': round(completeness['years_of_dividend_data'], 1),
+                    'etf_age_years': completeness['etf_age_years'],
+                    'expected_years': completeness['expected_years']
+                })
+            
+            return render_template('system_status.html',
+                                 scheduler_status=scheduler_status,
+                                 api_limits=api_limits,
+                                 etfs_completeness=etfs_completeness,
+                                 total_etfs=len(etfs))
+        except Exception as e:
+            logger.error(f"Error loading system status: {str(e)}")
+            return render_template('error.html', error=str(e))
     
     # API endpoint do pobierania wersji systemu
     @app.route('/api/system/version')
@@ -749,6 +733,8 @@ def create_app():
             'version': __version__,
             'timestamp': datetime.utcnow().isoformat()
         })
+    
+
     
     # Error handlers
     @app.errorhandler(404)

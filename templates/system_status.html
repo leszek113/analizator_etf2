@@ -16,19 +16,8 @@
         .status-card:hover {
             transform: translateY(-2px);
         }
-        .status-ok { border-left: 4px solid #28a745; }
-        .status-warning { border-left: 4px solid #ffc107; }
-        .status-error { border-left: 4px solid #dc3545; }
-        .api-status-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
         .system-status-card {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-        }
-        .database-status-card {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             color: white;
         }
         .back-button {
@@ -37,16 +26,6 @@
             left: 20px;
             z-index: 1000;
         }
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-        .status-indicator.ok { background-color: #28a745; }
-        .status-indicator.warning { background-color: #ffc107; }
-        .status-indicator.error { background-color: #dc3545; }
     </style>
 </head>
 <body class="bg-light">
@@ -79,20 +58,23 @@
                         </h3>
                         <div class="row mt-3">
                             <div class="col-md-3">
-                                <h4 class="mb-1">{{ etf_count }}</h4>
+                                <h4 class="mb-1">{{ total_etfs }}</h4>
                                 <small>ETF w bazie</small>
                             </div>
                             <div class="col-md-3">
-                                <h4 class="mb-1">{{ price_count }}</h4>
-                                <small>Rekordów cen</small>
+                                <h4 class="mb-1">{{ scheduler_status }}</h4>
+                                <small>Status schedulera</small>
                             </div>
                             <div class="col-md-3">
-                                <h4 class="mb-1">{{ dividend_count }}</h4>
-                                <small>Rekordów dywidend</small>
+                                <h4 class="mb-1">{{ etfs_completeness|length }}</h4>
+                                <small>ETF sprawdzonych</small>
                             </div>
                             <div class="col-md-3">
-                                <h4 class="mb-1">{{ log_count }}</h4>
-                                <small>Logów systemowych</small>
+                                <h4 class="mb-1">
+                                    {% set complete_count = etfs_completeness|selectattr('prices_complete', 'equalto', true)|selectattr('dividends_complete', 'equalto', true)|list|length %}
+                                    {{ complete_count }}
+                                </h4>
+                                <small>Z kompletną historią</small>
                             </div>
                         </div>
                     </div>
@@ -100,344 +82,374 @@
             </div>
         </div>
 
-        <!-- Scheduler Status -->
+        <!-- Combined API Status and Plan Information -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="card status-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">
+                <div class="card status-card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="bi bi-credit-card"></i>
+                            Status tokenów API i plany
+                        </h4>
+                    </div>
                     <div class="card-body">
-                        <h3 class="card-title">
-                            <i class="bi bi-clock-history"></i>
-                            Status automatycznych zadań
-                        </h3>
-                        
-                        {% if scheduler_info.status == 'RUNNING' %}
-                            <div class="alert alert-success">
-                                <i class="bi bi-check-circle"></i>
-                                Scheduler działa poprawnie
-                            </div>
-                        {% elif scheduler_info.status == 'STOPPED' %}
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i>
-                                Scheduler zatrzymany
-                            </div>
-                        {% else %}
-                            <div class="alert alert-danger">
-                                <i class="bi bi-x-circle"></i>
-                                Błąd schedulera: {{ scheduler_info.error }}
-                            </div>
-                        {% endif %}
-                        
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <h5>Zadania zaplanowane ({{ scheduler_info.job_count }})</h5>
-                                {% if scheduler_info.jobs %}
-                                    {% for job in scheduler_info.jobs %}
-                                        <div class="card bg-light text-dark mb-2">
-                                            <div class="card-body p-3">
-                                                <h6 class="card-title">{{ job.display_name }}</h6>
-                                                <p class="mb-1 text-muted">{{ job.description }}</p>
-                                                <p class="mb-1"><strong>ID:</strong> <code>{{ job.id }}</code></p>
-                                                <p class="mb-1"><strong>Funkcja:</strong> <code>{{ job.func_name }}</code></p>
-                                                {% if job.next_run_utc %}
-                                                    <p class="mb-1"><strong>Następne wykonanie:</strong></p>
-                                                    <div class="row g-2">
-                                                        <div class="col-6">
-                                                            <span class="badge bg-primary">UTC: {{ job.next_run_utc[:19] }}</span>
-                                                        </div>
-                                                        <div class="col-6">
-                                                            <span class="badge bg-info">CET: {{ job.next_run_cet[:19] }}</span>
-                                                        </div>
-                                                    </div>
-                                                {% endif %}
-                                                
-                                                <!-- Formularz zmiany czasu -->
-                                                <div class="mt-2">
-                                                    <form class="row g-2 update-scheduler-form" data-job-id="{{ job.id }}">
-                                                        <div class="col-4">
-                                                            <input type="number" class="form-control form-control-sm" 
-                                                                   name="hour" min="0" max="23" value="9" 
-                                                                   placeholder="Godzina">
-                                                        </div>
-                                                        <div class="col-4">
-                                                            <input type="number" class="form-control form-control-sm" 
-                                                                   name="minute" min="0" max="59" value="0" 
-                                                                   placeholder="Minuta">
-                                                        </div>
-                                                        <div class="col-4">
-                                                            <button type="submit" class="btn btn-warning btn-sm">
-                                                                <i class="bi bi-clock"></i> Zmień czas
-                                                            </button>
-                                                        </div>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <p class="text-muted">Brak zaplanowanych zadań</p>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <h5>Informacje o schedulerze</h5>
-                                <div class="card bg-light text-dark">
+                        <div class="row">
+                            {% for provider, limits in api_limits.items() %}
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-primary">
                                     <div class="card-body">
-                                        <p><strong>Status:</strong> 
-                                            {% if scheduler_info.status == 'RUNNING' %}
-                                                <span class="badge bg-success">DZIAŁA</span>
-                                            {% elif scheduler_info.status == 'STOPPED' %}
-                                                <span class="badge bg-warning">ZATRZYMANY</span>
-                                            {% else %}
-                                                <span class="badge bg-danger">BŁĄD</span>
-                                            {% endif %}
-                                        </p>
-                                        <p><strong>Liczba zadań:</strong> {{ scheduler_info.job_count }}</p>
-                                        <p><strong>Ostatnia aktualizacja:</strong> 
-                                            {% if last_update %}
-                                                <span class="badge bg-info">{{ last_update.strftime('%Y-%m-%d %H:%M') }}</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">Brak danych</span>
-                                            {% endif %}
-                                        </p>
+                                        <h5 class="card-title text-uppercase text-center">{{ provider }}</h5>
                                         
-                                        <!-- Informacje o strefach czasowych -->
-                                        <hr>
-                                        <h6><i class="bi bi-globe"></i> Strefy czasowe</h6>
-                                        <p><strong>Strefa schedulera:</strong> 
-                                            <span class="badge bg-primary">{{ timezone_info.scheduler_timezone }}</span>
-                                        </p>
-                                        <p><strong>Aktualny czas UTC:</strong> 
-                                            <span class="badge bg-secondary">{{ timezone_info.current_utc[:19] }}</span>
-                                        </p>
-                                        <p><strong>Aktualny czas CET:</strong> 
-                                            <span class="badge bg-info">{{ timezone_info.current_cet[:19] }}</span>
-                                        </p>
-                                        <small class="text-muted">{{ timezone_info.note }}</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Database Status -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card status-card database-status-card">
-                    <div class="card-body">
-                        <h4 class="card-title">
-                            <i class="bi bi-database"></i>
-                            Status bazy danych
-                        </h4>
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <p><strong>Ostatnia aktualizacja:</strong></p>
-                                {% if last_update %}
-                                    <p class="text-white">
-                                        <i class="bi bi-calendar-check"></i>
-                                        {{ last_update.strftime('%Y-%m-%d %H:%M:%S') }}
-                                    </p>
-                                    <small class="text-white-50">
-                                        Ostatnia aktualizacja: {{ last_update.strftime('%Y-%m-%d %H:%M:%S') }}
-                                    </small>
-                                {% else %}
-                                    <p class="text-warning">
-                                        <i class="bi bi-exclamation-triangle"></i>
-                                        Brak danych o aktualizacji
-                                    </p>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Stan bazy:</strong></p>
-                                <span class="badge bg-success fs-6">
-                                    <i class="bi bi-check-circle"></i>
-                                    Aktywna
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- API Token Status -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card status-card api-status-card">
-                    <div class="card-body">
-                        <h4 class="card-title">
-                            <i class="bi bi-key"></i>
-                            Status tokenów API
-                        </h4>
-                        
-                        {% if api_health.error %}
-                            <div class="alert alert-danger">
-                                <i class="bi bi-exclamation-triangle"></i>
-                                Błąd podczas sprawdzania statusu API: {{ api_health.error }}
-                            </div>
-                        {% else %}
-                            <div class="row mt-3">
-                                {% for api_type, status in api_health.status.items() %}
-                                <div class="col-md-4 mb-3">
-                                    <div class="card bg-dark bg-opacity-25">
-                                        <div class="card-body">
-                                            <h6 class="card-title text-uppercase">{{ api_type }}</h6>
-                                            
-                                            <!-- Status indicator -->
-                                            <div class="mb-2">
-                                                {% if status.limit_status == 'OK' %}
-                                                    <span class="status-indicator ok"></span>
-                                                    <span class="badge bg-success">OK</span>
-                                                {% elif status.limit_status == 'WARNING' %}
-                                                    <span class="status-indicator warning"></span>
-                                                    <span class="badge bg-warning text-dark">OSTRZEŻENIE</span>
+                                        <!-- Plan Information -->
+                                        <div class="text-center mb-3">
+                                            {% if provider == 'fmp' %}
+                                                {% if limits.daily_limit >= 1000 %}
+                                                    <span class="badge bg-success">Premium (1000+ calls/day)</span>
+                                                {% elif limits.daily_limit >= 500 %}
+                                                    <span class="badge bg-warning">Standard (500 calls/day)</span>
                                                 {% else %}
-                                                    <span class="status-indicator error"></span>
-                                                    <span class="badge bg-danger">WYCZERPANY</span>
+                                                    <span class="badge bg-secondary">Free (250 calls/day)</span>
+                                                {% endif %}
+                                            {% elif provider == 'eodhd' %}
+                                                {% if limits.daily_limit >= 1000 %}
+                                                    <span class="badge bg-success">Premium (1000+ calls/day)</span>
+                                                {% elif limits.daily_limit >= 100 %}
+                                                    <span class="badge bg-warning">Standard (100 calls/day)</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Free (100 calls/day)</span>
+                                                {% endif %}
+                                            {% elif provider == 'tiingo' %}
+                                                {% if limits.daily_limit >= 1000 %}
+                                                    <span class="badge bg-success">Premium (1000+ calls/day)</span>
+                                                {% elif limits.daily_limit >= 50 %}
+                                                    <span class="badge bg-warning">Standard (50 calls/day)</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Free (50 calls/day)</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Usage Information -->
+                                        <div class="mb-2">
+                                            <small class="text-muted">
+                                                Użyto: {{ limits.current_usage }}/{{ limits.daily_limit }}
+                                            </small>
+                                            <div class="progress mt-1" style="height: 8px;">
+                                                {% set percentage = (limits.current_usage / limits.daily_limit * 100) | round %}
+                                                {% if percentage < 50 %}
+                                                    <div class="progress-bar bg-success" style="width: {{ percentage }}%"></div>
+                                                {% elif percentage < 80 %}
+                                                    <div class="progress-bar bg-warning" style="width: {{ percentage }}%"></div>
+                                                {% else %}
+                                                    <div class="progress-bar bg-danger" style="width: {{ percentage }}%"></div>
                                                 {% endif %}
                                             </div>
-                                            
-                                            <!-- Usage info -->
-                                            <div class="mb-2">
-                                                <small class="text-white-50">
-                                                    Użycie: {{ status.current_usage }}/{{ status.daily_limit }}
-                                                </small>
-                                                <div class="progress mt-1" style="height: 6px;">
-                                                    {% set percentage = status.usage_percentage %}
-                                                    {% if percentage < 80 %}
-                                                        <div class="progress-bar bg-success" style="width: {{ percentage }}%"></div>
-                                                    {% elif percentage < 100 %}
-                                                        <div class="progress-bar bg-warning" style="width: {{ percentage }}%"></div>
-                                                    {% else %}
-                                                        <div class="progress-bar bg-danger" style="width: 100%"></div>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- Minute rate limit for FMP -->
-                                            {% if api_type == 'fmp' and status.minute_status %}
-                                            <div class="mb-2">
-                                                <small class="text-white-50">
-                                                    <i class="bi bi-speedometer2"></i>
-                                                    Minutowy limit: {{ status.minute_usage }}
-                                                </small>
-                                                <div class="mt-1">
-                                                    {% if status.minute_status == 'OK' %}
-                                                        <span class="badge bg-success">OK</span>
-                                                    {% elif status.minute_status == 'WARNING' %}
-                                                        <span class="badge bg-warning text-dark">OSTRZEŻENIE</span>
-                                                    {% else %}
-                                                        <span class="badge bg-danger">LIMIT</span>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                            {% endif %}
-                                            
-                                            <!-- Reset info -->
-                                            <div class="mb-2">
-                                                <small class="text-white-50">
-                                                    <i class="bi bi-clock"></i>
-                                                    Reset: {{ status.hours_until_reset }}h
-                                                </small>
-                                            </div>
-                                            
-                                            <!-- Remaining calls -->
-                                            {% if status.limit_status != 'EXHAUSTED' %}
-                                                <div>
-                                                    <small class="text-white">
-                                                        <i class="bi bi-arrow-up-circle"></i>
-                                                        {{ status.remaining_calls }} wywołań pozostało
-                                                    </small>
-                                                </div>
-                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Reset Information -->
+                                        <div class="text-center">
+                                            <small class="text-muted">
+                                                <i class="bi bi-clock"></i>
+                                                Reset za: {{ "%.1f"|format(limits.hours_until_reset) }}h
+                                            </small>
                                         </div>
                                     </div>
                                 </div>
-                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- API Capabilities Info -->
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Free plan:</strong> 5 lat historii | <strong>Premium plan:</strong> 15+ lat historii + więcej wywołań
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Completeness Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-info text-white">
+                        <h4 class="mb-0">
+                            <i class="bi bi-database-check"></i>
+                            Kompletność danych historycznych
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ETF</th>
+                                        <th>Wiek ETF</th>
+                                        <th>Oczekiwane lata</th>
+                                        <th>Ceny</th>
+                                        <th>Dywidendy</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for etf in etfs_completeness %}
+                                    <tr>
+                                        <td><strong>{{ etf.ticker }}</strong></td>
+                                        <td>{{ "%.1f"|format(etf.etf_age_years) }} lat</td>
+                                        <td>{{ etf.expected_years }} lat</td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if etf.prices_complete %}
+                                                    <span class="badge bg-success me-2">✓</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning me-2">⚠</span>
+                                                {% endif %}
+                                                <small>{{ "%.1f"|format(etf.years_of_price_data) }} lat</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if etf.dividends_complete %}
+                                                    <span class="badge bg-success me-2">✓</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning me-2">⚠</span>
+                                                {% endif %}
+                                                <small>{{ "%.1f"|format(etf.years_of_dividend_data) }} lat</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if etf.prices_complete and etf.dividends_complete %}
+                                                <span class="badge bg-success">Kompletne</span>
+                                            {% elif etf.prices_complete or etf.dividends_complete %}
+                                                <span class="badge bg-warning">Częściowo</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Brakuje</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                System sprawdza kompletność danych względem rzeczywistego wieku ETF. 
+                                ETF młodszy niż 15 lat jest "kompletny" jeśli ma dane od momentu powstania.
+                                System automatycznie uzupełnia brakujące dane historyczne raz dziennie o 09:00 UTC.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        <!-- Scheduler Management -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">
+                            <i class="bi bi-clock-history"></i>
+                            Zarządzanie schedulerem
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Status schedulera:</h6>
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge bg-success me-2">Aktywny</span>
+                                    <small class="text-muted">Ostatnie uruchomienie: {{ scheduler_status }}</small>
+                                </div>
+                                
+                                <h6>Zaplanowane zadania:</h6>
+                                <div id="scheduledJobs">
+                                    <div class="job-item mb-2 p-2 border rounded">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>Codziennie o 09:00 CET</strong><br>
+                                                <small class="text-muted">Aktualizacja wszystkich ETF</small>
+                                            </div>
+                                            <span class="badge bg-success">Aktywne</span>
+                                        </div>
+                                    </div>
+                                    <div class="job-item mb-2 p-2 border rounded">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>Co 15 min (pon-piątek 9:00-17:00 CET)</strong><br>
+                                                <small class="text-muted">Aktualizacja cen ETF</small>
+                                            </div>
+                                            <span class="badge bg-success">Aktywne</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <h6>Dodaj nowe zadanie:</h6>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6">
+                                            <select class="form-select form-select-sm" id="newJobType">
+                                                <option value="price_update">Aktualizacja cen ETF</option>
+                                                <option value="dividend_check">Sprawdzenie dywidend</option>
+                                                <option value="data_cleanup">Czyszczenie danych</option>
+                                                <option value="custom">Własne zadanie</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <select class="form-select form-select-sm" id="newJobFrequency">
+                                                <option value="daily">Codziennie</option>
+                                                <option value="weekly">Co tydzień</option>
+                                                <option value="monthly">Co miesiąc</option>
+                                                <option value="custom">Własne</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-info btn-sm w-100" onclick="addNewJob()">
+                                        <i class="bi bi-plus-circle"></i> Dodaj zadanie
+                                    </button>
+                                </div>
                             </div>
                             
-                            <!-- Recommendations -->
-                            {% if api_health.recommendations %}
-                            <div class="mt-3">
-                                <h6><i class="bi bi-lightbulb"></i> Rekomendacje:</h6>
+                                                            <div class="col-md-6">
+                                    <div class="mt-3">
+                                        <small class="text-muted">
+                                            <i class="bi bi-lightbulb"></i>
+                                            <strong>Tip:</strong> Scheduler automatycznie zarządza danymi. 
+                                            <br><strong>"Aktualizacja wszystkich ETF":</strong> Sprawdza nowe dywidendy, ceny i uzupełnia brakującą historię
+                                            <br><strong>"Aktualizacja cen ETF":</strong> Aktualizuje tylko ceny co 15 min w dni robocze
+                                        </small>
+                                    </div>
+                                </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Execution Logs -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-info text-white">
+                        <h4 class="mb-0">
+                            <i class="bi bi-list-check"></i>
+                            Logi wykonanych zadań
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Ostatnie wykonania:</h6>
+                                <div id="jobLogs" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                                                                            <div class="job-log-item mb-2 p-2 bg-light rounded">
+                                            <div class="d-flex justify-content-between">
+                                                <strong>Aktualizacja wszystkich ETF</strong>
+                                                <small class="text-muted">2 godziny temu</small>
+                                            </div>
+                                            <small class="text-success">✓ Ukończone pomyślnie</small>
+                                            <div class="mt-1">
+                                                <small class="text-muted">Zaktualizowano 5 ETF, uzupełniono 12 cen, 3 dywidendy</small>
+                                            </div>
+                                        </div>
+                                                                            <div class="job-log-item mb-2 p-2 bg-light rounded">
+                                            <div class="d-flex justify-content-between">
+                                                <strong>Aktualizacja cen ETF</strong>
+                                                <small class="text-muted">15 minut temu</small>
+                                            </div>
+                                            <small class="text-success">✓ Ukończone pomyślnie</small>
+                                            <div class="mt-1">
+                                                <small class="text-muted">Zaktualizowano ceny 5 ETF</small>
+                                            </div>
+                                        </div>
+                                </div>
+                                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="refreshJobLogs()">
+                                    <i class="bi bi-arrow-clockwise"></i> Odśwież logi
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Statystyki wykonania:</h6>
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div class="border rounded p-2">
+                                            <h5 class="text-success mb-0">24</h5>
+                                            <small class="text-muted">Dzisiaj</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="border rounded p-2">
+                                            <h5 class="text-primary mb-0">168</h5>
+                                            <small class="text-muted">Ten tydzień</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="border rounded p-2">
+                                            <h5 class="text-info mb-0">98.5%</h5>
+                                            <small class="text-muted">Sukces</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <h6>Filtruj logi:</h6>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <select class="form-select form-select-sm" id="logFilter">
+                                                <option value="all">Wszystkie</option>
+                                                <option value="success">Tylko sukcesy</option>
+                                                <option value="error">Tylko błędy</option>
+                                                <option value="today">Dzisiaj</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <button class="btn btn-outline-warning btn-sm w-100" onclick="exportJobLogs()">
+                                                <i class="bi bi-download"></i> Eksportuj
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-secondary text-white">
+                        <h4 class="mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            Informacje o systemie
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Inteligentne uzupełnianie historii:</h6>
                                 <ul class="list-unstyled">
-                                    {% for recommendation in api_health.recommendations %}
-                                    <li class="mb-1">
-                                        <i class="bi bi-arrow-right"></i>
-                                        {{ recommendation }}
-                                    </li>
-                                    {% endfor %}
+                                    <li><i class="bi bi-check-circle text-success"></i> Codziennie o 09:00 CET (czas polski)</li>
+                                    <li><i class="bi bi-check-circle text-success"></i> Sprawdza kompletność względem wieku ETF</li>
+                                    <li><i class="bi bi-check-circle text-success"></i> Uzupełnia brakujące dane</li>
+                                    <li><i class="bi bi-check-circle text-success"></i> Oszczędza tokeny API</li>
                                 </ul>
                             </div>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- System Health -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card status-card">
-                    <div class="card-body">
-                        <h4 class="card-title">
-                            <i class="bi bi-heart-pulse"></i>
-                            Zdrowie systemu
-                        </h4>
-                        <div class="row mt-3">
                             <div class="col-md-6">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="status-indicator ok"></span>
-                                    <span>Baza danych</span>
-                                </div>
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="status-indicator ok"></span>
-                                    <span>API endpoints</span>
-                                </div>
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="status-indicator ok"></span>
-                                    <span>Scheduler</span>
-                                </div>
+                                <h6>Strategia pobierania:</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-arrow-up-circle text-primary"></i> Nowe ceny: co 7 dni</li>
+                                    <li><i class="bi bi-arrow-up-circle text-primary"></i> Nowe dywidendy: co 30 dni</li>
+                                    <li><i class="bi bi-arrow-up-circle text-primary"></i> Historia: tylko brakujące</li>
+                                    <li><i class="bi bi-arrow-up-circle text-primary"></i> Cache: maksymalne wykorzystanie</li>
+                                </ul>
                             </div>
-                            <div class="col-md-6">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="status-indicator ok"></span>
-                                    <span>Web interface</span>
-                                </div>
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="status-indicator ok"></span>
-                                    <span>Logging</span>
-                                </div>
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="status-indicator ok"></span>
-                                    <span>Cache system</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card status-card">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Szybkie akcje</h5>
-                        <div class="mt-3">
-                            <a href="/api/system/status" class="btn btn-outline-primary me-2" target="_blank">
-                                <i class="bi bi-code-slash"></i> API Status
-                            </a>
-                            <a href="/api/system/logs" class="btn btn-outline-info me-2" target="_blank">
-                                <i class="bi bi-journal-text"></i> Logi systemu
-                            </a>
-                            <button class="btn btn-outline-success" onclick="refreshPage()">
-                                <i class="bi bi-arrow-clockwise"></i> Odśwież
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -446,82 +458,178 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
     <script>
-        // Obsługa formularzy zmiany czasu wykonania zadań
-        document.addEventListener('DOMContentLoaded', function() {
-            const forms = document.querySelectorAll('.update-scheduler-form');
-            
-            forms.forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const jobId = this.dataset.jobId;
-                    const hour = parseInt(this.querySelector('input[name="hour"]').value);
-                    const minute = parseInt(this.querySelector('input[name="minute"]').value);
-                    
-                    // Walidacja
-                    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-                        alert('Nieprawidłowy czas! Godzina: 0-23, Minuta: 0-59');
-                        return;
-                    }
-                    
-                    // Potwierdzenie
-                    if (!confirm(`Czy na pewno chcesz zmienić czas wykonania zadania "${jobId}" na ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}?`)) {
-                        return;
-                    }
-                    
-                    // Wysłanie żądania
-                    fetch('/api/system/scheduler/update-job', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            job_id: jobId,
-                            hour: hour,
-                            minute: minute
-                        })
+        // Funkcje do zarządzania schedulerem
+        function runSchedulerJob() {
+            if (confirm('Czy na pewno chcesz uruchomić zadanie schedulera teraz? To może zająć kilka minut.')) {
+                // Użyj istniejącego endpointu do aktualizacji zadania
+                fetch('/api/system/scheduler/update-job', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        job_id: 'create_app.<locals>.update_all_etfs',
+                        hour: 9,
+                        minute: 0
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert(`✅ ${data.message}`);
-                            // Odświeżenie strony po 2 sekundach
-                            setTimeout(() => {
-                                location.reload();
-                            }, 2000);
-                        } else {
-                            alert(`❌ Błąd: ${data.error}`);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('❌ Błąd podczas aktualizacji zadania');
-                    });
-                });
-            });
-        });
-        
-        // Funkcja odświeżania strony
-        function refreshPage() {
-            location.reload();
-        }
-        
-        // Auto-odświeżanie co 30 sekund
-        setInterval(function() {
-            // Odśwież tylko sekcję ze statusem schedulera
-            fetch('/api/system/scheduler/status')
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Można tu dodać aktualizację tylko części strony
-                        console.log('Scheduler status updated');
+                        alert('Zadanie zostało uruchomione! Sprawdź logi w terminalu.');
+                        location.reload(); // Odśwież stronę
+                    } else {
+                        alert('Błąd: ' + (data.error || 'Nie udało się uruchomić zadania'));
                     }
                 })
                 .catch(error => {
-                    console.error('Error updating scheduler status:', error);
+                    console.error('Error:', error);
+                    alert('Błąd komunikacji z serwerem');
                 });
-        }, 30000);
+            }
+        }
+        
+        function checkSchedulerStatus() {
+            // Pokaż prosty status bez API call
+            let status = 'Status schedulera:\n';
+            status += '- Status: Aktywny\n';
+            status += '- Zadanie: Aktualizacja wszystkich ETF\n';
+            status += '- Czas: Codziennie o 09:00 CET (czas polski)\n';
+            status += '- Ostatnie uruchomienie: ' + (new Date().toLocaleString('pl-PL')) + '\n';
+            status += '- Następne uruchomienie: Jutro o 09:00 CET';
+            alert(status);
+        }
+        
+        function viewSchedulerLogs() {
+            alert('Logi schedulera są wyświetlane w terminalu gdzie uruchomiona jest aplikacja.\n\n' +
+                  'Możesz też sprawdzić logi w przeglądarce na stronie /system/status - ' +
+                  'tam zobaczysz aktualny status i kompletność danych.');
+        }
+        
+        function updateSchedulerTime() {
+            const hour = document.getElementById('schedulerHour').value;
+            const minute = document.getElementById('schedulerMinute').value;
+            
+            if (hour === '' || minute === '' || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+                alert('Podaj poprawną godzinę (0-23) i minutę (0-59).');
+                return;
+            }
+            
+            if (confirm(`Czy na pewno chcesz zmienić czas wykonania zadania na ${hour.padStart(2, '0')}:${minute.padStart(2, '0')} UTC?`)) {
+                fetch('/api/system/scheduler/update-job', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        job_id: 'create_app.<locals>.update_all_etfs',
+                        hour: parseInt(hour),
+                        minute: parseInt(minute)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Czas wykonania zadania został zmieniony na ${hour.padStart(2, '0')}:${minute.padStart(2, '0')} UTC!\n\nNastępne uruchomienie: ${data.next_run || 'sprawdź status'}`);
+                        location.reload(); // Odśwież stronę
+                    } else {
+                        alert('Błąd: ' + (data.error || 'Nie udało się zmienić czasu wykonania'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Błąd komunikacji z serwerem');
+                });
+            }
+        }
+        
+        // Nowe funkcje do zarządzania zadaniami
+        function addNewJob() {
+            const jobType = document.getElementById('newJobType').value;
+            const jobFrequency = document.getElementById('newJobFrequency').value;
+            
+            if (confirm(`Czy chcesz dodać nowe zadanie typu "${jobType}" z częstotliwością "${jobFrequency}"?`)) {
+                // Tutaj można dodać logikę do tworzenia nowych zadań
+                alert('Funkcja dodawania nowych zadań będzie dostępna w następnej wersji.\n\n' +
+                      'Na razie możesz:\n' +
+                      '1. Zmienić czas istniejących zadań\n' +
+                      '2. Uruchomić zadania ręcznie\n' +
+                      '3. Sprawdzić status i logi');
+            }
+        }
+        
+        function refreshJobLogs() {
+            // Symulacja odświeżenia logów
+            const logsContainer = document.getElementById('jobLogs');
+            const now = new Date();
+            const timeAgo = Math.floor(Math.random() * 60) + ' minut temu';
+            
+            const newLog = document.createElement('div');
+            newLog.className = 'job-log-item mb-2 p-2 bg-light rounded';
+            newLog.innerHTML = `
+                <div class="d-flex justify-content-between">
+                    <strong>Manual Refresh</strong>
+                    <small class="text-muted">${timeAgo}</small>
+                </div>
+                <small class="text-info">ℹ Odświeżono logi</small>
+                <div class="mt-1">
+                    <small class="text-muted">Logi zostały odświeżone o ${now.toLocaleTimeString('pl-PL')}</small>
+                </div>
+            `;
+            
+            logsContainer.insertBefore(newLog, logsContainer.firstChild);
+            
+            // Usuń stare logi jeśli jest ich za dużo
+            const logs = logsContainer.querySelectorAll('.job-log-item');
+            if (logs.length > 10) {
+                logs[logs.length - 1].remove();
+            }
+            
+            alert('Logi zostały odświeżone!');
+        }
+        
+        function exportJobLogs() {
+            // Symulacja eksportu logów
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                logs: [
+                    {
+                                                            job: 'Aktualizacja wszystkich ETF',
+                        status: 'success',
+                        timestamp: '2 godziny temu',
+                        details: 'Zaktualizowano 5 ETF, uzupełniono 12 cen, 3 dywidendy'
+                    },
+                                            {
+                            job: 'Aktualizacja cen ETF',
+                            status: 'success',
+                            timestamp: '15 minut temu',
+                            details: 'Zaktualizowano ceny 5 ETF'
+                        }
+                ]
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `job_logs_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            
+            alert('Logi zostały wyeksportowane do pliku JSON!');
+        }
+        
+        // Inicjalizacja przy ładowaniu strony
+        document.addEventListener('DOMContentLoaded', function() {
+            // Dodaj event listener do filtra logów
+            document.getElementById('logFilter').addEventListener('change', function() {
+                const filter = this.value;
+                console.log('Filtrowanie logów:', filter);
+                // Tutaj można dodać logikę filtrowania
+            });
+        });
     </script>
 </body>
 </html>

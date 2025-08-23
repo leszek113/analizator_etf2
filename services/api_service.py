@@ -1130,3 +1130,111 @@ class APIService:
             normalized_prices.append(normalized_price)
         
         return normalized_prices
+    
+    def get_current_price(self, ticker: str) -> Optional[float]:
+        """
+        Pobiera aktualną cenę ETF z dostępnych źródeł API
+        
+        Args:
+            ticker: Ticker ETF
+            
+        Returns:
+            Aktualna cena lub None jeśli nie udało się pobrać
+        """
+        try:
+            # Próba pobrania z FMP (najlepsze źródło)
+            if self._check_rate_limit('fmp'):
+                try:
+                    fmp_price = self._get_fmp_current_price(ticker)
+                    if fmp_price:
+                        self._increment_api_count('fmp')
+                        logger.info(f"Got current price for {ticker} from FMP: ${fmp_price}")
+                        return fmp_price
+                except Exception as e:
+                    logger.warning(f"FMP price fetch failed for {ticker}: {str(e)}")
+            
+            # Fallback do EODHD
+            if self._check_rate_limit('eodhd'):
+                try:
+                    eodhd_price = self._get_eodhd_current_price(ticker)
+                    if eodhd_price:
+                        self._increment_api_count('eodhd')
+                        logger.info(f"Got current price for {ticker} from EODHD: ${eodhd_price}")
+                        return eodhd_price
+                except Exception as e:
+                    logger.warning(f"EODHD price fetch failed for {ticker}: {str(e)}")
+            
+            # Fallback do Tiingo
+            if self._check_rate_limit('tiingo'):
+                try:
+                    tiingo_price = self._get_tiingo_current_price(ticker)
+                    if tiingo_price:
+                        self._increment_api_count('tiingo')
+                        logger.info(f"Got current price for {ticker} from Tiingo: ${tiingo_price}")
+                        return tiingo_price
+                except Exception as e:
+                    logger.warning(f"Tiingo price fetch failed for {ticker}: {str(e)}")
+            
+            logger.error(f"Failed to get current price for {ticker} from all sources")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting current price for {ticker}: {str(e)}")
+            return None
+    
+    def _get_fmp_current_price(self, ticker: str) -> Optional[float]:
+        """Pobiera aktualną cenę z FMP API"""
+        try:
+            url = f"{self.config.FMP_BASE_URL}/quote/{ticker}"
+            params = {'apikey': self.config.FMP_API_KEY}
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            if data and len(data) > 0:
+                return float(data[0].get('price', 0))
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"FMP current price fetch error for {ticker}: {str(e)}")
+            return None
+    
+    def _get_eodhd_current_price(self, ticker: str) -> Optional[float]:
+        """Pobiera aktualną cenę z EODHD API"""
+        try:
+            url = f"{self.config.EODHD_BASE_URL}/real-time/{ticker}"
+            params = {'api_token': self.config.EODHD_API_KEY, 'fmt': 'json'}
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            if data:
+                return float(data.get('close', 0))
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"EODHD current price fetch error for {ticker}: {str(e)}")
+            return None
+    
+    def _get_tiingo_current_price(self, ticker: str) -> Optional[float]:
+        """Pobiera aktualną cenę z Tiingo API"""
+        try:
+            url = f"{self.config.TIINGO_BASE_URL}/tiingo/daily/{ticker}/prices"
+            params = {'token': self.config.TIINGO_API_KEY}
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            if data and len(data) > 0:
+                return float(data[0].get('close', 0))
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Tiingo current price fetch error for {ticker}: {str(e)}")
+            return None

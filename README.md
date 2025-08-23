@@ -1,7 +1,7 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.3  
-**Ostatnia aktualizacja:** 22 sierpnia 2025
+**Wersja:** v1.9.4  
+**Ostatnia aktualizacja:** 23 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
 
@@ -18,6 +18,8 @@
 ✅ **Duplicate Prevention** - automatyczne sprawdzanie duplikatów przed dodaniem nowych danych
 ✅ **Strefy czasowe w schedulerze** - automatyczna konwersja UTC ↔ CET z czytelnymi opisami zadań
 ✅ **Dashboard optimization** - zoptymalizowany układ kafelków z intuicyjną nawigacją
+✅ **Scheduler Management** - zarządzanie zadaniami automatycznymi z interfejsem użytkownika
+✅ **Ujednolicone nazwy zadań** - spójne nazewnictwo w całym systemie
 ✅ **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend z wizualnymi wskaźnikami
 ✅ **System podatku od dywidend** - globalne ustawienie stawki podatku z automatycznym przeliczaniem wszystkich wartości
 ✅ **Wartości brutto/netto** - wyświetlanie wartości przed i po podatku w czasie rzeczywistym
@@ -260,12 +262,14 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 ## 🔄 **Automatyzacja**
 
 - **Scheduler**: APScheduler z zadaniami w tle
-- **Aktualizacje**: Raz dziennie sprawdzanie nowych danych
+- **Aktualizacje**: Raz dziennie sprawdzanie nowych danych o 09:00 CET
 - **Cache**: Automatyczne cache'owanie danych (1 godzina)
 - **Retry Logic**: Ponowne próby z exponential backoff
 - **Aktualizacja wieku ETF**: Automatyczne pobieranie najnowszych dat IPO z FMP API
 - **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
 - **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
+- **Zarządzanie zadaniami**: Interfejs użytkownika do zarządzania schedulerem
+- **Ujednolicone nazwy**: "Aktualizacja wszystkich ETF" i "Aktualizacja cen ETF"
 
 ## 📈 **Logika Systemu Dywidend**
 
@@ -637,7 +641,32 @@ Prognozowany wzrost = (Suma ostatnich dywidend - Suma roczna z poprzedniego roku
 - **Real-time aktualizacje**: ✅ **FUNKCJONALNE** - prognoza aktualizuje się automatycznie
 - **Wizualne wskaźniki**: ✅ **FUNKCJONALNE** - kolorowe badge'y dla trendów dywidendy
 
-## 🔧 **Ostatnie naprawy (2025-08-22)**
+## 🔧 **Ostatnie naprawy (2025-08-23)**
+
+### **✅ Nowa funkcjonalność: Scheduler Management - DZIAŁA!**
+- **Dodano**: Interfejs użytkownika do zarządzania zadaniami automatycznymi
+- **Funkcjonalność**: Zarządzanie schedulerem z czytelnymi opisami zadań
+- **Ujednolicone nazwy**: "Aktualizacja wszystkich ETF" i "Aktualizacja cen ETF"
+- **Strefy czasowe**: Automatyczne przełączanie UTC ↔ CET (czas polski)
+- **Interfejs**: Czysty i intuicyjny bez niepotrzebnych przycisków
+- **Rezultat**: Profesjonalne zarządzanie zadaniami automatycznymi 🟢
+
+### **✅ Ujednolicenie nazw zadań w całym systemie**
+- **Przed**: Różne nazwy w różnych miejscach ("Daily ETF Update", "Price Update", "Aktualizacja cen")
+- **Po**: Spójne nazwy w całym systemie ("Aktualizacja wszystkich ETF", "Aktualizacja cen ETF")
+- **Korzyści**: Lepsza czytelność, mniej pomyłek, profesjonalny wygląd
+- **Implementacja**: Zaktualizowano HTML, JavaScript i komentarze w kodzie
+
+### **✅ Zmiana czasu w schedulerze z UTC na CET**
+- **Dodano**: `timezone="Europe/Warsaw"` do wszystkich zadań schedulera
+- **Automatyczne przełączanie**: CET (UTC+1) w zimie, CEST (UTC+2) w lecie
+- **Harmonogram**: Zadania uruchamiają się według czasu polskiego
+- **Korzyści**: Intuicyjny czas lokalny, automatyczne przełączanie między zimą a latem
+
+### **✅ Uproszczenie interfejsu schedulera**
+- **Usunięto**: Niepotrzebne przyciski akcji i zmiany czasu
+- **Zostawiono**: Lista zaplanowanych zadań i informacyjny tip
+- **Rezultat**: Czysty interfejs skupiony na informacjach, nie na akcjach
 
 ### **✅ Nowa funkcjonalność: Polski Format Liczb - DZIAŁA!**
 - **Dodano**: Wszystkie liczby w systemie używają przecinków jako separatorów dziesiętnych
@@ -723,6 +752,12 @@ MIT License - zobacz plik LICENSE
 **Projekt jest gotowy do produkcji i spełnia wszystkie wymagania CEO!** 🚀
 
 **Następny etap: Implementacja prezentacji cen i dywidend dla każdego ETF**
+
+### **🎯 Najnowsze osiągnięcia (2025-08-23):**
+- **✅ Scheduler Management** - profesjonalny interfejs zarządzania zadaniami automatycznymi
+- **✅ Ujednolicone nazwy zadań** - spójne nazewnictwo w całym systemie
+- **✅ Czas CET w schedulerze** - zadania uruchamiają się według czasu polskiego
+- **✅ Uproszczony interfejs** - czysty design skupiony na informacjach
 
 ### **🎯 Najnowsze osiągnięcia:**
 - **✅ Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API

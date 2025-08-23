@@ -175,7 +175,7 @@ def migrate_database():
                 WHERE etf_id = ? AND payment_date < '2024-10-11'
             """, (schd_id,))
             
-            # Aktualizacja cen SCHD z 2023 i wcześniej
+            # Aktualizacja cen ETF SCHD z 2023 i wcześniej
             print("Aktualizuję ceny SCHD...")
             cursor.execute("""
                 UPDATE etf_prices 
