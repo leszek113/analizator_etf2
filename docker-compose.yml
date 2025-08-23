@@ -14,7 +14,7 @@ services:
       - ./.env:/app/.env:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/api/system/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:5005/api/system/status"]
       interval: 30s
       timeout: 10s
       retries: 3

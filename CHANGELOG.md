@@ -5,13 +5,21 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
-## [1.9.3] - 2025-08-22
+## [1.9.4] - 2025-08-23
 
 ### Added
 - **Kolumna "Wiek ETF" na dashboard** - nowa kolumna obok DSG pokazująca rzeczywisty wiek ETF na rynku w latach
 - **Automatyczne pobieranie dat IPO** - system używa `ipoDate` z FMP API zamiast `inceptionDate`
 - **Obliczanie wieku na podstawie rzeczywistych danych rynkowych** - wiek jest obliczany od daty IPO ETF, nie od daty dodania do systemu
-- **Informacja o wersji systemu na dashboard** - nowa karta "Wersja systemu" pokazująca aktualną wersję (v1.9.3)
+- **Informacja o wersji systemu na dashboard** - nowa karta "Wersja systemu" pokazująca aktualną wersję (v1.9.4)
+
+### Fixed
+- **Krytyczny błąd uruchamiania aplikacji** - naprawiono problem z kontekstem aplikacji Flask w APIService
+- **Ujednolicenie wersji systemu** - wszystkie pliki używają teraz wersji v1.9.4
+- **Ujednolicenie portów Docker** - wszystkie pliki używają portu 5005
+- **Ujednolicenie stref czasowych** - scheduler używa Europe/Warsaw zamiast UTC
+- **Migracja z deprecated datetime.utcnow** - zastąpiono nowoczesną składnią datetime.now(timezone.utc)
+- **Błędy składni w models.py** - poprawiono wcięcia w klasie APILimit
 
 ### Fixed
 - **Poprawiono źródło danych dla wieku ETF** - zidentyfikowano że FMP API zwraca `ipoDate` zamiast `inceptionDate`
@@ -321,7 +329,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 ## [1.0.0] - 2025-08-12
 
 ### Dodane
-- **Główna aplikacja Flask** z portem 5002
+- **Główna aplikacja Flask** z portem 5005
 - **Modele bazy danych** (ETF, ETFPrice, ETFDividend, SystemLog)
 - **API Service** z integracją FMP, EODHD i Tiingo
 - **Database Service** z CRUD operacjami
@@ -335,7 +343,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 ### Zmienione
 - **Strategia API** - FMP jako główne źródło, EODHD jako backup, Tiingo jako fallback
 - **Usunięcie mock data** - system używa tylko prawdziwych danych
-- **Port aplikacji** - zmieniony z 5000 na 5002
+- **Port aplikacji** - zmieniony z 5000 na 5005
 - **Struktura projektu** - profesjonalna architektura z serwisami
 
 ### Usunięte
@@ -345,7 +353,7 @@ a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
 ### Naprawione
 - **SQLAlchemy metadata error** - zmiana nazwy kolumny na metadata_json
-- **Port conflicts** - aplikacja działa na porcie 5002
+- **Port conflicts** - aplikacja działa na porcie 5005
 - **API integration** - wszystkie API sources działają poprawnie
 
 ### Techniczne

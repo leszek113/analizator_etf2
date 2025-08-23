@@ -9,7 +9,7 @@ import json
 import time
 from datetime import datetime
 
-BASE_URL = "http://localhost:5002"
+BASE_URL = "http://localhost:5005"
 
 def test_api_connection():
     """Test połączenia z API"""
@@ -272,7 +272,7 @@ def test_delete_etf(ticker):
 
 if __name__ == "__main__":
     print("ETF Analyzer - System Test")
-    print("Upewnij się, że aplikacja jest uruchomiona na http://localhost:5002")
+    print("Upewnij się, że aplikacja jest uruchomiona na http://localhost:5005")
     print()
     
     try:

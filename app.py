@@ -546,7 +546,7 @@ def create_app():
                     'log_count': log_count,
                     'last_update': last_update.isoformat() if last_update else None,
                     'scheduler_running': scheduler.running,
-                    'uptime': str(datetime.utcnow() - app.start_time) if hasattr(app, 'start_time') else 'Unknown',
+                    'uptime': str(datetime.now(timezone.utc) - app.start_time) if hasattr(app, 'start_time') else 'Unknown',
                     'api_health': api_health
                 }
             })
@@ -572,7 +572,7 @@ def create_app():
                 'data': {
                     'api_status': status,
                     'health_check': health,
-                    'timestamp': datetime.utcnow().isoformat()
+                    'timestamp': datetime.now(timezone.utc).isoformat()
                 }
             })
             
@@ -731,7 +731,7 @@ def create_app():
         return jsonify({
             'success': True,
             'version': __version__,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
     
 
@@ -752,7 +752,7 @@ def create_app():
         }), 500
     
     # Ustawienie czasu startu aplikacji
-    app.start_time = datetime.utcnow()
+    app.start_time = datetime.now(timezone.utc)
     
     return app
 

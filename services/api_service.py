@@ -18,7 +18,8 @@ class APIService:
         self.session.headers.update({'User-Agent': 'ETF-Analyzer/1.0'})
         
         # Rate limiting - oszczędność tokenów API (ładowanie z bazy danych)
-        self.api_calls = self._load_api_limits_from_db()
+        # Opóźnione ładowanie - tylko gdy potrzebne
+        self.api_calls = None
         
         self.cache = {}  # Prosty cache w pamięci
         self.cache_ttl = self.config.CACHE_TTL_SECONDS  # Z config
@@ -81,6 +82,11 @@ class APIService:
                 'tiingo': {'count': 0, 'last_reset': datetime.now(), 'daily_limit': 50}
             }
 
+    def _ensure_api_limits_loaded(self):
+        """Zapewnia że limity API są załadowane"""
+        if self.api_calls is None:
+            self.api_calls = self._load_api_limits_from_db()
+
     def _check_rate_limit(self, api_type: str) -> bool:
         """
         Sprawdza czy nie przekroczyliśmy limitu API dla danego typu
@@ -91,6 +97,8 @@ class APIService:
         Returns:
             True jeśli możemy wykonać zapytanie, False jeśli limit przekroczony
         """
+        self._ensure_api_limits_loaded()
+        
         if api_type not in self.api_calls:
             return True
         
@@ -222,6 +230,8 @@ class APIService:
         Args:
             api_type: Typ API ('fmp', 'eodhd', 'tiingo')
         """
+        self._ensure_api_limits_loaded()
+        
         if api_type not in self.api_calls:
             return
         
@@ -256,6 +266,8 @@ class APIService:
         Returns:
             Dict z informacjami o statusie każdego API
         """
+        self._ensure_api_limits_loaded()
+        
         status = {}
         now = datetime.now()
         

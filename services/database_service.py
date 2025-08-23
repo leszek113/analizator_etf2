@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Optional
 from sqlalchemy.exc import IntegrityError
 import logging
@@ -63,7 +63,7 @@ class DatabaseService:
                 current_yield=current_yield,
                 frequency=frequency,
                 inception_date=inception_date,
-                last_updated=datetime.utcnow()
+                last_updated=datetime.now(timezone.utc)
             )
             
             db.session.add(new_etf)
@@ -142,7 +142,7 @@ class DatabaseService:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid inception_date format for {ticker}: {etf_data.get('inception_date')}")
             
-            etf.last_updated = datetime.utcnow()
+            etf.last_updated = datetime.now(timezone.utc)
             
             # Sprawdzanie nowych dywidend
             new_dividends = self._check_new_dividends(etf.id, ticker)
@@ -753,7 +753,7 @@ class DatabaseService:
             if existing_splits:
                 # Mamy splity w bazie - sprawdzaj tylko raz na tydzień
                 last_split_check = max(split.created_at for split in existing_splits)
-                days_since_check = (datetime.utcnow() - last_split_check).days
+                days_since_check = (datetime.now(timezone.utc) - last_split_check).days
                 
                 if days_since_check < 7:
                     logger.info(f"Splits for {ticker} checked recently ({days_since_check} days ago), using cache")
@@ -864,7 +864,7 @@ class DatabaseService:
         Usuwa stare logi systemu
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             deleted = SystemLog.query.filter(SystemLog.timestamp < cutoff_date).delete()
             db.session.commit()
             
@@ -912,7 +912,7 @@ class DatabaseService:
                 return False
             
             # Aktualizacja timestamp (tylko jeśli mamy dane)
-            etf.last_updated = datetime.utcnow()
+            etf.last_updated = datetime.now(timezone.utc)
             db.session.commit()
             logger.info(f"ETF {ticker} cache-only update completed")
             return True
@@ -1541,7 +1541,7 @@ class DatabaseService:
                 return False
             
             etf.current_price = new_price
-            etf.last_updated = datetime.utcnow()
+            etf.last_updated = datetime.now(timezone.utc)
             
             db.session.commit()
             logger.info(f"Updated price for ETF ID {etf_id} to ${new_price}")
@@ -1566,7 +1566,7 @@ class DatabaseService:
                 # Aktualizuj istniejący rekord
                 existing_record.close_price = price
                 existing_record.normalized_close_price = price
-                existing_record.last_updated = datetime.utcnow()
+                existing_record.last_updated = datetime.now(timezone.utc)
                 logger.info(f"Updated existing price record for ETF ID {etf_id} on {today}")
             else:
                 # Dodaj nowy rekord

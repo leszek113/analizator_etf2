@@ -177,6 +177,19 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Normalne aktualizacje**: 60-80% mniej wywołań API
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
+
+## 🔧 **Ostatnie naprawy (v1.9.4)**
+
+### **Krytyczne naprawy:**
+- ✅ **Problem z uruchamianiem aplikacji** - naprawiono błąd kontekstu Flask w APIService
+- ✅ **Ujednolicenie wersji** - wszystkie pliki używają v1.9.4
+- ✅ **Ujednolicenie portów** - wszystkie pliki używają portu 5005
+- ✅ **Ujednolicenie stref czasowych** - scheduler używa Europe/Warsaw
+
+### **Techniczne ulepszenia:**
+- ✅ **Migracja z deprecated datetime.utcnow** - nowoczesna składnia Python
+- ✅ **Poprawka składni** - naprawiono wcięcia w models.py
+- ✅ **Lazy loading** - APIService ładuje limity tylko gdy potrzebne
 - **Wiek ETF**: Automatyczne pobieranie dat IPO przy każdej aktualizacji
 
 ### **Monitoring tokenów:**
@@ -244,7 +257,7 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Wiek ETF**: Kolumna pokazująca rzeczywisty wiek ETF na rynku w latach (sortowalna)
 - **Sortowanie wieku**: Możliwość sortowania ETF według wieku na rynku
 - **Rzeczywiste dane rynkowe**: Wiek oparty na dacie IPO, nie na dacie dodania do systemu
-- **Wersja systemu**: Karta pokazująca aktualną wersję systemu (v1.9.3)
+- **Wersja systemu**: Karta pokazująca aktualną wersję systemu (v1.9.4)
 
 ## 🔍 **Szczegóły ETF**
 

@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.dialects.sqlite import JSON
 
 db = SQLAlchemy()
@@ -14,8 +14,8 @@ class ETF(db.Model):
     current_yield = db.Column(db.Float)
     frequency = db.Column(db.String(20))  # monthly, quarterly, etc.
     inception_date = db.Column(db.Date)  # Data utworzenia ETF na rynku (z FMP API)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_updated = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     prices = db.relationship('ETFPrice', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
@@ -47,7 +47,7 @@ class ETFPrice(db.Model):
     close_price = db.Column(db.Float, nullable=False)  # Oryginalna cena
     normalized_close_price = db.Column(db.Float, nullable=False)  # Znormalizowana cena
     split_ratio_applied = db.Column(db.Float, default=1.0)  # Współczynnik splitu
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (db.UniqueConstraint('etf_id', 'date', name='_etf_date_uc'),)
     
@@ -75,7 +75,7 @@ class ETFDividend(db.Model):
     amount = db.Column(db.Float, nullable=False)  # Oryginalna kwota
     normalized_amount = db.Column(db.Float, nullable=False)  # Znormalizowana kwota
     split_ratio_applied = db.Column(db.Float, default=1.0)  # Współczynnik splitu
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (db.UniqueConstraint('etf_id', 'payment_date', name='_etf_payment_date_uc'),)
     
@@ -102,7 +102,7 @@ class ETFSplit(db.Model):
     split_date = db.Column(db.Date, nullable=False, index=True)
     split_ratio = db.Column(db.Float, nullable=False)  # np. 3.0 dla 3:1 split
     description = db.Column(db.String(200))  # np. "3:1 Stock Split"
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (db.UniqueConstraint('etf_id', 'split_date', name='_etf_split_date_uc'),)
     
@@ -123,7 +123,7 @@ class SystemLog(db.Model):
     __tablename__ = 'system_logs'
     
     id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     action = db.Column(db.String(100), nullable=False)
     details = db.Column(db.Text)
     level = db.Column(db.String(20), default='INFO')  # INFO, WARNING, ERROR
@@ -150,9 +150,9 @@ class APILimit(db.Model):
     current_count = db.Column(db.Integer, default=0, nullable=False)
     daily_limit = db.Column(db.Integer, nullable=False)
     last_reset = db.Column(db.DateTime, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
     def __repr__(self):
         return f'<APILimit {self.api_type}: {self.current_count}/{self.daily_limit}>'
     
@@ -173,8 +173,8 @@ class DividendTaxRate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tax_rate = db.Column(db.Float, nullable=False, default=0.0)  # Stawka w procentach (0.0 = 0%)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f'<DividendTaxRate {self.tax_rate}%>'

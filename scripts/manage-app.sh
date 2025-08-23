@@ -81,6 +81,10 @@ get_status() {
         # Check API health
         if curl -s "http://localhost:$APP_PORT/api/system/status" > /dev/null 2>&1; then
             echo -e "  API Health: ${GREEN}HEALTHY${NC}"
+            
+            # Get system version
+            local version=$(curl -s "http://localhost:$APP_PORT/api/system/version" | awk -F'"' '/"version":/ {print $4}' 2>/dev/null || echo "Unknown")
+            echo -e "  System Version: ${CYAN}v$version${NC}"
         else
             echo -e "  API Health: ${RED}UNHEALTHY${NC}"
         fi
