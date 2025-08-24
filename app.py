@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.14"
+__version__ = "1.9.15"
 
 from config import Config
 import pytz
@@ -531,28 +531,24 @@ def create_app():
                     'error': f'Brak danych cen tygodniowych dla {ticker}'
                 }), 404
             
-            # Formatowanie danych dla Chart.js
-            price_data = []
+            # Formatowanie danych dla frontend
+            formatted_prices = []
             for price in weekly_prices:
-                price_data.append({
+                formatted_prices.append({
                     'date': price.date.strftime('%Y-%m-%d'),
                     'close_price': price.normalized_close_price,
-                    'normalized_close_price': price.normalized_close_price,  # Dodane dla kompatybilności z JavaScript
-                    'original_price': price.close_price,
-                    'split_ratio': price.split_ratio_applied,
-                    'year': price.year,
-                    'week_of_year': price.week_of_year
+                    'volume': price.volume if hasattr(price, 'volume') else None
                 })
             
             return jsonify({
                 'success': True,
                 'data': {
                     'ticker': ticker.upper(),
-                    'prices': price_data,
-                    'count': len(price_data),
+                    'prices': formatted_prices,
+                    'count': len(formatted_prices),
                     'date_range': {
-                        'start': price_data[0]['date'] if price_data else None,
-                        'end': price_data[-1]['date'] if price_data else None
+                        'start': formatted_prices[0]['date'] if formatted_prices else None,
+                        'end': formatted_prices[-1]['date'] if formatted_prices else None
                     }
                 }
             })
@@ -563,12 +559,12 @@ def create_app():
                 'success': False,
                 'error': str(e)
             }), 500
-    
-    @app.route('/api/etfs/<ticker>/add-weekly-prices', methods=['POST'])
-    def add_weekly_prices_for_etf(ticker):
-        """API endpoint do dodawania cen tygodniowych dla istniejącego ETF"""
+
+    @app.route('/api/etfs/<ticker>/monthly-prices', methods=['GET'])
+    def get_etf_monthly_prices(ticker):
+        """API endpoint do pobierania cen miesięcznych ETF"""
         try:
-            from models import ETF
+            from models import ETF, ETFPrice
             from services.database_service import DatabaseService
             
             # Sprawdzanie czy ETF istnieje
@@ -579,28 +575,132 @@ def create_app():
                     'error': f'ETF {ticker} nie został znaleziony'
                 }), 404
             
-            # Dodawanie cen tygodniowych
+            # Pobieranie cen miesięcznych z bazy danych
             db_service = DatabaseService(api_service=api_service)
-            success = db_service.add_weekly_prices_for_existing_etfs(ticker)
+            monthly_prices = db_service.get_monthly_prices(etf.id)
             
-            if success:
-                return jsonify({
-                    'success': True,
-                    'message': f'Ceny tygodniowe zostały dodane dla ETF {ticker}'
-                })
-            else:
+            if not monthly_prices:
                 return jsonify({
                     'success': False,
-                    'error': f'Nie udało się dodać cen tygodniowych dla ETF {ticker}'
-                }), 500
-                
+                    'error': f'Brak danych cen miesięcznych dla {ticker}'
+                }), 404
+            
+            # Formatowanie danych dla frontend
+            formatted_prices = []
+            for price in monthly_prices:
+                formatted_prices.append({
+                    'date': price.date.strftime('%Y-%m-%d'),
+                    'close_price': price.close_price,
+                    'volume': price.volume if hasattr(price, 'volume') else None
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'prices': formatted_prices,
+                    'count': len(formatted_prices),
+                    'date_range': {
+                        'start': formatted_prices[0]['date'] if formatted_prices else None,
+                        'end': formatted_prices[-1]['date'] if formatted_prices else None
+                    }
+                }
+            })
+            
         except Exception as e:
-            logger.error(f"Error adding weekly prices for ETF {ticker}: {str(e)}")
+            logger.error(f"Error getting ETF monthly prices for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)
             }), 500
-    
+
+    @app.route('/api/etfs/<ticker>/weekly-macd', methods=['GET'])
+    def get_etf_weekly_macd(ticker):
+        """API endpoint do pobierania MACD dla cen tygodniowych ETF (8-17-9)"""
+        try:
+            from models import ETF, ETFWeeklyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen tygodniowych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            weekly_prices = db_service.get_weekly_prices(etf.id)
+            
+            if not weekly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen tygodniowych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in weekly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.normalized_close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dla MACD (8-17-9)")
+            
+            # Obliczanie MACD
+            macd_data = api_service.calculate_macd(
+                price_data, 
+                fast_period=8, 
+                slow_period=17, 
+                signal_period=9
+            )
+            
+            logger.info(f"MACD (8-17-9) zwrócił: {len(macd_data) if macd_data else 0} punktów")
+            
+            if not macd_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć MACD (8-17-9) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in macd_data:
+                formatted_data.append({
+                    'date': data['date'],  # data jest już stringiem
+                    'macd_line': round(data['macd_line'], 4),
+                    'signal_line': round(data['signal_line'], 4),
+                    'histogram': round(data['histogram'], 4),
+                    'current_price': round(data['current_price'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'macd': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'fast_period': 8,
+                        'slow_period': 17,
+                        'signal_period': 9
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF weekly MACD for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
     @app.route('/api/etfs/<ticker>/weekly-stochastic', methods=['GET'])
     def get_etf_weekly_stochastic(ticker):
         """API endpoint do pobierania Stochastic Oscillator dla cen tygodniowych ETF"""
@@ -687,93 +787,6 @@ def create_app():
             
         except Exception as e:
             logger.error(f"Error getting ETF weekly stochastic for {ticker}: {str(e)}")
-            return jsonify({
-                'success': False,
-                'error': str(e)
-            }), 500
-    
-    @app.route('/api/etfs/<ticker>/weekly-macd', methods=['GET'])
-    def get_etf_weekly_macd(ticker):
-        """API endpoint do pobierania MACD dla cen tygodniowych ETF (8-17-9)"""
-        try:
-            from models import ETF, ETFWeeklyPrice
-            from services.database_service import DatabaseService
-            
-            # Sprawdzanie czy ETF istnieje
-            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
-            if not etf:
-                return jsonify({
-                    'success': False,
-                    'error': f'ETF {ticker} nie został znaleziony'
-                }), 404
-            
-            # Pobieranie cen tygodniowych z bazy danych
-            db_service = DatabaseService(api_service=api_service)
-            weekly_prices = db_service.get_weekly_prices(etf.id)
-            
-            if not weekly_prices:
-                return jsonify({
-                    'success': False,
-                    'error': f'Brak danych cen tygodniowych dla {ticker}'
-                }), 404
-            
-            # Przygotowanie danych dla obliczeń
-            price_data = []
-            for price in weekly_prices:
-                price_data.append({
-                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
-                    'close': price.normalized_close_price
-                })
-            
-            logger.info(f"Przygotowano {len(price_data)} cen dla MACD (8-17-9)")
-            
-            # Obliczanie MACD
-            macd_data = api_service.calculate_macd(
-                price_data, 
-                fast_period=8, 
-                slow_period=17, 
-                signal_period=9
-            )
-            
-            logger.info(f"MACD (8-17-9) zwrócił: {len(macd_data) if macd_data else 0} punktów")
-            
-            if not macd_data:
-                return jsonify({
-                    'success': False,
-                    'error': f'Nie udało się obliczyć MACD (8-17-9) dla {ticker}'
-                }), 500
-            
-            # Formatowanie danych dla frontend
-            formatted_data = []
-            for data in macd_data:
-                formatted_data.append({
-                    'date': data['date'],  # data jest już stringiem
-                    'macd_line': round(data['macd_line'], 4),
-                    'signal_line': round(data['signal_line'], 4),
-                    'histogram': round(data['histogram'], 4),
-                    'current_price': round(data['current_price'], 2)
-                })
-            
-            return jsonify({
-                'success': True,
-                'data': {
-                    'ticker': ticker.upper(),
-                    'macd': formatted_data,
-                    'count': len(formatted_data),
-                    'parameters': {
-                        'fast_period': 8,
-                        'slow_period': 17,
-                        'signal_period': 9
-                    },
-                    'date_range': {
-                        'start': formatted_data[0]['date'] if formatted_data else None,
-                        'end': formatted_data[-1]['date'] if formatted_data else None
-                    }
-                }
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting ETF weekly MACD for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)
@@ -1312,6 +1325,269 @@ def create_app():
             
         except Exception as e:
             logger.error(f"Error in manual update_all_etfs: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/monthly-macd', methods=['GET'])
+    def get_etf_monthly_macd(ticker):
+        """API endpoint do pobierania MACD dla cen miesięcznych ETF (8-17-9)"""
+        try:
+            from models import ETF, ETFPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen miesięcznych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            monthly_prices = db_service.get_monthly_prices(etf.id)
+            
+            if not monthly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen miesięcznych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in monthly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen miesięcznych dla MACD (8-17-9)")
+            
+            # Obliczanie MACD
+            macd_data = api_service.calculate_macd(
+                price_data, 
+                fast_period=8, 
+                slow_period=17, 
+                signal_period=9
+            )
+            
+            logger.info(f"Miesięczny MACD (8-17-9) zwrócił: {len(macd_data) if macd_data else 0} punktów")
+            
+            if not macd_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć miesięcznego MACD (8-17-9) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in macd_data:
+                formatted_data.append({
+                    'date': data['date'],  # data jest już stringiem
+                    'macd_line': round(data['macd_line'], 4),
+                    'signal_line': round(data['signal_line'], 4),
+                    'histogram': round(data['histogram'], 4),
+                    'current_price': round(data['current_price'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'macd': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'fast_period': 8,
+                        'slow_period': 17,
+                        'signal_period': 9
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF monthly MACD for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/monthly-stochastic', methods=['GET'])
+    def get_etf_monthly_stochastic(ticker):
+        """API endpoint do pobierania Stochastic Oscillator dla cen miesięcznych ETF (36-12-12)"""
+        try:
+            from models import ETF, ETFPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen miesięcznych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            monthly_prices = db_service.get_monthly_prices(etf.id)
+            
+            if not monthly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen miesięcznych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in monthly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen miesięcznych dla Stochastic Oscillator (36-12-12)")
+            
+            # Obliczanie Stochastic Oscillator
+            stochastic_data = api_service.calculate_stochastic_oscillator(
+                price_data, 
+                lookback_period=36, 
+                smoothing_factor=12, 
+                sma_period=12
+            )
+            
+            logger.info(f"Miesięczny Stochastic Oscillator (36-12-12) zwrócił: {len(stochastic_data) if stochastic_data else 0} punktów")
+            
+            if not stochastic_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć miesięcznego Stochastic Oscillator (36-12-12) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in stochastic_data:
+                formatted_data.append({
+                    'date': data['date'],  # data jest już stringiem
+                    'k_percent': round(data['k_percent_smoothed'], 2),
+                    'd_percent': round(data['d_percent'], 2),
+                    'current_price': round(data['current_price'], 2),
+                    'highest_high': round(data['highest_high'], 2),
+                    'lowest_low': round(data['lowest_low'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'stochastic': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'lookback_period': 36,
+                        'smoothing_factor': 12,
+                        'sma_period': 12
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF monthly stochastic for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/monthly-stochastic-short', methods=['GET'])
+    def get_etf_monthly_stochastic_short(ticker):
+        """API endpoint do pobierania krótkiego Stochastic Oscillator dla cen miesięcznych ETF (9-3-3)"""
+        try:
+            from models import ETF, ETFPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen miesięcznych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            monthly_prices = db_service.get_monthly_prices(etf.id)
+            
+            if not monthly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen miesięcznych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in monthly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen miesięcznych dla krótkiego Stochastic Oscillator (9-3-3)")
+            
+            # Obliczanie krótkiego Stochastic Oscillator
+            stochastic_data = api_service.calculate_stochastic_oscillator(
+                price_data, 
+                lookback_period=9, 
+                smoothing_factor=3, 
+                sma_period=3
+            )
+            
+            logger.info(f"Miesięczny krótki Stochastic Oscillator (9-3-3) zwrócił: {len(stochastic_data) if stochastic_data else 0} punktów")
+            
+            if not stochastic_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć miesięcznego krótkiego Stochastic Oscillator (9-3-3) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in stochastic_data:
+                formatted_data.append({
+                    'date': data['date'],  # data jest już stringiem
+                    'k_percent': round(data['k_percent_smoothed'], 2),
+                    'd_percent': round(data['d_percent'], 2),
+                    'current_price': round(data['current_price'], 2),
+                    'highest_high': round(data['highest_high'], 2),
+                    'lowest_low': round(data['lowest_low'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'stochastic': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'lookback_period': 9,
+                        'smoothing_factor': 3,
+                        'sma_period': 3
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF monthly stochastic short for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)

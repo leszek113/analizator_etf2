@@ -384,8 +384,18 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    <!-- Przełącznik timeframe -->
+                    <div class="mb-3">
+                        <label for="timeframeSelect" class="form-label">Timeframe:</label>
+                        <select class="form-select" id="timeframeSelect" style="width: auto;">
+                            <option value="weekly" selected>1W (Tygodniowe)</option>
+                            <option value="monthly">1M (Miesięczne)</option>
+                            <option value="daily" disabled>1D (Dzienne) - Niedostępne</option>
+                        </select>
+                    </div>
+                    
                     <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9;">
-                        <h5>Ceny tygodniowe - ostatnie 15 lat</h5>
+                        <h5>Ceny - ostatnie 15 lat</h5>
                         <canvas id="weeklyPriceChart"></canvas>
                     </div>
                     
@@ -986,46 +996,26 @@
                             return;
                         }
                         
-                        console.log(`🔍 Weekly price canvas element:`, canvasElement);
-                        console.log(`🔍 Weekly price canvas dimensions: ${canvasElement.width} x ${canvasElement.height}`);
-                        
                         const ctx = canvasElement.getContext('2d');
                         
-                        // Przygotowanie danych dla Chart.js - używamy TYLKO znormalizowanych cen
+                        // Przygotowanie danych dla Chart.js
                         const labels = data.data.prices.map(p => p.date);
-                        const prices = data.data.prices.map(p => p.normalized_close_price);
+                        const prices = data.data.prices.map(p => p.close_price);
                         
                         console.log(`📊 Przygotowane dane tygodniowe: ${labels.length} etykiet, ${prices.length} cen`);
-                        console.log(`📊 Przykładowe dane tygodniowe:`, {
-                            labels: labels.slice(0, 3),
-                            prices: prices.slice(0, 3)
-                        });
-                        
-                        // Sprawdzenie czy dane są poprawne
-                        if (prices.some(p => isNaN(p) || p === null || p === undefined)) {
-                            console.error('❌ BŁĄD: Nieprawidłowe ceny tygodniowe:', prices.filter(p => isNaN(p) || p === null || p === undefined));
-                        }
-                        
-                        // Sprawdzenie zakresu cen
-                        const priceMin = Math.min(...prices);
-                        const priceMax = Math.max(...prices);
-                        console.log(`📊 Zakres cen tygodniowych: [${priceMin.toFixed(2)}, ${priceMax.toFixed(2)}]`);
                         
                         // Usunięcie poprzedniego wykresu jeśli istnieje
                         if (weeklyPriceChart) {
-                            console.log(`🗑️ Usuwanie poprzedniego wykresu cen tygodniowych...`);
                             weeklyPriceChart.destroy();
                         }
                         
-                        console.log(`🎨 Tworzenie nowego wykresu cen tygodniowych...`);
-                        
-                        // Tworzenie nowego wykresu - podobnie jak miesięczny
+                        // Tworzenie nowego wykresu cen tygodniowych
                         weeklyPriceChart = new Chart(ctx, {
                             type: 'line',
                             data: {
                                 labels: labels,
                                 datasets: [{
-                                    label: `Cena tygodniowa ${ticker} (znormalizowana)`,
+                                    label: `Cena tygodniowa ${ticker}`,
                                     data: prices,
                                     borderColor: 'rgb(255, 159, 64)',
                                     backgroundColor: 'rgba(255, 159, 64, 0.1)',
@@ -1067,14 +1057,9 @@
                                 },
                                 scales: {
                                     x: {
-                                        display: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Data'
-                                        },
-                                        ticks: {
-                                            maxTicksLimit: 20,  // Pokaż więcej etykiet żeby były widoczne lata
-                                            maxRotation: 45
+                                        display: false,  // Ukryj oś X - będzie wspólna z wskaźnikami
+                                        grid: {
+                                            display: false
                                         }
                                     },
                                     y: {
@@ -1087,6 +1072,9 @@
                                             callback: function(value) {
                                                 return '$' + formatNumber(value, 2);
                                             }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0, 0, 0, 0.1)'
                                         }
                                     }
                                 }
@@ -1094,36 +1082,15 @@
                         });
                         
                         console.log(`✅ Wykres cen tygodniowych utworzony pomyślnie!`);
-                        console.log(`📊 Wykres ma ${data.data.count} punktów danych`);
-                        
-                        // Sprawdzenie czy wykres jest widoczny
-                        setTimeout(() => {
-                            console.log(`🔍 Sprawdzenie widoczności wykresu tygodniowego po 1s...`);
-                            console.log(`🔍 Canvas dimensions: ${canvasElement.width} x ${canvasElement.height}`);
-                            console.log(`🔍 Chart instance:`, weeklyPriceChart);
-                            
-                            // Sprawdzenie czy dane są w wykresie
-                            if (weeklyPriceChart.data && weeklyPriceChart.data.datasets) {
-                                console.log(`🔍 Dataset: ${weeklyPriceChart.data.datasets[0].data.length} punktów`);
-                                console.log(`🔍 Labels: ${weeklyPriceChart.data.labels.length} etykiet`);
-                            }
-                            
-                            // Sprawdzenie czy wykres jest renderowany
-                            if (weeklyPriceChart.width && weeklyPriceChart.height) {
-                                console.log(`🔍 Chart dimensions: ${weeklyPriceChart.width} x ${weeklyPriceChart.height}`);
-                            } else {
-                                console.warn('⚠️ Wykres nie ma wymiarów!');
-                            }
-                        }, 1000);
                         
                     } else {
-                        console.error('❌ Błąd pobierania danych cen tygodniowych:', data.error);
+                        console.error('Błąd pobierania danych cen tygodniowych:', data.error);
                         document.getElementById('weeklyPriceChart').innerHTML = 
                             '<div class="alert alert-warning">Nie udało się załadować wykresu cen tygodniowych</div>';
                     }
                 })
                 .catch(error => {
-                    console.error('❌ Błąd podczas pobierania danych cen tygodniowych:', error);
+                    console.error('Błąd podczas pobierania danych cen tygodniowych:', error);
                     document.getElementById('weeklyPriceChart').innerHTML = 
                         '<div class="alert alert-danger">Błąd podczas ładowania wykresu cen tygodniowych</div>';
                 });
@@ -2060,6 +2027,605 @@
                     console.error('Błąd podczas pobierania danych MACD:', error);
                     document.getElementById('macdChart').innerHTML = 
                         '<div class="alert alert-danger">Błąd podczas ładowania wykresu MACD</div>';
+                });
+        }
+
+        // Funkcja do przełączania timeframe i aktualizacji wszystkich wykresów
+        function switchTimeframe(timeframe) {
+            // Pobierz ticker z aktualnej strony
+            const ticker = window.location.pathname.split('/').pop();
+            console.log(`🔄 Przełączanie timeframe na: ${timeframe} dla ticker: ${ticker}`);
+            
+            // Aktualizacja wykresu cen
+            if (timeframe === 'weekly') {
+                createWeeklyPriceChart(ticker);
+            } else if (timeframe === 'monthly') {
+                createMonthlyPriceChart(ticker);
+            }
+            
+            // Aktualizacja wszystkich wskaźników technicznych
+            if (timeframe === 'weekly') {
+                createMACDChart(ticker);
+                createStochasticChart(ticker);
+                createStochasticChartShort(ticker);
+            } else if (timeframe === 'monthly') {
+                createMonthlyMACDChart(ticker);
+                createMonthlyStochasticChart(ticker);
+                createMonthlyStochasticChartShort(ticker);
+            }
+        }
+
+        // Event listener dla przełącznika timeframe
+        document.addEventListener('DOMContentLoaded', function() {
+            const timeframeSelect = document.getElementById('timeframeSelect');
+            if (timeframeSelect) {
+                timeframeSelect.addEventListener('change', function() {
+                    const selectedTimeframe = this.value;
+                    switchTimeframe(selectedTimeframe);
+                });
+            }
+        });
+
+        // Funkcja do tworzenia wykresu cen miesięcznych
+        function createMonthlyPriceChart(ticker) {
+            console.log(`🔄 Tworzenie wykresu cen miesięcznych dla ${ticker}...`);
+            
+            fetch(`/api/etfs/${ticker}/monthly-prices`)
+                .then(response => {
+                    console.log(`📊 Monthly prices response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`📊 Monthly prices data response:`, data);
+                    
+                    if (data.success) {
+                        const canvasElement = document.getElementById('weeklyPriceChart');
+                        if (!canvasElement) {
+                            console.error('❌ Canvas element weeklyPriceChart nie został znaleziony!');
+                            return;
+                        }
+                        
+                        const ctx = canvasElement.getContext('2d');
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.prices.map(p => p.date);
+                        const prices = data.data.prices.map(p => p.close_price);
+                        
+                        console.log(`📊 Przygotowane dane miesięczne: ${labels.length} etykiet, ${prices.length} cen`);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (weeklyPriceChart) {
+                            weeklyPriceChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu cen miesięcznych
+                        weeklyPriceChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: `Cena miesięczna ${ticker}`,
+                                    data: prices,
+                                    borderColor: 'rgb(255, 159, 64)',
+                                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 5,
+                                    tension: 0.1,
+                                    fill: false
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const price = context.parsed.y;
+                                                return `Cena: $${formatNumber(price, 2)}`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z cenami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Data'
+                                        },
+                                        grid: {
+                                            display: true
+                                        }
+                                    },
+                                    y: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Cena ($)'
+                                        },
+                                        ticks: {
+                                            callback: function(value) {
+                                                return '$' + formatNumber(value, 2);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Wykres cen miesięcznych utworzony pomyślnie!`);
+                        
+                    } else {
+                        console.error('Błąd pobierania danych cen miesięcznych:', data.error);
+                        document.getElementById('weeklyPriceChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu cen miesięcznych</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych cen miesięcznych:', error);
+                    document.getElementById('weeklyPriceChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu cen miesięcznych</div>';
+                });
+        }
+
+        // Funkcja do tworzenia wykresu MACD (8-17-9)
+        function createMonthlyMACDChart(ticker) {
+            console.log(`🔄 Tworzenie wykresu MACD (8-17-9) dla ${ticker}...`);
+            
+            fetch(`/api/etfs/${ticker}/monthly-macd`)
+                .then(response => {
+                    console.log(`📊 Monthly MACD response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`📊 Monthly MACD data response:`, data);
+                    
+                    if (data.success) {
+                        const canvasElement = document.getElementById('macdChart');
+                        if (!canvasElement) {
+                            console.error('❌ Canvas element macdChart nie został znaleziony!');
+                            return;
+                        }
+                        
+                        const ctx = canvasElement.getContext('2d');
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.macd.map(m => m.date);
+                        const macdLine = data.data.macd.map(m => m.macd_line);
+                        const signalLine = data.data.macd.map(m => m.signal_line);
+                        const histogram = data.data.macd.map(m => m.histogram);
+                        
+                        console.log(`📊 Monthly MACD: ${labels.length} etykiet, ${macdLine.length} wartości MACD Line, ${signalLine.length} wartości Signal Line`);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (macdChart) {
+                            macdChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu MACD
+                        macdChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: 'MACD Line (zielona)',
+                                        data: macdLine,
+                                        borderColor: 'rgb(34, 197, 94)',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-macd'
+                                    },
+                                    {
+                                        label: 'Signal Line (czerwona)',
+                                        data: signalLine,
+                                        borderColor: 'rgb(239, 68, 68)',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-macd'
+                                    },
+                                    {
+                                        label: 'Histogram',
+                                        data: histogram,
+                                        type: 'bar',
+                                        backgroundColor: histogram.map(h => h >= 0 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'),
+                                        borderColor: histogram.map(h => h >= 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)'),
+                                        borderWidth: 1,
+                                        yAxisID: 'y-macd'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                const datasetLabel = context.dataset.label;
+                                                if (datasetLabel === 'Histogram') {
+                                                    return `${datasetLabel}: ${value.toFixed(4)}`;
+                                                }
+                                                return `${datasetLabel}: ${value.toFixed(4)}`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z wartościami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Data'
+                                        },
+                                        grid: {
+                                            display: true
+                                        }
+                                    },
+                                    'y-macd': {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'MACD'
+                                        },
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value.toFixed(4);
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0, 0, 0, 0.1)'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Wykres MACD (8-17-9) utworzony pomyślnie!`);
+                        
+                    } else {
+                        console.error('Błąd pobierania danych MACD:', data.error);
+                        document.getElementById('macdChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu MACD</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych MACD:', error);
+                    document.getElementById('macdChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu MACD</div>';
+                });
+        }
+
+        // Funkcja do tworzenia wykresu Stochastic Oscillator
+        function createMonthlyStochasticChart(ticker) {
+            console.log(`🔄 Tworzenie wykresu Stochastic Oscillator dla ${ticker}...`);
+            
+            fetch(`/api/etfs/${ticker}/monthly-stochastic`)
+                .then(response => {
+                    console.log(`📊 Monthly Stochastic response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`📊 Monthly Stochastic data response:`, data);
+                    
+                    if (data.success) {
+                        const canvasElement = document.getElementById('stochasticChart');
+                        if (!canvasElement) {
+                            console.error('❌ Canvas element stochasticChart nie został znaleziony!');
+                            return;
+                        }
+                        
+                        const ctx = canvasElement.getContext('2d');
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.stochastic.map(s => s.date);
+                        const kPercent = data.data.stochastic.map(s => s.k_percent);
+                        const dPercent = data.data.stochastic.map(s => s.d_percent);
+                        
+                        console.log(`📊 Monthly Stochastic: ${labels.length} etykiet, ${kPercent.length} wartości %K, ${dPercent.length} wartości %D`);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (stochasticChart) {
+                            stochasticChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu Stochastic Oscillator
+                        stochasticChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: '%K (zielona)',
+                                        data: kPercent,
+                                        borderColor: 'rgb(34, 197, 94)',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic'
+                                    },
+                                    {
+                                        label: '%D (czerwona)',
+                                        data: dPercent,
+                                        borderColor: 'rgb(239, 68, 68)',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                const datasetLabel = context.dataset.label;
+                                                return `${datasetLabel}: ${value.toFixed(2)}%`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z wartościami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: false,  // Ukryj oś X - będzie wspólna z wykresem cen
+                                        grid: {
+                                            display: false
+                                        }
+                                    },
+                                    'y-stochastic': {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Stochastic %'
+                                        },
+                                        min: 0,
+                                        max: 100,
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value + '%';
+                                            }
+                                        },
+                                        grid: {
+                                            color: function(context) {
+                                                if (context.tick.value === 20 || context.tick.value === 80) {
+                                                    return 'rgba(239, 68, 68, 0.5)';  // Czerwone linie dla 20% i 80%
+                                                }
+                                                return 'rgba(0, 0, 0, 0.1)';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Wykres Stochastic Oscillator (36-12-12) utworzony pomyślnie!`);
+                        
+                    } else {
+                        console.error('Błąd pobierania danych Stochastic:', data.error);
+                        document.getElementById('stochasticChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu Stochastic Oscillator</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych Stochastic:', error);
+                    document.getElementById('stochasticChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu Stochastic Oscillator</div>';
+                });
+        }
+
+        // Funkcja do tworzenia krótkiego wykresu Stochastic Oscillator (9-3-3) dla danych miesięcznych
+        function createMonthlyStochasticShortChart(ticker) {
+            console.log(`🔄 Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3) dla ${ticker}...`);
+            
+            fetch(`/api/etfs/${ticker}/monthly-stochastic-short`)
+                .then(response => {
+                    console.log(`📊 Monthly Stochastic Short response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`📊 Monthly Stochastic Short data response:`, data);
+                    
+                    if (data.success) {
+                        const canvasElement = document.getElementById('stochasticChartShort');
+                        if (!canvasElement) {
+                            console.error('❌ Canvas element stochasticChartShort nie został znaleziony!');
+                            return;
+                        }
+                        
+                        const ctx = canvasElement.getContext('2d');
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.stochastic.map(s => s.date);
+                        const kPercent = data.data.stochastic.map(s => s.k_percent);
+                        const dPercent = data.data.stochastic.map(s => s.d_percent);
+                        
+                        console.log(`📊 Monthly Stochastic Short: ${labels.length} etykiet, ${kPercent.length} wartości %K, ${dPercent.length} wartości %D`);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (stochasticChartShort) {
+                            stochasticChartShort.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu Stochastic Oscillator
+                        stochasticChartShort = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: '%K (zielona)',
+                                        data: kPercent,
+                                        borderColor: 'rgb(34, 197, 94)',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic-short'
+                                    },
+                                    {
+                                        label: '%D (czerwona)',
+                                        data: dPercent,
+                                        borderColor: 'rgb(239, 68, 68)',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic-short'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                const datasetLabel = context.dataset.label;
+                                                return `${datasetLabel}: ${value.toFixed(2)}%`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z wartościami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Data'
+                                        },
+                                        grid: {
+                                            display: true
+                                        }
+                                    },
+                                    'y-stochastic-short': {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Stochastic %'
+                                        },
+                                        min: 0,
+                                        max: 100,
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value + '%';
+                                            }
+                                        },
+                                        grid: {
+                                            color: function(context) {
+                                                if (context.tick.value === 20 || context.tick.value === 80) {
+                                                    return 'rgba(239, 68, 68, 0.5)';  // Czerwone linie dla 20% i 80%
+                                                }
+                                                return 'rgba(0, 0, 0, 0.1)';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Krótki wykres Stochastic Oscillator (9-3-3) utworzony pomyślnie!`);
+                        
+                    } else {
+                        console.error('Błąd pobierania danych krótkiego Stochastic:', data.error);
+                        document.getElementById('stochasticChartShort').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować krótkiego wykresu Stochastic Oscillator</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych krótkiego Stochastic:', error);
+                    document.getElementById('stochasticChartShort').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania krótkiego wykresu Stochastic Oscillator</div>';
                 });
         }
 

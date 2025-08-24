@@ -2,10 +2,49 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
-Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
-a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
+## [v1.9.15] - 2025-08-24
 
-## v1.9.14
+### 🆕 Dodano
+- **Dynamiczny przełącznik timeframe**: Przełącznik 1W-1M dla wykresu cen i wszystkich wskaźników technicznych
+- **Wskaźniki miesięczne**: Wszystkie wskaźniki techniczne (MACD, Stochastic) dostępne dla danych miesięcznych
+- **Automatyczne przełączanie**: Przełącznik timeframe automatycznie aktualizuje wszystkie wykresy i wskaźniki
+- **Nowe API endpointy**: 
+  - `/api/etfs/<ticker>/monthly-prices` - ceny miesięczne
+  - `/api/etfs/<ticker>/monthly-macd` - MACD miesięczny (8-17-9)
+  - `/api/etfs/<ticker>/monthly-stochastic` - Stochastic miesięczny (36-12-12)
+  - `/api/etfs/<ticker>/monthly-stochastic-short` - krótki Stochastic miesięczny (9-3-3)
+- **Funkcje JavaScript**: 
+  - `createMonthlyPriceChart()` - wykres cen miesięcznych
+  - `createMonthlyMACDChart()` - wykres MACD miesięcznego
+  - `createMonthlyStochasticChart()` - wykres Stochastic miesięcznego
+  - `createMonthlyStochasticChartShort()` - wykres krótkiego Stochastic miesięcznego
+- **Przełącznik timeframe**: Funkcja `switchTimeframe()` z automatyczną aktualizacją wszystkich wykresów
+
+### 🎨 Zmieniono
+- **UI przełącznika**: Dropdown z opcjami 1W (Tygodniowe) i 1M (Miesięczne) nad wykresem cen
+- **Dynamiczna aktualizacja**: Wszystkie wskaźniki automatycznie przeliczają się na nowe dane
+- **Konsystencja**: Identyczne kolory i styl dla wszystkich timeframe'ów
+
+### 🔧 Poprawiono
+- **Brakująca funkcja**: Dodano brakującą funkcję `createMonthlyStochasticShortChart`
+- **Błędna nazwa funkcji**: Naprawiono nazwę funkcji w `switchTimeframe`
+- **Brakujące endpointy**: Dodano brakujące endpointy dla Stochastic miesięcznego
+- **Błędy importu**: Naprawiono błędy importu modeli w endpointach miesięcznych
+- **Refaktoryzacja kodu**: Uproszczenie logiki przełączania timeframe
+- **Optymalizacja wydajności**: Lepsze zarządzanie pamięcią dla wykresów
+
+### 🐛 Naprawiono
+- **Problem z aktualizacją wskaźników**: Wskaźniki nie aktualizowały się po zmianie timeframe
+- **Brakujące funkcje JavaScript**: Dodano wszystkie brakujące funkcje miesięczne
+- **Błędne endpointy API**: Naprawiono wszystkie endpointy miesięczne
+
+### 📊 Zestaw wskaźników technicznych dla obu timeframe'ów
+1. **Ceny** - tygodniowe (1W) lub miesięczne (1M)
+2. **MACD (8-17-9)** - Moving Average Convergence Divergence
+3. **Stochastic Oscillator (36-12-12)** - długoterminowy
+4. **Stochastic Oscillator (9-3-3)** - krótkoterminowy
+
+## [v1.9.14] - 2025-08-24
 **Data:** 2025-08-24
 
 ### 🆕 **Nowe funkcjonalności**

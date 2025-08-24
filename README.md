@@ -1,6 +1,6 @@
-# 📊 ETF Analyzer v1.9.14
+# 📊 ETF Analyzer v1.9.15
 
-**Wersja:** v1.9.14  
+**Wersja:** v1.9.15  
 **Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -59,6 +59,36 @@
 ### **❌ USUNIĘTE: Yahoo Finance & Alpha Vantage**
 - **Yahoo Finance**: API błędy, "Expecting value: line 1 column 1"
 - **Alpha Vantage**: Limit 25 requestów/dzień
+
+## 🆕 Najnowsze funkcjonalności (v1.9.15)
+
+### 🆕 **Nowe funkcjonalności**
+- **Dynamiczny przełącznik timeframe**: Dodano przełącznik 1W-1M dla wykresu cen i wszystkich wskaźników technicznych
+- **Wskaźniki miesięczne**: Wszystkie wskaźniki techniczne (MACD, Stochastic) dostępne dla danych miesięcznych
+- **Automatyczne przełączanie**: Przełącznik timeframe automatycznie aktualizuje wszystkie wykresy i wskaźniki
+- **Endpointy API**: Nowe endpointy API dla danych miesięcznych (ceny, MACD, Stochastic)
+
+### 🎨 **Ulepszenia UI/UX**
+- **Przełącznik timeframe**: Dropdown z opcjami 1W (Tygodniowe) i 1M (Miesięczne) nad wykresem cen
+- **Dynamiczna aktualizacja**: Wszystkie wskaźniki automatycznie przeliczają się na nowe dane
+- **Konsystencja**: Identyczne kolory i styl dla wszystkich timeframe'ów
+
+### 🔧 **Poprawki techniczne**
+- **Nowe API endpointy**: `/api/etfs/<ticker>/monthly-prices`, `/api/etfs/<ticker>/monthly-macd`, `/api/etfs/<ticker>/monthly-stochastic`, `/api/etfs/<ticker>/monthly-stochastic-short`
+- **Funkcje JavaScript**: `createMonthlyPriceChart()`, `createMonthlyMACDChart()`, `createMonthlyStochasticChart()`, `createMonthlyStochasticChartShort()`
+- **Przełącznik timeframe**: Funkcja `switchTimeframe()` z automatyczną aktualizacją wszystkich wykresów
+
+### 🐛 **Naprawy błędów**
+- **Brakująca funkcja**: Dodano brakującą funkcję `createMonthlyStochasticShortChart`
+- **Błędna nazwa funkcji**: Naprawiono nazwę funkcji w `switchTimeframe`
+- **Brakujące endpointy**: Dodano brakujące endpointy dla Stochastic miesięcznego
+- **Błędy importu**: Naprawiono błędy importu modeli w endpointach miesięcznych
+
+### 📊 **Zestaw wskaźników technicznych dla obu timeframe'ów**
+1. **Ceny** - tygodniowe (1W) lub miesięczne (1M)
+2. **MACD (8-17-9)** - Moving Average Convergence Divergence
+3. **Stochastic Oscillator (36-12-12)** - długoterminowy
+4. **Stochastic Oscillator (9-3-3)** - krótkoterminowy
 
 ## 🆕 Najnowsze funkcjonalności (v1.9.14)
 
