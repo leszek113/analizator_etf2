@@ -1,6 +1,6 @@
-# ETF Analyzer v1.9.12
+# ETF Analyzer v1.9.13
 
-**Wersja:** v1.9.12  
+**Wersja:** v1.9.13  
 **Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -59,6 +59,26 @@
 ### **❌ USUNIĘTE: Yahoo Finance & Alpha Vantage**
 - **Yahoo Finance**: API błędy, "Expecting value: line 1 column 1"
 - **Alpha Vantage**: Limit 25 requestów/dzień
+
+## 🆕 Najnowsze funkcjonalności (v1.9.13)
+
+### 🆕 **Nowe funkcjonalności**
+- **Drugi wykres Stochastic Oscillator**: Dodano wykres z parametrami 9-3-3 (Look Back 9, Smoothing 3, SMA 3)
+- **Podwójne wykresy Stochastic**: Użytkownik może porównywać długoterminowe (36-12-12) i krótkoterminowe (9-3-3) sygnały
+
+### 🎨 **Ulepszenia UI/UX**
+- **Nazwy wykresów**: Dodano parametry w tytułach - "Stochastic Oscillator (36-12-12)" i "Stochastic Oscillator (9-3-3)"
+- **Układ wykresów**: Drugi wykres umieszczony pod pierwszym z odpowiednim odstępem
+- **Konsystencja**: Identyczne kolory i styl dla obu wykresów (%K zielony, %D czerwony)
+
+### 🔧 **Poprawki techniczne**
+- **Nowy API endpoint**: `/api/etfs/<ticker>/weekly-stochastic-short` z parametrami 9-3-3
+- **JavaScript**: Poprawiono zarządzanie zmiennymi wykresów
+- **Debug logi**: Dodano monitorowanie nowego wykresu
+
+### 🐛 **Naprawy błędów**
+- **Wykres Stochastic (9-3-3)**: Naprawiono błąd JavaScript - wykres jest teraz widoczny
+- **Zmienne globalne**: Poprawiono deklarację i zarządzanie zmiennymi wykresów
 
 ## 🆕 Najnowsze funkcjonalności (v1.9.12)
 

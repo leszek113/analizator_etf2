@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.12"
+__version__ = "1.9.13"
 
 from config import Config
 import pytz
@@ -692,6 +692,94 @@ def create_app():
                 'error': str(e)
             }), 500
     
+    @app.route('/api/etfs/<ticker>/weekly-stochastic-short', methods=['GET'])
+    def get_etf_weekly_stochastic_short(ticker):
+        """API endpoint do pobierania krótkiego Stochastic Oscillator dla cen tygodniowych ETF (9-3-3)"""
+        try:
+            from models import ETF, ETFWeeklyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen tygodniowych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            weekly_prices = db_service.get_weekly_prices(etf.id)
+            
+            if not weekly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen tygodniowych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in weekly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.normalized_close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dla krótkiego Stochastic Oscillator (9-3-3)")
+            
+            # Obliczanie krótkiego Stochastic Oscillator
+            stochastic_data = api_service.calculate_stochastic_oscillator(
+                price_data, 
+                lookback_period=9, 
+                smoothing_factor=3, 
+                sma_period=3
+            )
+            
+            logger.info(f"Krótki Stochastic Oscillator (9-3-3) zwrócił: {len(stochastic_data) if stochastic_data else 0} punktów")
+            
+            if not stochastic_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć krótkiego Stochastic Oscillator (9-3-3) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in stochastic_data:
+                formatted_data.append({
+                    'date': data['date'],  # data jest już stringiem
+                    'k_percent': round(data['k_percent_smoothed'], 2),
+                    'd_percent': round(data['d_percent'], 2),
+                    'current_price': round(data['current_price'], 2),
+                    'highest_high': round(data['highest_high'], 2),
+                    'lowest_low': round(data['lowest_low'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'stochastic': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'lookback_period': 9,
+                        'smoothing_factor': 3,
+                        'sma_period': 3
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF weekly stochastic short for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
     @app.route('/api/etfs/<ticker>/dividends', methods=['GET'])
     def get_etf_dividends(ticker):
         """API endpoint do pobierania historii dywidend ETF"""

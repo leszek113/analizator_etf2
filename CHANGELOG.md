@@ -5,6 +5,29 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## v1.9.13
+**Data:** 2025-08-24
+
+### 🆕 **Nowe funkcjonalności**
+- **Drugi wykres Stochastic Oscillator**: Dodano wykres z parametrami 9-3-3 (Look Back 9, Smoothing 3, SMA 3)
+- **Podwójne wykresy Stochastic**: Użytkownik może porównywać długoterminowe (36-12-12) i krótkoterminowe (9-3-3) sygnały
+
+### 🎨 **Ulepszenia UI/UX**
+- **Nazwy wykresów**: Dodano parametry w tytułach - "Stochastic Oscillator (36-12-12)" i "Stochastic Oscillator (9-3-3)"
+- **Układ wykresów**: Drugi wykres umieszczony pod pierwszym z odpowiednim odstępem
+- **Konsystencja**: Identyczne kolory i styl dla obu wykresów (%K zielony, %D czerwony)
+
+### 🔧 **Poprawki techniczne**
+- **Nowy API endpoint**: `/api/etfs/<ticker>/weekly-stochastic-short` z parametrami 9-3-3
+- **JavaScript**: Poprawiono zarządzanie zmiennymi wykresów
+- **Debug logi**: Dodano monitorowanie nowego wykresu
+
+### 🐛 **Naprawy błędów**
+- **Wykres Stochastic (9-3-3)**: Naprawiono błąd JavaScript - wykres jest teraz widoczny
+- **Zmienne globalne**: Poprawiono deklarację i zarządzanie zmiennymi wykresów
+
+---
+
 ## v1.9.12
 **Data:** 2025-08-24
 

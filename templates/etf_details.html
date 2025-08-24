@@ -389,8 +389,15 @@
                     </div>
                     
                     <!-- Wykres Stochastic Oscillator -->
-                    <div class="chart-container mt-3" style="position: relative; height:300px; border: 1px solid #e9ecef; border-radius: 8px; padding: 10px; background-color: #f8f9fa;">
+                    <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9;">
+                        <h5>Stochastic Oscillator (36-12-12)</h5>
                         <canvas id="stochasticChart"></canvas>
+                    </div>
+                    
+                    <!-- Wykres Krótkiego Stochastic Oscillator -->
+                    <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9; margin-top: 20px;">
+                        <h5>Stochastic Oscillator (9-3-3)</h5>
+                        <canvas id="stochasticChartShort"></canvas>
                     </div>
                     
                     <div class="mt-3">
@@ -449,6 +456,7 @@
         let priceChart = null;
         let weeklyPriceChart = null;
         let stochasticChart = null;
+        let stochasticChartShort = null;
         let dividendChart = null;
         let breakEvenChart = null;
         
@@ -1483,6 +1491,9 @@
             console.log('📊 3. Tworzenie wykresu Stochastic Oscillator...');
             createStochasticChart(ticker); // Dodanie wywołania createStochasticChart
             
+            console.log('📊 3a. Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3)...');
+            createStochasticChartShort(ticker);
+            
             console.log('📊 4. Tworzenie wykresu break-even...');
             createBreakEvenChart(ticker);
             
@@ -1494,6 +1505,7 @@
                 console.log('📊 Price Chart:', priceChart ? 'OK' : 'NULL');
                 console.log('📊 Weekly Price Chart:', weeklyPriceChart ? 'OK' : 'NULL');
                 console.log('📊 Stochastic Chart:', stochasticChart ? 'OK' : 'NULL');
+                console.log('📊 Stochastic Short Chart:', stochasticChartShort ? 'OK' : 'NULL');
                 console.log('📊 Dividend Chart:', dividendChart ? 'OK' : 'NULL');
                 console.log('📊 Break Even Chart:', breakEvenChart ? 'OK' : 'NULL');
                 
@@ -1501,6 +1513,7 @@
                 const priceCanvas = document.getElementById('priceChart');
                 const weeklyCanvas = document.getElementById('weeklyPriceChart');
                 const stochasticCanvas = document.getElementById('stochasticChart');
+                const stochasticShortCanvas = document.getElementById('stochasticChartShort');
                 const dividendCanvas = document.getElementById('dividendChart');
                 const breakEvenCanvas = document.getElementById('breakEvenChart');
                 
@@ -1508,6 +1521,7 @@
                 console.log('  - priceChart:', priceCanvas ? `${priceCanvas.width}x${priceCanvas.height}` : 'NOT FOUND');
                 console.log('  - weeklyPriceChart:', weeklyCanvas ? `${weeklyCanvas.width}x${weeklyCanvas.height}` : 'NOT FOUND');
                 console.log('  - stochasticChart:', stochasticCanvas ? `${stochasticCanvas.width}x${stochasticCanvas.height}` : 'NOT FOUND');
+                console.log('  - stochasticShortChart:', stochasticShortCanvas ? `${stochasticShortCanvas.width}x${stochasticShortCanvas.height}` : 'NOT FOUND');
                 console.log('  - dividendChart:', dividendCanvas ? `${dividendCanvas.width}x${dividendCanvas.height}` : 'NOT FOUND');
                 console.log('  - breakEvenChart:', breakEvenCanvas ? `${breakEvenCanvas.width}x${breakEvenCanvas.height}` : 'NOT FOUND');
                 
@@ -1722,6 +1736,157 @@
             console.log('✅ Przeliczanie sum rocznych zakończone');
         }
         
+        // Funkcja do tworzenia krótkiego wykresu Stochastic Oscillator (9-3-3)
+        function createStochasticChartShort(ticker) {
+            console.log(`🔄 Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3) dla ${ticker}...`);
+            
+            fetch(`/api/etfs/${ticker}/weekly-stochastic-short`)
+                .then(response => {
+                    console.log(`📊 Short Stochastic response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`📊 Short Stochastic data response:`, data);
+                    
+                    if (data.success) {
+                        const canvasElement = document.getElementById('stochasticChartShort');
+                        if (!canvasElement) {
+                            console.error('❌ Canvas element stochasticChartShort nie został znaleziony!');
+                            return;
+                        }
+                        
+                        const ctx = canvasElement.getContext('2d');
+                        if (!ctx) {
+                            console.error('❌ Nie można uzyskać kontekstu 2D dla krótkiego Stochastic!');
+                            return;
+                        }
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.stochastic.map(s => s.date);
+                        const kPercent = data.data.stochastic.map(s => s.k_percent);
+                        const dPercent = data.data.stochastic.map(s => s.d_percent);
+                        
+                        console.log(`📊 Krótki Stochastic: ${labels.length} etykiet, ${kPercent.length} wartości %K, ${dPercent.length} wartości %D`);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (stochasticChartShort) {
+                            stochasticChartShort.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu krótkiego Stochastic Oscillator
+                        stochasticChartShort = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: '%K (zielona)',
+                                        data: kPercent,
+                                        borderColor: 'rgb(34, 197, 94)',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic-short'
+                                    },
+                                    {
+                                        label: '%D (czerwona)',
+                                        data: dPercent,
+                                        borderColor: 'rgb(239, 68, 68)',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic-short'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                const datasetLabel = context.dataset.label;
+                                                return `${datasetLabel}: ${value.toFixed(2)}%`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z wartościami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Data'
+                                        },
+                                        grid: {
+                                            display: true
+                                        }
+                                    },
+                                    'y-stochastic-short': {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Stochastic %'
+                                        },
+                                        min: 0,
+                                        max: 100,
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value + '%';
+                                            }
+                                        },
+                                        grid: {
+                                            color: function(context) {
+                                                if (context.tick.value === 20 || context.tick.value === 80) {
+                                                    return 'rgba(239, 68, 68, 0.5)';  // Czerwone linie dla 20% i 80%
+                                                }
+                                                return 'rgba(0, 0, 0, 0.1)';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Krótki wykres Stochastic Oscillator (9-3-3) utworzony pomyślnie!`);
+                        
+                    } else {
+                        console.error('Błąd pobierania danych krótkiego Stochastic:', data.error);
+                        document.getElementById('stochasticChartShort').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować krótkiego wykresu Stochastic Oscillator</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych krótkiego Stochastic:', error);
+                    document.getElementById('stochasticChartShort').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania krótkiego wykresu Stochastic Oscillator</div>';
+                });
+        }
+
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
