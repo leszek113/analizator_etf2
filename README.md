@@ -1,6 +1,6 @@
-# ETF Analyzer v1.9.13
+# 📊 ETF Analyzer v1.9.14
 
-**Wersja:** v1.9.13  
+**Wersja:** v1.9.14  
 **Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -59,6 +59,33 @@
 ### **❌ USUNIĘTE: Yahoo Finance & Alpha Vantage**
 - **Yahoo Finance**: API błędy, "Expecting value: line 1 column 1"
 - **Alpha Vantage**: Limit 25 requestów/dzień
+
+## 🆕 Najnowsze funkcjonalności (v1.9.14)
+
+### 🆕 **Nowe funkcjonalności**
+- **Wykres MACD**: Dodano wykres MACD (8-17-9) z parametrami Fast EMA 8, Slow EMA 17, Signal Line 9
+- **Kompletna analiza techniczna**: Użytkownik ma teraz pełny zestaw wskaźników technicznych
+
+### 🎨 **Ulepszenia UI/UX**
+- **Struktura wykresów**: Wszystkie wykresy techniczne zgrupowane w jednej sekcji "Analiza techniczna - ceny tygodniowe"
+- **Układ wykresów**: MACD umieszczony między cenami tygodniowymi a Stochastic Oscillator
+- **Opisy**: Dodano szczegółowe opisy dla wszystkich wskaźników technicznych
+
+### 🔧 **Poprawki techniczne**
+- **Nowy API endpoint**: `/api/etfs/<ticker>/weekly-macd` z parametrami 8-17-9
+- **Funkcja obliczania MACD**: `calculate_macd()` w `api_service.py` z obliczaniem EMA, MACD Line, Signal Line i Histogram
+- **JavaScript**: Funkcja `createMACDChart()` z identycznym stylem jak Stochastic
+
+### 🐛 **Naprawy błędów**
+- **Duplikat wykresu**: Usunięto duplikat wykresu cen tygodniowych
+- **Struktura HTML**: Poprawiono organizację sekcji wykresów
+- **Nadmiarowe nagłówki**: Usunięto duplikaty w card-header
+
+### 📊 **Zestaw wskaźników technicznych**
+1. **Ceny tygodniowe** - ostatnie 15 lat (znormalizowane)
+2. **MACD (8-17-9)** - Moving Average Convergence Divergence
+3. **Stochastic Oscillator (36-12-12)** - długoterminowy
+4. **Stochastic Oscillator (9-3-3)** - krótkoterminowy
 
 ## 🆕 Najnowsze funkcjonalności (v1.9.13)
 

@@ -1487,6 +1487,71 @@ class APIService:
             logger.error(f"Error calculating break-even dividends for {ticker}: {str(e)}")
             return {'error': str(e)}
 
+    def calculate_macd(self, price_data, fast_period=8, slow_period=17, signal_period=9):
+        """
+        Oblicza MACD (Moving Average Convergence Divergence) dla danych cenowych
+        
+        Args:
+            price_data (list): Lista słowników z kluczami 'date' i 'close'
+            fast_period (int): Okres szybkiej EMA (domyślnie 8)
+            slow_period (int): Okres wolnej EMA (domyślnie 17)
+            signal_period (int): Okres linii sygnałowej (domyślnie 9)
+            
+        Returns:
+            list: Lista słowników z danymi MACD
+        """
+        try:
+            if not price_data or len(price_data) < slow_period:
+                logger.warning(f"Za mało danych dla MACD: {len(price_data) if price_data else 0} < {slow_period}")
+                return []
+            
+            # Konwersja danych na pandas DataFrame
+            df = pd.DataFrame(price_data)
+            df['close'] = pd.to_numeric(df['close'], errors='coerce')
+            df = df.dropna()
+            
+            if len(df) < slow_period:
+                logger.warning(f"Po konwersji za mało danych dla MACD: {len(df)} < {slow_period}")
+                return []
+            
+            logger.info(f"Rozpoczynam obliczanie MACD: {len(df)} cen, fast={fast_period}, slow={slow_period}, signal={signal_period}")
+            
+            # Obliczanie EMA
+            fast_ema = df['close'].ewm(span=fast_period, adjust=False).mean()
+            slow_ema = df['close'].ewm(span=slow_period, adjust=False).mean()
+            
+            # MACD Line = Fast EMA - Slow EMA
+            macd_line = fast_ema - slow_ema
+            
+            # Signal Line = EMA z MACD Line
+            signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
+            
+            # Histogram = MACD Line - Signal Line
+            histogram = macd_line - signal_line
+            
+            # Przygotowanie danych wynikowych
+            macd_data = []
+            for i in range(len(df)):
+                if i >= slow_period - 1:  # Zaczynamy od momentu gdy mamy wszystkie EMA
+                    macd_data.append({
+                        'date': df.iloc[i]['date'],
+                        'macd_line': float(macd_line.iloc[i]),
+                        'signal_line': float(signal_line.iloc[i]),
+                        'histogram': float(histogram.iloc[i]),
+                        'current_price': float(df.iloc[i]['close'])
+                    })
+            
+            logger.info(f"MACD obliczony: {len(macd_data)} punktów z {len(df)} cen")
+            if macd_data:
+                logger.info(f"Przykład MACD data[0]: {macd_data[0]}")
+                logger.info(f"Pola w MACD data[0]: {list(macd_data[0].keys())}")
+            
+            return macd_data
+            
+        except Exception as e:
+            logger.error(f"Błąd podczas obliczania MACD: {str(e)}")
+            return []
+
     def calculate_stochastic_oscillator(self, prices: List[Dict], lookback_period: int = 36, 
                                       smoothing_factor: int = 12, sma_period: int = 12) -> List[Dict]:
         """

@@ -380,16 +380,23 @@
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="bi bi-graph-up"></i> 
-                        Ceny tygodniowe - ostatnie 15 lat
+                        Analiza techniczna - ceny tygodniowe
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="chart-container" style="position: relative; height:400px; border: 1px solid #e9ecef; border-radius: 8px; padding: 10px; background-color: #f8f9fa;">
+                    <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9;">
+                        <h5>Ceny tygodniowe - ostatnie 15 lat</h5>
                         <canvas id="weeklyPriceChart"></canvas>
                     </div>
                     
+                    <!-- Wykres MACD -->
+                    <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9; margin-top: 20px;">
+                        <h5>MACD (8-17-9)</h5>
+                        <canvas id="macdChart"></canvas>
+                    </div>
+                    
                     <!-- Wykres Stochastic Oscillator -->
-                    <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9;">
+                    <div class="chart-container" style="height: 300px; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9; margin-top: 20px;">
                         <h5>Stochastic Oscillator (36-12-12)</h5>
                         <canvas id="stochasticChart"></canvas>
                     </div>
@@ -405,6 +412,11 @@
                             <i class="bi bi-info-circle"></i>
                             Wykres pokazuje ceny zamknięcia na koniec każdego tygodnia. 
                             Ceny są znormalizowane względem splitów akcji.
+                        </small>
+                        <br>
+                        <small class="text-muted">
+                            <i class="bi bi-graph-up"></i>
+                            MACD: linia zielona (MACD Line), linia czerwona (Signal Line), histogram
                         </small>
                         <br>
                         <small class="text-muted">
@@ -455,6 +467,7 @@
         // Inicjalizacja wykresów
         let priceChart = null;
         let weeklyPriceChart = null;
+        let macdChart = null;
         let stochasticChart = null;
         let stochasticChartShort = null;
         let dividendChart = null;
@@ -1488,6 +1501,9 @@
             console.log('📊 2. Tworzenie wykresu cen tygodniowych...');
             createWeeklyPriceChart(ticker);
             
+            console.log('📊 2a. Tworzenie wykresu MACD (8-17-9)...');
+            createMACDChart(ticker);
+            
             console.log('📊 3. Tworzenie wykresu Stochastic Oscillator...');
             createStochasticChart(ticker); // Dodanie wywołania createStochasticChart
             
@@ -1504,6 +1520,7 @@
                 console.log('🔍 === SPRAWDZENIE STANU WSZYSTKICH WYKRESÓW ===');
                 console.log('📊 Price Chart:', priceChart ? 'OK' : 'NULL');
                 console.log('📊 Weekly Price Chart:', weeklyPriceChart ? 'OK' : 'NULL');
+                console.log('📊 MACD Chart:', macdChart ? 'OK' : 'NULL');
                 console.log('📊 Stochastic Chart:', stochasticChart ? 'OK' : 'NULL');
                 console.log('📊 Stochastic Short Chart:', stochasticChartShort ? 'OK' : 'NULL');
                 console.log('📊 Dividend Chart:', dividendChart ? 'OK' : 'NULL');
@@ -1512,6 +1529,7 @@
                 // Sprawdzenie canvas elementów
                 const priceCanvas = document.getElementById('priceChart');
                 const weeklyCanvas = document.getElementById('weeklyPriceChart');
+                const macdCanvas = document.getElementById('macdChart');
                 const stochasticCanvas = document.getElementById('stochasticChart');
                 const stochasticShortCanvas = document.getElementById('stochasticChartShort');
                 const dividendCanvas = document.getElementById('dividendChart');
@@ -1520,6 +1538,7 @@
                 console.log('🔍 Canvas elements:');
                 console.log('  - priceChart:', priceCanvas ? `${priceCanvas.width}x${priceCanvas.height}` : 'NOT FOUND');
                 console.log('  - weeklyPriceChart:', weeklyCanvas ? `${weeklyCanvas.width}x${weeklyCanvas.height}` : 'NOT FOUND');
+                console.log('  - macdChart:', macdCanvas ? `${macdCanvas.width}x${macdCanvas.height}` : 'NOT FOUND');
                 console.log('  - stochasticChart:', stochasticCanvas ? `${stochasticCanvas.width}x${stochasticCanvas.height}` : 'NOT FOUND');
                 console.log('  - stochasticShortChart:', stochasticShortCanvas ? `${stochasticShortCanvas.width}x${stochasticShortCanvas.height}` : 'NOT FOUND');
                 console.log('  - dividendChart:', dividendCanvas ? `${dividendCanvas.width}x${dividendCanvas.height}` : 'NOT FOUND');
@@ -1884,6 +1903,163 @@
                     console.error('Błąd podczas pobierania danych krótkiego Stochastic:', error);
                     document.getElementById('stochasticChartShort').innerHTML = 
                         '<div class="alert alert-danger">Błąd podczas ładowania krótkiego wykresu Stochastic Oscillator</div>';
+                });
+        }
+
+        // Funkcja do tworzenia wykresu MACD (8-17-9)
+        function createMACDChart(ticker) {
+            console.log(`🔄 Tworzenie wykresu MACD (8-17-9) dla ${ticker}...`);
+            
+            fetch(`/api/etfs/${ticker}/weekly-macd`)
+                .then(response => {
+                    console.log(`📊 MACD response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`📊 MACD data response:`, data);
+                    
+                    if (data.success) {
+                        const canvasElement = document.getElementById('macdChart');
+                        if (!canvasElement) {
+                            console.error('❌ Canvas element macdChart nie został znaleziony!');
+                            return;
+                        }
+                        
+                        const ctx = canvasElement.getContext('2d');
+                        if (!ctx) {
+                            console.error('❌ Nie można uzyskać kontekstu 2D dla MACD!');
+                            return;
+                        }
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.macd.map(m => m.date);
+                        const macdLine = data.data.macd.map(m => m.macd_line);
+                        const signalLine = data.data.macd.map(m => m.signal_line);
+                        const histogram = data.data.macd.map(m => m.histogram);
+                        
+                        console.log(`📊 MACD: ${labels.length} etykiet, ${macdLine.length} wartości MACD Line, ${signalLine.length} wartości Signal Line`);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (macdChart) {
+                            macdChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu MACD
+                        macdChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: 'MACD Line (zielona)',
+                                        data: macdLine,
+                                        borderColor: 'rgb(34, 197, 94)',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-macd'
+                                    },
+                                    {
+                                        label: 'Signal Line (czerwona)',
+                                        data: signalLine,
+                                        borderColor: 'rgb(239, 68, 68)',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-macd'
+                                    },
+                                    {
+                                        label: 'Histogram',
+                                        data: histogram,
+                                        type: 'bar',
+                                        backgroundColor: histogram.map(h => h >= 0 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'),
+                                        borderColor: histogram.map(h => h >= 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)'),
+                                        borderWidth: 1,
+                                        yAxisID: 'y-macd'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                const datasetLabel = context.dataset.label;
+                                                if (datasetLabel === 'Histogram') {
+                                                    return `${datasetLabel}: ${value.toFixed(4)}`;
+                                                }
+                                                return `${datasetLabel}: ${value.toFixed(4)}`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z wartościami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Data'
+                                        },
+                                        grid: {
+                                            display: true
+                                        }
+                                    },
+                                    'y-macd': {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'MACD'
+                                        },
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value.toFixed(4);
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0, 0, 0, 0.1)'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`✅ Wykres MACD (8-17-9) utworzony pomyślnie!`);
+                        
+                    } else {
+                        console.error('Błąd pobierania danych MACD:', data.error);
+                        document.getElementById('macdChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu MACD</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych MACD:', error);
+                    document.getElementById('macdChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu MACD</div>';
                 });
         }
 

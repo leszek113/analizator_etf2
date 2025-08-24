@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.13"
+__version__ = "1.9.14"
 
 from config import Config
 import pytz
@@ -692,6 +692,93 @@ def create_app():
                 'error': str(e)
             }), 500
     
+    @app.route('/api/etfs/<ticker>/weekly-macd', methods=['GET'])
+    def get_etf_weekly_macd(ticker):
+        """API endpoint do pobierania MACD dla cen tygodniowych ETF (8-17-9)"""
+        try:
+            from models import ETF, ETFWeeklyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen tygodniowych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            weekly_prices = db_service.get_weekly_prices(etf.id)
+            
+            if not weekly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen tygodniowych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in weekly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.normalized_close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dla MACD (8-17-9)")
+            
+            # Obliczanie MACD
+            macd_data = api_service.calculate_macd(
+                price_data, 
+                fast_period=8, 
+                slow_period=17, 
+                signal_period=9
+            )
+            
+            logger.info(f"MACD (8-17-9) zwrócił: {len(macd_data) if macd_data else 0} punktów")
+            
+            if not macd_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć MACD (8-17-9) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in macd_data:
+                formatted_data.append({
+                    'date': data['date'],  # data jest już stringiem
+                    'macd_line': round(data['macd_line'], 4),
+                    'signal_line': round(data['signal_line'], 4),
+                    'histogram': round(data['histogram'], 4),
+                    'current_price': round(data['current_price'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'macd': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'fast_period': 8,
+                        'slow_period': 17,
+                        'signal_period': 9
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF weekly MACD for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
     @app.route('/api/etfs/<ticker>/weekly-stochastic-short', methods=['GET'])
     def get_etf_weekly_stochastic_short(ticker):
         """API endpoint do pobierania krótkiego Stochastic Oscillator dla cen tygodniowych ETF (9-3-3)"""
