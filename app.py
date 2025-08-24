@@ -1633,15 +1633,15 @@ def create_app():
                     'error': f'Brak danych cen dziennych dla {ticker}'
                 }), 404
             
-            # Formatowanie danych dla frontend
+            # Formatowanie danych dla frontend (używamy znormalizowanych cen z bazy)
             formatted_data = []
             for price in daily_prices:
                 formatted_data.append({
                     'date': price.date.strftime('%Y-%m-%d'),
-                    'close': round(price.close_price, 2),
-                    'open': round(price.open_price, 2) if price.open_price else None,
-                    'high': round(price.high_price, 2) if price.high_price else None,
-                    'low': round(price.low_price, 2) if price.low_price else None,
+                    'close': round(price.normalized_close_price, 2),  # Używamy znormalizowanej ceny z bazy
+                    'open': round(price.open_price / price.split_ratio_applied, 2) if price.open_price else None,
+                    'high': round(price.high_price / price.split_ratio_applied, 2) if price.high_price else None,
+                    'low': round(price.low_price / price.split_ratio_applied, 2) if price.low_price else None,
                     'volume': price.volume if price.volume else None
                 })
             
@@ -1662,14 +1662,14 @@ def create_app():
             logger.error(f"Error getting ETF daily prices for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
-                'error': str(e)
-            }), 500
+                'error': str(e)}
+            ), 500
 
     @app.route('/api/etfs/<ticker>/add-daily-prices', methods=['POST'])
     def add_etf_daily_prices(ticker):
         """API endpoint do dodawania cen dziennych dla istniejącego ETF"""
         try:
-            from models import ETF
+            from models import ETF, ETFDailyPrice
             
             # Sprawdzanie czy ETF istnieje
             etf = ETF.query.filter_by(ticker=ticker.upper()).first()
@@ -1698,10 +1698,20 @@ def create_app():
                 ).first()
                 
                 if not existing_price:
+                    # Wyciąganie roku, miesiąca i dnia z daty
+                    price_date = price_data['date']
+                    if isinstance(price_date, str):
+                        price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
+                    
                     daily_price = ETFDailyPrice(
                         etf_id=etf.id,
-                        date=price_data['date'],
+                        date=price_date,
                         close_price=price_data['close'],
+                        normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                        year=price_date.year,
+                        month=price_date.month,
+                        day=price_date.day,
                         open_price=price_data.get('open'),
                         high_price=price_data.get('high'),
                         low_price=price_data.get('low'),
@@ -1727,6 +1737,278 @@ def create_app():
         except Exception as e:
             logger.error(f"Error adding daily prices for {ticker}: {str(e)}")
             db.session.rollback()
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/daily-macd', methods=['GET'])
+    def get_etf_daily_macd(ticker):
+        """API endpoint do pobierania MACD dla cen dziennych ETF (8-17-9)"""
+        try:
+            from models import ETF, ETFDailyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen dziennych z bazy danych (ostatnie 365 dni)
+            cutoff_date = date.today() - timedelta(days=365)
+            daily_prices = ETFDailyPrice.query.filter(
+                ETFDailyPrice.etf_id == etf.id,
+                ETFDailyPrice.date >= cutoff_date
+            ).order_by(ETFDailyPrice.date).all()
+            
+            if not daily_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen dziennych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń (używamy znormalizowanych cen z bazy)
+            price_data = []
+            for price in daily_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),
+                    'close': price.normalized_close_price  # Używamy znormalizowanej ceny z bazy
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dziennych dla MACD (8-17-9)")
+            
+            # Obliczanie MACD
+            macd_data = api_service.calculate_macd(
+                price_data, 
+                fast_period=8, 
+                slow_period=17, 
+                signal_period=9
+            )
+            
+            logger.info(f"Dzienny MACD (8-17-9) zwrócił: {len(macd_data) if macd_data else 0} punktów")
+            
+            if not macd_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć dziennego MACD (8-17-9) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in macd_data:
+                formatted_data.append({
+                    'date': data['date'],
+                    'macd_line': round(data['macd_line'], 4),
+                    'signal_line': round(data['signal_line'], 4),
+                    'histogram': round(data['histogram'], 4),
+                    'current_price': round(data['current_price'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'daily_macd': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'fast_period': 8,
+                        'slow_period': 17,
+                        'signal_period': 9
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF daily MACD for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/daily-stochastic', methods=['GET'])
+    def get_etf_daily_stochastic(ticker):
+        """API endpoint do pobierania Stochastic Oscillator dla cen dziennych ETF (36-12-12)"""
+        try:
+            from models import ETF, ETFDailyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen dziennych z bazy danych (ostatnie 365 dni)
+            cutoff_date = date.today() - timedelta(days=365)
+            daily_prices = ETFDailyPrice.query.filter(
+                ETFDailyPrice.etf_id == etf.id,
+                ETFDailyPrice.date >= cutoff_date
+            ).order_by(ETFDailyPrice.date).all()
+            
+            if not daily_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen dziennych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń (używamy znormalizowanych cen z bazy)
+            price_data = []
+            for price in daily_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),
+                    'close': price.normalized_close_price  # Używamy znormalizowanej ceny z bazy
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dziennych dla Stochastic Oscillator (36-12-12)")
+            
+            # Obliczanie Stochastic Oscillator
+            stochastic_data = api_service.calculate_stochastic_oscillator(
+                price_data, 
+                lookback_period=36, 
+                smoothing_factor=12, 
+                sma_period=12
+            )
+            
+            logger.info(f"Dzienny Stochastic Oscillator (36-12-12) zwrócił: {len(stochastic_data) if stochastic_data else 0} punktów")
+            
+            if not stochastic_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć dziennego Stochastic Oscillator (36-12-12) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in stochastic_data:
+                formatted_data.append({
+                    'date': data['date'],
+                    'k_percent': round(data['k_percent_smoothed'], 2),
+                    'd_percent': round(data['d_percent'], 2),
+                    'current_price': round(data['current_price'], 2),
+                    'highest_high': round(data['highest_high'], 2),
+                    'lowest_low': round(data['lowest_low'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'daily_stochastic': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'lookback_period': 36,
+                        'smoothing_factor': 12,
+                        'sma_period': 12
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF daily Stochastic for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/daily-stochastic-short', methods=['GET'])
+    def get_etf_daily_stochastic_short(ticker):
+        """API endpoint do pobierania krótkiego Stochastic Oscillator dla cen dziennych ETF (9-3-3)"""
+        try:
+            from models import ETF, ETFDailyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen dziennych z bazy danych (ostatnie 365 dni)
+            cutoff_date = date.today() - timedelta(days=365)
+            daily_prices = ETFDailyPrice.query.filter(
+                ETFDailyPrice.etf_id == etf.id,
+                ETFDailyPrice.date >= cutoff_date
+            ).order_by(ETFDailyPrice.date).all()
+            
+            if not daily_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen dziennych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń (używamy znormalizowanych cen z bazy)
+            price_data = []
+            for price in daily_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),
+                    'close': price.normalized_close_price  # Używamy znormalizowanej ceny z bazy
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dziennych dla Stochastic Oscillator (9-3-3)")
+            
+            # Obliczanie Stochastic Oscillator
+            stochastic_data = api_service.calculate_stochastic_oscillator(
+                price_data, 
+                lookback_period=9, 
+                smoothing_factor=3, 
+                sma_period=3
+            )
+            
+            logger.info(f"Dzienny Stochastic Oscillator (9-3-3) zwrócił: {len(stochastic_data) if stochastic_data else 0} punktów")
+            
+            if not stochastic_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć dziennego Stochastic Oscillator (9-3-3) dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in stochastic_data:
+                formatted_data.append({
+                    'date': data['date'],
+                    'k_percent': round(data['k_percent_smoothed'], 2),
+                    'd_percent': round(data['d_percent'], 2),
+                    'current_price': round(data['current_price'], 2),
+                    'highest_high': round(data['highest_high'], 2),
+                    'lowest_low': round(data['lowest_low'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'daily_stochastic': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'lookback_period': 9,
+                        'smoothing_factor': 3,
+                        'sma_period': 3
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF daily Stochastic Short for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)

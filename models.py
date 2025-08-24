@@ -115,6 +115,11 @@ class ETFDailyPrice(db.Model):
     etf_id = db.Column(db.Integer, db.ForeignKey('etfs.id'), nullable=False, index=True)
     date = db.Column(db.Date, nullable=False, index=True)  # Data notowania
     close_price = db.Column(db.Float, nullable=False)  # Cena zamknięcia
+    normalized_close_price = db.Column(db.Float, nullable=False)  # Znormalizowana cena
+    split_ratio_applied = db.Column(db.Float, default=1.0)  # Współczynnik splitu
+    year = db.Column(db.Integer, nullable=False, index=True)  # Rok dla szybkiego filtrowania
+    month = db.Column(db.Integer, nullable=False, index=True)  # Miesiąc dla szybkiego filtrowania
+    day = db.Column(db.Integer, nullable=False, index=True)  # Dzień dla szybkiego filtrowania
     open_price = db.Column(db.Float)  # Cena otwarcia
     high_price = db.Column(db.Float)  # Najwyższa cena
     low_price = db.Column(db.Float)   # Najniższa cena
@@ -132,6 +137,8 @@ class ETFDailyPrice(db.Model):
             'etf_id': self.etf_id,
             'date': self.date.isoformat() if self.date else None,
             'close_price': self.close_price,
+            'normalized_close_price': self.normalized_close_price,
+            'split_ratio_applied': self.split_ratio_applied,
             'open_price': self.open_price,
             'high_price': self.high_price,
             'low_price': self.low_price,

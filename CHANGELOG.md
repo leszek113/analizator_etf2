@@ -2,6 +2,41 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.17] - 2025-08-24
+
+### 🆕 Dodano
+- **Normalizacja cen 1D**: Dodano kolumny `normalized_close_price` i `split_ratio_applied` do tabeli `etf_daily_prices`
+- **Model `ETFDailyPrice`**: Rozszerzony o kolumny year, month, day dla optymalizacji zapytań
+- **Znormalizowane ceny**: Wszystkie endpointy 1D używają znormalizowanych cen z bazy danych
+- **Wskaźniki 1D**: MACD, Stochastic (36-12-12), Stochastic Short (9-3-3) dla danych dziennych
+- **Przełącznik timeframe 1D**: Opcja "1D (Dzienne)" w interfejsie użytkownika
+
+### 🎨 Zmieniono
+- **Endpoint `/api/etfs/<ticker>/daily-prices`**: Używa `normalized_close_price` z bazy zamiast normalizacji w runtime
+- **Endpoint `/api/etfs/<ticker>/add-daily-prices`**: Zapisuje znormalizowane ceny z `split_ratio_applied`
+- **Wszystkie wskaźniki 1D**: Używają znormalizowanych cen z bazy danych
+- **Interfejs użytkownika**: Dodano opcję 1D do przełącznika timeframe
+
+### 🔧 Poprawiono
+- **Normalizacja splitów**: Ceny 1D są teraz normalizowane tak samo jak 1W i 1M
+- **Struktura bazy danych**: Dodano brakujące kolumny do modelu `ETFDailyPrice`
+- **Endpointy API**: Wszystkie endpointy 1D poprawnie obsługują znormalizowane ceny
+- **Importy modeli**: Naprawiono brakujące importy w endpointach
+
+### 🐛 Naprawiono
+- **Problem z normalizacją**: Wykresy 1D pokazywały dramatyczne skoki cen spowodowane splitami
+- **Brakujące kolumny**: Dodano kolumny `year`, `month`, `day` do tabeli `etf_daily_prices`
+- **Błędne endpointy**: Naprawiono wszystkie endpointy 1D żeby używały znormalizowanych cen
+
+### 📊 **Zestaw ram czasowych z normalizacją**
+1. **1M (Miesięczne)** - ostatnie 15 lat + rosnąca historia ✅ znormalizowane
+2. **1W (Tygodniowe)** - ostatnie 15 lat + rosnąca historia ✅ znormalizowane  
+3. **1D (Dzienne)** - rolling window 365 dni ✅ znormalizowane
+
+### ⏰ **Harmonogram schedulera**
+- **`update_all_timeframes`**: Codziennie o 23:50 CET (poniedziałek-piątek)
+- **`update_etf_prices`**: Co 15 minut w dni robocze 13:00-23:00 CET
+
 ## [v1.9.16] - 2025-08-24
 
 ### 🆕 Dodano

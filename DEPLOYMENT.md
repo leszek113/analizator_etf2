@@ -1,10 +1,29 @@
-# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.16
+# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.17
 
 ## 📋 **Przegląd Wersji**
 
-**Wersja:** v1.9.16  
+**Wersja:** v1.9.17  
 **Data wydania:** 24 sierpnia 2025  
-**Typ wydania:** Minor Release (nowe funkcjonalności danych 1D + poprawki)
+**Typ wydania:** Minor Release (normalizacja cen 1D + poprawki)
+
+## 🆕 **Co nowego w v1.9.17**
+
+### **Nowe Funkcjonalności**
+- ✅ **Normalizacja cen 1D** - kolumny `normalized_close_price` i `split_ratio_applied` w tabeli `etf_daily_prices`
+- ✅ **Model `ETFDailyPrice`** - rozszerzony o kolumny year, month, day dla optymalizacji zapytań
+- ✅ **Znormalizowane ceny** - wszystkie endpointy 1D używają znormalizowanych cen z bazy danych
+- ✅ **Wskaźniki 1D** - MACD, Stochastic (36-12-12), Stochastic Short (9-3-3) dla danych dziennych
+- ✅ **Przełącznik timeframe 1D** - opcja "1D (Dzienne)" w interfejsie użytkownika
+
+### **Ulepszenia Systemu**
+- ✅ **Normalizacja splitów** - ceny 1D są teraz normalizowane tak samo jak 1W i 1M
+- ✅ **Struktura bazy danych** - dodano brakujące kolumny do modelu `ETFDailyPrice`
+- ✅ **Endpointy API** - wszystkie endpointy 1D poprawnie obsługują znormalizowane ceny
+
+### **Poprawki Techniczne**
+- ✅ **Problem z normalizacją** - wykresy 1D nie pokazują już dramatycznych skoków cen spowodowanych splitami
+- ✅ **Brakujące kolumny** - dodano kolumny `year`, `month`, `day` do tabeli `etf_daily_prices`
+- ✅ **Błędne endpointy** - naprawiono wszystkie endpointy 1D żeby używały znormalizowanych cen
 
 ## 🆕 **Co nowego w v1.9.16**
 
