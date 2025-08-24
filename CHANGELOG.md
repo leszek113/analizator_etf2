@@ -2,6 +2,38 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.18] - 2025-08-24
+
+### 🆕 Dodano
+- **Automatyczne pobieranie danych 1D przy dodawaniu nowego ETF** - nowe ETF mają teraz pełne dane (1M, 1W, 1D) od razu po dodaniu
+- **Modyfikacja `_add_historical_prices`** - automatyczne pobieranie danych 1D (ostatnie 365 dni) przy dodawaniu nowego ETF
+
+### 🎨 Zmieniono
+- **Proces dodawania ETF**: Nowe ETF automatycznie pobierają dane 1M (15 lat), 1W (15 lat) i 1D (365 dni)
+- **"Odśwież API"**: Nadal potrzebne do codziennych aktualizacji i synchronizacji istniejących ETF
+
+### 🔧 Poprawiono
+- **Błąd `KeyError: 'weekly_prices_complete'`** w `verify_data_completeness` - dodano brakujące klucze w obsłudze wyjątków
+- **Błąd SQL `NOT NULL constraint failed: etf_daily_prices.year`** - dodano kolumny `year`, `month`, `day` w `smart_history_completion`
+
+### 🐛 Naprawiono
+- **"Odśwież API" nie działało** - naprawiono błędy które uniemożliwiały działanie `smart_history_completion`
+- **Nowe ETF nie miały danych 1D** - teraz automatycznie pobierane przy dodawaniu
+
+### 📊 **Zestaw ram czasowych z normalizacją**
+1. **1M (Miesięczne)** - ostatnie 15 lat + rosnąca historia ✅ znormalizowane
+2. **1W (Tygodniowe)** - ostatnie 15 lat + rosnąca historia ✅ znormalizowane  
+3. **1D (Dzienne)** - rolling window 365 dni ✅ znormalizowane
+
+### ⏰ **Harmonogram schedulera**
+- **`update_all_timeframes`**: Codziennie o 23:50 CET (poniedziałek-piątek)
+- **`update_etf_prices`**: Co 15 minut w dni robocze 13:00-23:00 CET
+
+### 🚀 **User Experience**
+- **Nowe ETF mają pełne dane od razu** - nie trzeba czekać na "Odśwież API"
+- **Szybsze działanie** - wszystkie timeframes (1M, 1W, 1D) dostępne natychmiast po dodaniu ETF
+- **"Odśwież API" nadal potrzebne** do codziennych aktualizacji i synchronizacji istniejących ETF
+
 ## [v1.9.17] - 2025-08-24
 
 ### 🆕 Dodano

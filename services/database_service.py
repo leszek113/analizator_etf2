@@ -486,6 +486,29 @@ class DatabaseService:
                 
                 logger.info(f"Added {len(weekly_prices_data)} historical weekly prices for ETF {ticker}")
             
+            # Dodawanie cen dziennych (ostatnie 365 dni)
+            daily_prices_data = self.api_service.get_historical_daily_prices(ticker, days=365, normalize_splits=True)
+            if daily_prices_data:
+                for price_data in daily_prices_data:
+                    price_date = price_data['date']
+                    if isinstance(price_date, str):
+                        from datetime import datetime
+                        price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
+                    
+                    price = ETFDailyPrice(
+                        etf_id=etf_id,
+                        date=price_date,
+                        close_price=price_data['close'],
+                        normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                        year=price_date.year,
+                        month=price_date.month,
+                        day=price_date.day
+                    )
+                    db.session.add(price)
+                
+                logger.info(f"Added {len(daily_prices_data)} historical daily prices for ETF {ticker}")
+            
         except Exception as e:
             logger.error(f"Error adding historical prices for ETF {ticker}: {str(e)}")
     
@@ -1653,12 +1676,16 @@ class DatabaseService:
             return {
                 'prices_complete': False,
                 'dividends_complete': False,
+                'weekly_prices_complete': False,
                 'missing_price_months': [],
                 'missing_dividend_years': [],
+                'missing_weekly_weeks': [],
                 'oldest_price_date': None,
                 'oldest_dividend_date': None,
+                'oldest_weekly_date': None,
                 'years_of_price_data': 0,
                 'years_of_dividend_data': 0,
+                'years_of_weekly_data': 0,
                 'etf_inception_date': None,
                 'etf_age_years': 0,
                 'expected_years': 0
@@ -2076,7 +2103,10 @@ class DatabaseService:
                                         date=price_date,
                                         close_price=price_data['close'],
                                         normalized_close_price=price_data.get('normalized_close', price_data['close']),
-                                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
+                                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                                        year=price_date.year,
+                                        month=price_date.month,
+                                        day=price_date.day
                                     )
                                     db.session.add(price)
                                     daily_prices_filled += 1
@@ -2092,12 +2122,21 @@ class DatabaseService:
                             ).first()
                             
                             if not existing_price:
+                                # Wyciąganie roku, miesiąca i dnia z daty
+                                price_date = price_data['date']
+                                if isinstance(price_date, str):
+                                    from datetime import datetime
+                                    price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
+                                
                                 price = ETFDailyPrice(
                                     etf_id=etf_id,
-                                    date=price_data['date'],
+                                    date=price_date,
                                     close_price=price_data['close'],
                                     normalized_close_price=price_data.get('normalized_close', price_data['close']),
-                                    split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
+                                    split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                                    year=price_date.year,
+                                    month=price_date.month,
+                                    day=price_date.day
                                 )
                                 db.session.add(price)
                                 daily_prices_filled += 1

@@ -2,7 +2,7 @@
 
 ## 📋 **Przegląd Wersji**
 
-**Wersja:** v1.9.17  
+**Wersja:** v1.9.18  
 **Data wydania:** 24 sierpnia 2025  
 **Typ wydania:** Minor Release (normalizacja cen 1D + poprawki)
 

@@ -1,6 +1,6 @@
-# 📊 ETF Analyzer v1.9.17
+# 📊 ETF Analyzer v1.9.18
 
-**Wersja:** v1.9.17  
+**Wersja:** v1.9.18  
 **Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -12,6 +12,7 @@
 ✅ **Wykres cen miesięcznych** - interaktywny wykres cen zamknięcia z ostatnich 15 lat
 ✅ **Wykres cen tygodniowych** - nowy wykres cen tygodniowych z ostatnich 15 lat
 ✅ **Wykres cen dziennych** - nowy wykres cen dziennych z rolling window 365 dni (znormalizowane ceny)
+✅ **Automatyczne pobieranie danych 1D** - nowe ETF automatycznie pobierają dane 1M, 1W i 1D przy dodawaniu
 ✅ **Wykres rocznych dywidend** - interaktywny wykres słupkowy z przełącznikiem brutto/netto
 ✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend
 ✅ **System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
