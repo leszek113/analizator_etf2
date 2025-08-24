@@ -731,6 +731,85 @@ class APIService:
         
         return []
     
+    def get_historical_weekly_prices(self, ticker: str, years: int = 15, normalize_splits: bool = True) -> List[Dict]:
+        """
+        Pobiera historyczne ceny tygodniowe ETF z FMP z opcjonalną normalizacją splitu
+        
+        Args:
+            ticker: Symbol ETF
+            years: Liczba lat historii
+            normalize_splits: Czy normalizować split akcji
+            
+        Returns:
+            Lista cen tygodniowych z ostatnich X lat
+        """
+        try:
+            if not self.config.FMP_API_KEY:
+                return []
+            
+            # Sprawdzanie rate limit
+            if not self._check_rate_limit('fmp'):
+                logger.warning(f"Rate limit reached for FMP, skipping {ticker}")
+                return []
+            
+            # Pobieranie cen tygodniowych z FMP
+            price_url = f"{self.config.FMP_BASE_URL}/historical-price-full/{ticker}?serietype=weekly"
+            price_params = {'apikey': self.config.FMP_API_KEY}
+            
+            price_response = self._make_request_with_retry(price_url, params=price_params)
+            if price_response and price_response.status_code == 200:
+                # Zwiększanie licznika API calls
+                self._increment_api_call('fmp')
+                
+                price_data = price_response.json()
+                if 'historical' in price_data:
+                    weekly_data = self._convert_fmp_prices_to_weekly(price_data['historical'], years)
+                    
+                    # Normalizacja splitu jeśli wymagana
+                    if normalize_splits and weekly_data:
+                        splits = self.get_stock_splits(ticker)
+                        if splits:
+                            logger.info(f"Found {len(splits)} splits for {ticker}, normalizing weekly prices")
+                            weekly_data = self.normalize_prices_for_splits(weekly_data, splits)
+                    
+                    return weekly_data
+                else:
+                    logger.warning(f"No historical data in FMP response for {ticker}")
+            else:
+                logger.warning(f"FMP API request failed for {ticker}: {price_response.status_code if price_response else 'No response'}")
+            
+            # Fallback do EODHD (tylko jeśli FMP nie dało danych)
+            if self.config.EODHD_API_KEY:
+                price_url = f"{self.config.EODHD_BASE_URL}/eod/{ticker}"
+                price_params = {
+                    'api_token': self.config.EODHD_API_KEY,
+                    'fmt': 'json',
+                    'period': 'w',
+                    'limit': years * 52  # 52 tygodnie na rok
+                }
+                
+                price_response = self._make_request_with_retry(price_url, params=price_params)
+                if price_response and price_response.status_code == 200:
+                    price_data = price_response.json()
+                    if price_data:
+                        weekly_data = self._convert_eodhd_prices_to_weekly(price_data)
+                        
+                        # Normalizacja splitu jeśli wymagana
+                        if normalize_splits and weekly_data:
+                            splits = self.get_stock_splits(ticker)
+                            if splits:
+                                logger.info(f"Found {len(splits)} splits for {ticker}, normalizing weekly prices")
+                                weekly_data = self.normalize_prices_for_splits(weekly_data, splits)
+                        
+                        return weekly_data
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting historical weekly prices for {ticker}: {str(e)}")
+        
+        return []
+    
     def _convert_fmp_prices_to_monthly(self, prices: List[Dict], years: int) -> List[Dict]:
         """
         Konwertuje ceny FMP na miesięczne
@@ -770,6 +849,46 @@ class APIService:
             })
         
         return monthly_data
+    
+    def _convert_fmp_prices_to_weekly(self, prices: List[Dict], years: int) -> List[Dict]:
+        """
+        Konwertuje ceny FMP na tygodniowe
+        """
+        weekly_data = []
+        cutoff_date = datetime.now() - timedelta(days=years*365)
+        
+        for price in prices:
+            price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+            if price_date >= cutoff_date:
+                weekly_data.append({
+                    'date': price_date.date(),
+                    'close': float(price['close']),
+                    'open': float(price['open']),
+                    'high': float(price['high']),
+                    'low': float(price['low']),
+                    'volume': int(price['volume'])
+                })
+        
+        return weekly_data
+    
+    def _convert_eodhd_prices_to_weekly(self, prices: List[Dict]) -> List[Dict]:
+        """
+        Konwertuje ceny EODHD na tygodniowe
+        """
+        weekly_data = []
+        
+        for price in prices:
+            price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+            weekly_data.append({
+                'date': price_date.date(),
+                'close': float(price['close']),
+                'open': float(price['open']),
+                'high': float(price['high']),
+                'low': float(price['low']),
+                'volume': int(price['volume'])
+            })
+        
+        return weekly_data
     
     def get_dividend_history(self, ticker: str, years: int = 15, normalize_splits: bool = True, since_date: date = None) -> List[Dict]:
         """

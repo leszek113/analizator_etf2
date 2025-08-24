@@ -1,6 +1,6 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.9  
+**Wersja:** v1.9.10  
 **Ostatnia aktualizacja:** 23 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -184,6 +184,24 @@ curl -X POST "http://localhost:5005/api/etfs/SCHD/update?force=true"
 - **Normalne aktualizacje**: 60-80% mniej wywołań API
 - **Dashboard loading**: 90% mniej wywołań API
 - **Historical data**: 100% z lokalnej bazy (bez API calls)
+
+## 🆕 **Najnowsze funkcjonalności (v1.9.10)**
+
+### **📊 Wykres cen tygodniowych - ostatnie 15 lat**
+- **Nowy wykres** na stronie szczegółów ETF między wykresem rocznych dywidend a cenami miesięcznymi
+- **Dane tygodniowe** - ceny zamknięcia na koniec każdego tygodnia z ostatnich 15 lat
+- **Normalizacja splitów** - automatyczne dostosowanie historycznych cen do splitów akcji
+- **Oszczędność tokenów API** - mechanizm zapisywania w lokalnej bazie z uzupełnianiem tylko brakujących danych
+- **Wizualizacja** - linia z kropeczkami, tooltip z datą (YYYY.MM.DD) i ceną
+- **Automatyczne etykiety** - oś X pokazuje daty z ograniczeniem do 20 etykiet dla czytelności
+
+### **🔌 Nowe API endpoints**
+- `GET /api/etfs/<ticker>/weekly-prices` - pobieranie cen tygodniowych
+- `POST /api/etfs/<ticker>/add-weekly-prices` - dodawanie cen tygodniowych dla istniejących ETF
+
+### **🗄️ Rozszerzenie bazy danych**
+- **Nowa tabela `etf_weekly_prices`** z polami: etf_id, date, close_price, normalized_close_price, split_ratio_applied, year, week_of_year
+- **Automatyczna integracja** z zadaniem "Aktualizacja wszystkich ETF"
 
 ## 🆕 **Najnowsze funkcjonalności (v1.9.9)**
 

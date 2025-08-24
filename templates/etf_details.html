@@ -373,6 +373,32 @@
         </div>
     </div>
 
+    <!-- Wykres cen tygodniowych -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i> 
+                        Ceny tygodniowe - ostatnie 15 lat
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height:400px;">
+                        <canvas id="weeklyPriceChart"></canvas>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            Wykres pokazuje ceny zamknięcia na koniec każdego tygodnia. 
+                            Ceny są znormalizowane względem splitów akcji.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Wykres cen miesięcznych -->
     <div class="row mt-4">
         <div class="col-12">
@@ -410,6 +436,7 @@
         
         // Inicjalizacja wykresów
         let priceChart = null;
+        let weeklyPriceChart = null;
         let dividendChart = null;
         let breakEvenChart = null;
         
@@ -842,6 +869,112 @@
             }
         }
         
+        // Funkcja do tworzenia wykresu cen tygodniowych
+        function createWeeklyPriceChart(ticker) {
+            fetch(`/api/etfs/${ticker}/weekly-prices`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const ctx = document.getElementById('weeklyPriceChart').getContext('2d');
+                        
+                        // Przygotowanie danych dla Chart.js - używamy TYLKO znormalizowanych cen
+                        const labels = data.data.prices.map(p => p.date);
+                        const prices = data.data.prices.map(p => p.normalized_close_price);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (weeklyPriceChart) {
+                            weeklyPriceChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu - podobnie jak miesięczny
+                        weeklyPriceChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: `Cena tygodniowa ${ticker} (znormalizowana)`,
+                                    data: prices,
+                                    borderColor: 'rgb(255, 159, 64)',
+                                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 5,
+                                    tension: 0.1,
+                                    fill: false
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const price = context.parsed.y;
+                                                return `Cena: $${formatNumber(price, 2)}`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    },
+                                    datalabels: {
+                                        display: false  // Wyłącz etykiety z cenami na punktach
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Data'
+                                        },
+                                        ticks: {
+                                            maxTicksLimit: 20,  // Pokaż więcej etykiet żeby były widoczne lata
+                                            maxRotation: 45
+                                        }
+                                    },
+                                    y: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Cena ($)'
+                                        },
+                                        ticks: {
+                                            callback: function(value) {
+                                                return '$' + formatNumber(value, 2);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`Wykres cen tygodniowych utworzony dla ${ticker}: ${data.data.count} punktów danych`);
+                        console.log(`Przykładowe ceny znormalizowane:`, prices.slice(0, 5));
+                    } else {
+                        console.error('Błąd pobierania danych cen tygodniowych:', data.error);
+                        document.getElementById('weeklyPriceChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu cen tygodniowych</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych cen tygodniowych:', error);
+                    document.getElementById('weeklyPriceChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu cen tygodniowych</div>';
+                });
+        }
+        
         // Funkcja do tworzenia wykresu cen
         function createPriceChart(ticker) {
             fetch(`/api/etfs/${ticker}/prices`)
@@ -946,6 +1079,7 @@
             console.log('📊 Ticker:', ticker);
             
             createPriceChart(ticker);
+            createWeeklyPriceChart(ticker);
             createBreakEvenChart(ticker);
             
             // Inicjalizacja opisów target percentage

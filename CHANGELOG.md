@@ -5,6 +5,41 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.10] - 2025-08-23
+
+### Dodane
+- **Wykres cen tygodniowych** - nowy wykres "Ceny tygodniowe - ostatnie 15 lat" na stronie szczegółów ETF
+- **API endpoint `/api/etfs/<ticker>/weekly-prices`** - pobieranie cen tygodniowych z bazy danych
+- **API endpoint `/api/etfs/<ticker>/add-weekly-prices`** - dodawanie cen tygodniowych dla istniejących ETF
+- **Model `ETFWeeklyPrice`** - nowa tabela w bazie danych dla cen tygodniowych
+- **Automatyczne pobieranie cen tygodniowych** - integracja z zadaniem "Aktualizacja wszystkich ETF"
+
+### Funkcjonalności wykresu cen tygodniowych
+- **Lokalizacja**: Umieszczony między wykresem rocznych dywidend a wykresem cen miesięcznych
+- **Dane**: Ceny zamknięcia na koniec każdego tygodnia z ostatnich 15 lat
+- **Normalizacja**: Ceny znormalizowane względem splitów akcji (tak jak miesięczne)
+- **Oszczędność tokenów API**: Mechanizm zapisywania w lokalnej bazie z uzupełnianiem tylko brakujących danych
+- **Wizualizacja**: Linia z kropeczkami, tooltip z datą (YYYY.MM.DD) i ceną
+- **Oś X**: Automatyczne wyświetlanie dat z ograniczeniem do 20 etykiet (maxTicksLimit: 20)
+
+### Techniczne
+- **Nowa tabela `etf_weekly_prices`** z polami: etf_id, date, close_price, normalized_close_price, split_ratio_applied, year, week_of_year
+- **Funkcja `get_historical_weekly_prices()`** w APIService - pobieranie z FMP i EODHD
+- **Funkcja `add_weekly_prices_for_existing_etfs()`** w DatabaseService - dodawanie dla istniejących ETF
+- **Integracja z `smart_history_completion`** - automatyczne uzupełnianie brakujących tygodni
+- **Usuwanie starych danych** - funkcja automatycznie usuwa stare ceny tygodniowe przed dodaniem nowych
+
+### Naprawione
+- **Problem z tekstem na wykresie** - wyłączono plugin DataLabels dla wykresu tygodniowego
+- **Nakładające się etykiety** - zastosowano maxTicksLimit i maxRotation dla czytelności
+- **Brak danych dla istniejących ETF** - dodano endpoint do ręcznego dodawania cen tygodniowych
+
+### Kolejność wykresów na stronie szczegółów ETF
+1. Wykres rocznych dywidend - ostatnie 15 lat
+2. Break-even time dla dywidend (z dynamicznym ROI)
+3. **Ceny tygodniowe - ostatnie 15 lat** (NOWE)
+4. Ceny miesięczne - ostatnie 15 lat
+
 ## [1.9.9] - 2025-08-23
 
 ### Added

@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Optional
 from sqlalchemy.exc import IntegrityError
 import logging
-from models import db, ETF, ETFPrice, ETFDividend, ETFSplit, SystemLog, DividendTaxRate
+from models import db, ETF, ETFPrice, ETFWeeklyPrice, ETFDividend, ETFSplit, SystemLog, DividendTaxRate
 from services.api_service import APIService
 
 logger = logging.getLogger(__name__)
@@ -325,6 +325,78 @@ class DatabaseService:
             logger.error(f"Error getting monthly prices for ETF ID {etf_id}: {str(e)}")
             return []
 
+    def get_weekly_prices(self, etf_id: int) -> List[ETFWeeklyPrice]:
+        """Pobiera ceny tygodniowe ETF z bazy danych - jedna cena na tydzień, kończy się na ostatnio zakończonym tygodniu"""
+        try:
+            # Pobieranie cen tygodniowych, grupowane po roku i tygodniu
+            # Używamy raw SQL dla lepszej kontroli nad grupowaniem
+            # Wykres kończy się na ostatnio zakończonym tygodniu, nie na bieżącym
+            from sqlalchemy import text
+            from datetime import datetime, date
+            
+            # Obliczanie ostatniego tygodnia z danymi
+            today = date.today()
+            # Sprawdzamy czy mamy dane z bieżącego tygodnia
+            current_week_start = today - timedelta(days=today.weekday())  # Poniedziałek tego tygodnia
+            
+            # Sprawdź czy są ceny z bieżącego tygodnia
+            current_week_prices = ETFWeeklyPrice.query.filter(
+                ETFWeeklyPrice.etf_id == etf_id,
+                ETFWeeklyPrice.date >= current_week_start
+            ).first()
+            
+            if current_week_prices:
+                # Mamy ceny z bieżącego tygodnia - używamy dzisiejszej daty
+                last_completed_week = today
+            else:
+                # Brak cen z bieżącego tygodnia - używamy poprzedniego tygodnia
+                last_completed_week = current_week_start - timedelta(days=1)  # Niedziela poprzedniego tygodnia
+            
+            query = text("""
+                SELECT 
+                    id, etf_id, date, close_price, normalized_close_price, split_ratio_applied, year, week_of_year
+                FROM etf_weekly_prices 
+                WHERE etf_id = :etf_id 
+                AND date <= :last_completed_week
+                AND date IN (
+                    SELECT MAX(date) 
+                    FROM etf_weekly_prices 
+                    WHERE etf_id = :etf_id 
+                    AND date <= :last_completed_week
+                    GROUP BY year, week_of_year
+                )
+                ORDER BY date ASC
+            """)
+            
+            result = db.session.execute(query, {
+                'etf_id': etf_id, 
+                'last_completed_week': last_completed_week.strftime('%Y-%m-%d')
+            })
+            prices = []
+            
+            for row in result:
+                price = ETFWeeklyPrice()
+                price.id = row.id
+                price.etf_id = row.etf_id
+                # Konwersja stringa daty na datetime.date
+                if isinstance(row.date, str):
+                    price.date = datetime.strptime(row.date, '%Y-%m-%d').date()
+                else:
+                    price.date = row.date
+                price.close_price = row.close_price
+                price.normalized_close_price = row.normalized_close_price
+                price.split_ratio_applied = row.split_ratio_applied
+                price.year = row.year
+                price.week_of_year = row.week_of_year
+                prices.append(price)
+            
+            logger.info(f"Retrieved {len(prices)} weekly prices (one per week, ending at {last_completed_week.strftime('%Y-%m-%d')}) for ETF ID {etf_id}")
+            return prices
+            
+        except Exception as e:
+            logger.error(f"Error getting weekly prices for ETF ID {etf_id}: {str(e)}")
+            return []
+
     def _add_historical_prices(self, etf_id: int, ticker: str) -> None:
         """
         Dodaje historyczne ceny ETF - używa danych z cache jeśli dostępne
@@ -365,9 +437,90 @@ class DatabaseService:
             
             logger.info(f"Added {len(prices_data)} historical prices for ETF {ticker}")
             
+            # Dodawanie cen tygodniowych
+            weekly_prices_data = self.api_service.get_historical_weekly_prices(ticker, normalize_splits=True)
+            if weekly_prices_data:
+                for price_data in weekly_prices_data:
+                    price = ETFWeeklyPrice(
+                        etf_id=etf_id,
+                        date=price_data['date'],
+                        close_price=price_data.get('original_close', price_data['close']),  # Oryginalna cena
+                        normalized_close_price=price_data['close'],  # Znormalizowana cena (już jest w 'close')
+                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                        year=price_data['date'].year,
+                        week_of_year=price_data['date'].isocalendar()[1]
+                    )
+                    db.session.add(price)
+                
+                logger.info(f"Added {len(weekly_prices_data)} historical weekly prices for ETF {ticker}")
+            
         except Exception as e:
             logger.error(f"Error adding historical prices for ETF {ticker}: {str(e)}")
     
+    def add_weekly_prices_for_existing_etfs(self, ticker: str) -> bool:
+        """
+        Dodaje ceny tygodniowe dla istniejącego ETF (jeśli ich nie ma)
+        
+        Args:
+            ticker: Ticker ETF
+            
+        Returns:
+            True jeśli udało się dodać ceny, False w przeciwnym razie
+        """
+        try:
+            # Sprawdź czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                logger.error(f"ETF {ticker} not found")
+                return False
+            
+            # Usuń stare ceny tygodniowe jeśli istnieją
+            existing_weekly_prices = ETFWeeklyPrice.query.filter_by(etf_id=etf.id).count()
+            if existing_weekly_prices > 0:
+                logger.info(f"ETF {ticker} has {existing_weekly_prices} existing weekly prices, removing old data")
+                ETFWeeklyPrice.query.filter_by(etf_id=etf.id).delete()
+                db.session.commit()
+            
+            logger.info(f"Adding weekly prices for existing ETF {ticker}")
+            
+            # Pobierz ceny tygodniowe z API
+            weekly_prices_data = self.api_service.get_historical_weekly_prices(ticker, normalize_splits=True)
+            if not weekly_prices_data:
+                logger.warning(f"No weekly price data available for {ticker}")
+                return False
+            
+            # Dodaj ceny tygodniowe do bazy
+            added_count = 0
+            for price_data in weekly_prices_data:
+                try:
+                    price = ETFWeeklyPrice(
+                        etf_id=etf.id,
+                        date=price_data['date'],
+                        close_price=price_data.get('original_close', price_data['close']),  # Oryginalna cena
+                        normalized_close_price=price_data['close'],  # Znormalizowana cena (już jest w 'close')
+                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                        year=price_data['date'].year,
+                        week_of_year=price_data['date'].isocalendar()[1]
+                    )
+                    db.session.add(price)
+                    added_count += 1
+                except Exception as e:
+                    logger.warning(f"Error adding weekly price for {ticker} on {price_data['date']}: {str(e)}")
+                    continue
+            
+            if added_count > 0:
+                db.session.commit()
+                logger.info(f"Successfully added {added_count} weekly prices for ETF {ticker}")
+                return True
+            else:
+                logger.warning(f"No weekly prices were added for ETF {ticker}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error adding weekly prices for ETF {ticker}: {str(e)}")
+            db.session.rollback()
+            return False
+
     def _add_historical_dividends(self, etf_id: int, ticker: str) -> None:
         """
         Dodaje historyczne dywidendy ETF - używa danych z cache jeśli dostępne
@@ -1228,12 +1381,16 @@ class DatabaseService:
             {
                 'prices_complete': bool,
                 'dividends_complete': bool,
+                'weekly_prices_complete': bool,
                 'missing_price_months': List[date],
                 'missing_dividend_years': List[int],
+                'missing_weekly_weeks': List[date],
                 'oldest_price_date': date,
                 'oldest_dividend_date': date,
+                'oldest_weekly_date': date,
                 'years_of_price_data': int,
                 'years_of_dividend_data': int,
+                'years_of_weekly_data': int,
                 'etf_inception_date': date,
                 'etf_age_years': float,
                 'expected_years': int
@@ -1362,15 +1519,81 @@ class DatabaseService:
                        f"Dividends: {years_of_dividend_data:.1f} years, complete: {dividends_complete}, "
                        f"missing years: {len(missing_dividend_years)}")
             
+            # Sprawdzanie kompletności cen tygodniowych
+            weekly_prices = ETFWeeklyPrice.query.filter_by(etf_id=etf_id).order_by(ETFWeeklyPrice.date).all()
+            
+            if not weekly_prices:
+                return {
+                    'prices_complete': prices_complete,
+                    'dividends_complete': dividends_complete,
+                    'weekly_prices_complete': False,
+                    'missing_price_months': missing_price_months,
+                    'missing_dividend_years': missing_dividend_years,
+                    'missing_weekly_weeks': [],
+                    'oldest_price_date': oldest_price_date,
+                    'oldest_dividend_date': oldest_dividend_date,
+                    'oldest_weekly_date': None,
+                    'years_of_price_data': years_of_price_data,
+                    'years_of_dividend_data': years_of_dividend_data,
+                    'years_of_weekly_data': 0,
+                    'etf_inception_date': etf_inception_date,
+                    'etf_age_years': etf_age_years,
+                    'expected_years': expected_years
+                }
+            
+            oldest_weekly_date = weekly_prices[0].date
+            newest_weekly_date = weekly_prices[-1].date
+            years_of_weekly_data = (newest_weekly_date - oldest_weekly_date).days / 365.25
+            
+            # Sprawdzanie brakujących tygodni
+            missing_weekly_weeks = []
+            current_date = oldest_weekly_date
+            
+            while current_date <= newest_weekly_date:
+                week_start = current_date - timedelta(days=current_date.weekday())  # Poniedziałek tego tygodnia
+                week_end = week_start + timedelta(days=6)  # Niedziela tego tygodnia
+                
+                # Sprawdź czy mamy cenę w tym tygodniu
+                week_price = ETFWeeklyPrice.query.filter(
+                    ETFWeeklyPrice.etf_id == etf_id,
+                    ETFWeeklyPrice.date >= week_start,
+                    ETFWeeklyPrice.date <= week_end
+                ).first()
+                
+                if not week_price:
+                    missing_weekly_weeks.append(week_start)
+                
+                current_date = week_end + timedelta(days=1)
+            
+            # Określanie kompletności cen tygodniowych
+            weekly_prices_complete = len(missing_weekly_weeks) == 0 and oldest_weekly_date <= target_start_date
+            
+            # Jeśli ETF jest młodszy niż 15 lat i mamy dane od inception, to jest kompletny
+            if etf_inception_date and years_of_weekly_data >= (etf_age_years * 0.9):  # 90% pokrycia
+                weekly_prices_complete = True
+            
+            logger.info(f"Data completeness check for {ticker}: "
+                       f"ETF age: {etf_age_years:.1f} years, expected: {expected_years} years; "
+                       f"Prices: {years_of_price_data:.1f} years, complete: {prices_complete}, "
+                       f"missing months: {len(missing_price_months)}; "
+                       f"Weekly prices: {years_of_weekly_data:.1f} years, complete: {weekly_prices_complete}, "
+                       f"missing weeks: {len(missing_weekly_weeks)}; "
+                       f"Dividends: {years_of_dividend_data:.1f} years, complete: {dividends_complete}, "
+                       f"missing years: {len(missing_dividend_years)}")
+            
             return {
                 'prices_complete': prices_complete,
                 'dividends_complete': dividends_complete,
+                'weekly_prices_complete': weekly_prices_complete,
                 'missing_price_months': missing_price_months,
                 'missing_dividend_years': missing_dividend_years,
+                'missing_weekly_weeks': missing_weekly_weeks,
                 'oldest_price_date': oldest_price_date,
                 'oldest_dividend_date': oldest_dividend_date,
+                'oldest_weekly_date': oldest_weekly_date,
                 'years_of_price_data': years_of_price_data,
                 'years_of_dividend_data': years_of_dividend_data,
+                'years_of_weekly_data': years_of_weekly_data,
                 'etf_inception_date': etf_inception_date,
                 'etf_age_years': etf_age_years,
                 'expected_years': expected_years
@@ -1405,8 +1628,10 @@ class DatabaseService:
             {
                 'prices_filled': int,
                 'dividends_filled': int,
+                'weekly_prices_filled': int,
                 'prices_complete': bool,
                 'dividends_complete': bool,
+                'weekly_prices_complete': bool,
                 'api_calls_used': int
             }
         """
@@ -1414,19 +1639,22 @@ class DatabaseService:
             # Sprawdź kompletność danych
             completeness = self.verify_data_completeness(etf_id, ticker)
             
-            if completeness['prices_complete'] and completeness['dividends_complete']:
+            if completeness['prices_complete'] and completeness['dividends_complete'] and completeness['weekly_prices_complete']:
                 logger.info(f"ETF {ticker} already has complete 15-year history")
                 return {
                     'prices_filled': 0,
                     'dividends_filled': 0,
+                    'weekly_prices_filled': 0,
                     'prices_complete': True,
                     'dividends_complete': True,
+                    'weekly_prices_complete': True,
                     'api_calls_used': 0
                 }
             
             api_calls_used = 0
             prices_filled = 0
             dividends_filled = 0
+            weekly_prices_filled = 0
             
             # Uzupełnianie brakujących cen miesięcznych
             if not completeness['prices_complete']:
@@ -1556,10 +1784,95 @@ class DatabaseService:
                     
                     logger.info(f"Filled {dividends_filled} missing dividends for {ticker}")
             
+            # Uzupełnianie brakujących cen tygodniowych
+            if not completeness['weekly_prices_complete']:
+                if completeness['missing_weekly_weeks']:
+                    logger.info(f"ETF {ticker} missing {len(completeness['missing_weekly_weeks'])} weekly price weeks, attempting to fill")
+                else:
+                    logger.warning(f"ETF {ticker} has NO weekly price data at all - fetching full 15-year history!")
+                
+                # Pobierz brakujące ceny tygodniowe z API
+                if completeness['missing_weekly_weeks']:
+                    missing_weeks = completeness['missing_weekly_weeks']
+                    oldest_missing = min(missing_weeks)
+                    logger.info(f"Fetching weekly prices from {oldest_missing} for {ticker}")
+                else:
+                    # Brak cen tygodniowych w bazie - pobierz pełną historię
+                    missing_weeks = []
+                    oldest_missing = None
+                    logger.info(f"ETF {ticker} has no weekly price data - fetching full 15-year history")
+                
+                # Pobierz ceny tygodniowe z API
+                historical_weekly_prices = self.api_service.get_historical_weekly_prices(
+                    ticker, 
+                    years=15, 
+                    normalize_splits=True
+                )
+                
+                if historical_weekly_prices:
+                    api_calls_used += 1
+                    
+                    # Dodaj ceny tygodniowe do bazy
+                    if missing_weeks:
+                        # Dodaj tylko brakujące ceny tygodniowe
+                        for price_data in historical_weekly_prices:
+                            price_date = price_data['date']
+                            
+                            # Sprawdź czy to brakujący tydzień
+                            if price_date in missing_weeks:
+                                # Sprawdź czy już nie mamy tej ceny tygodniowej
+                                existing_price = ETFWeeklyPrice.query.filter_by(
+                                    etf_id=etf_id,
+                                    date=price_date
+                                ).first()
+                                
+                                if not existing_price:
+                                    price = ETFWeeklyPrice(
+                                        etf_id=etf_id,
+                                        date=price_date,
+                                        close_price=price_data['close'],
+                                        normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                                        year=price_date.year,
+                                        week_of_year=price_date.isocalendar()[1]
+                                    )
+                                    db.session.add(price)
+                                    weekly_prices_filled += 1
+                        
+                        logger.info(f"Filled {weekly_prices_filled} missing weekly price weeks for {ticker}")
+                    else:
+                        # Brak cen tygodniowych w bazie - dodaj wszystkie pobrane ceny
+                        for price_data in historical_weekly_prices:
+                            # Sprawdź czy już nie mamy tej ceny (zabezpieczenie przed duplikatami)
+                            existing_price = ETFWeeklyPrice.query.filter_by(
+                                etf_id=etf_id,
+                                date=price_data['date']
+                            ).first()
+                            
+                            if not existing_price:
+                                price = ETFWeeklyPrice(
+                                    etf_id=etf_id,
+                                    date=price_data['date'],
+                                    close_price=price_data['close'],
+                                    normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                                    split_ratio_applied=price_data.get('split_ratio_applied', 1.0),
+                                    year=price_data['date'].year,
+                                    week_of_year=price_data['date'].isocalendar()[1]
+                                )
+                                db.session.add(price)
+                                weekly_prices_filled += 1
+                        
+                        logger.info(f"Added {weekly_prices_filled} historical weekly prices for {ticker} (no existing data)")
+                    
+                    # Zatwierdź zmiany w bazie
+                    if weekly_prices_filled > 0:
+                        db.session.commit()
+                        logger.info(f"Successfully committed {weekly_prices_filled} new weekly prices to database for {ticker}")
+            
             # Commit zmian
-            if prices_filled > 0 or dividends_filled > 0:
+            if prices_filled > 0 or dividends_filled > 0 or weekly_prices_filled > 0:
                 db.session.commit()
-                logger.info(f"Successfully filled {prices_filled} prices and {dividends_filled} dividends for {ticker}")
+                logger.info(f"Successfully filled {prices_filled} prices, {dividends_filled} dividends, and {weekly_prices_filled} weekly prices for {ticker}")
             
             # Sprawdź kompletność po uzupełnieniu
             updated_completeness = self.verify_data_completeness(etf_id, ticker)
@@ -1567,8 +1880,10 @@ class DatabaseService:
             return {
                 'prices_filled': prices_filled,
                 'dividends_filled': dividends_filled,
+                'weekly_prices_filled': weekly_prices_filled,
                 'prices_complete': updated_completeness['prices_complete'],
                 'dividends_complete': updated_completeness['dividends_complete'],
+                'weekly_prices_complete': updated_completeness['weekly_prices_complete'],
                 'api_calls_used': api_calls_used
             }
             
@@ -1578,8 +1893,10 @@ class DatabaseService:
             return {
                 'prices_filled': 0,
                 'dividends_filled': 0,
+                'weekly_prices_filled': 0,
                 'prices_complete': False,
                 'dividends_complete': False,
+                'weekly_prices_complete': False,
                 'api_calls_used': 0
             }
     

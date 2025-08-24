@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.9"
+__version__ = "1.9.10"
 
 from config import Config
 import pytz
@@ -506,6 +506,101 @@ def create_app():
                 'error': str(e)
             }), 500
     
+    @app.route('/api/etfs/<ticker>/weekly-prices', methods=['GET'])
+    def get_etf_weekly_prices(ticker):
+        """API endpoint do pobierania cen tygodniowych ETF"""
+        try:
+            from models import ETF, ETFWeeklyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen tygodniowych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            weekly_prices = db_service.get_weekly_prices(etf.id)
+            
+            if not weekly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen tygodniowych dla {ticker}'
+                }), 404
+            
+            # Formatowanie danych dla Chart.js
+            price_data = []
+            for price in weekly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),
+                    'close_price': price.normalized_close_price,
+                    'normalized_close_price': price.normalized_close_price,  # Dodane dla kompatybilności z JavaScript
+                    'original_price': price.close_price,
+                    'split_ratio': price.split_ratio_applied,
+                    'year': price.year,
+                    'week_of_year': price.week_of_year
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'prices': price_data,
+                    'count': len(price_data),
+                    'date_range': {
+                        'start': price_data[0]['date'] if price_data else None,
+                        'end': price_data[-1]['date'] if price_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF weekly prices for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/etfs/<ticker>/add-weekly-prices', methods=['POST'])
+    def add_weekly_prices_for_etf(ticker):
+        """API endpoint do dodawania cen tygodniowych dla istniejącego ETF"""
+        try:
+            from models import ETF
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Dodawanie cen tygodniowych
+            db_service = DatabaseService(api_service=api_service)
+            success = db_service.add_weekly_prices_for_existing_etfs(ticker)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': f'Ceny tygodniowe zostały dodane dla ETF {ticker}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się dodać cen tygodniowych dla ETF {ticker}'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"Error adding weekly prices for ETF {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
     @app.route('/api/etfs/<ticker>/dividends', methods=['GET'])
     def get_etf_dividends(ticker):
         """API endpoint do pobierania historii dywidend ETF"""
@@ -644,10 +739,11 @@ def create_app():
     def get_system_status():
         """API endpoint do sprawdzania statusu systemu"""
         try:
-            from models import ETF, ETFPrice, ETFDividend, SystemLog
+            from models import ETF, ETFPrice, ETFWeeklyPrice, ETFDividend, SystemLog
             
             etf_count = ETF.query.count()
             price_count = ETFPrice.query.count()
+            weekly_price_count = ETFWeeklyPrice.query.count()
             dividend_count = ETFDividend.query.count()
             log_count = SystemLog.query.count()
             
@@ -669,6 +765,7 @@ def create_app():
                 'data': {
                     'etf_count': etf_count,
                     'price_count': price_count,
+                    'weekly_price_count': weekly_price_count,
                     'dividend_count': dividend_count,
                     'log_count': log_count,
                     'last_update': last_update.isoformat() if last_update else None,
