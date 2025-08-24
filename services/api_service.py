@@ -1564,7 +1564,11 @@ class APIService:
                     smoothed_k = sum(k_values) / len(k_values)
                     stochastic_data[i]['k_percent_smoothed'] = smoothed_k
                 
-                logger.info(f"Wygładzono %K dla {len(stochastic_data) - smoothing_factor + 1} punktów")
+                # Dodaj brakujące klucze dla pierwszych punktów
+                for i in range(smoothing_factor - 1):
+                    stochastic_data[i]['k_percent_smoothed'] = stochastic_data[i]['k_percent']
+                
+                logger.info(f"Wygładzono %K dla {len(stochastic_data)} punktów")
             else:
                 logger.warning(f"Za mało danych dla wygładzania %K: {len(stochastic_data)} < {smoothing_factor}")
                 # Jeśli nie ma wystarczająco danych, użyj surowych wartości %K
@@ -1578,15 +1582,19 @@ class APIService:
                     d_percent = sum(smoothed_k_values) / len(smoothed_k_values)
                     stochastic_data[i]['d_percent'] = d_percent
                 
-                logger.info(f"Obliczono %D dla {len(stochastic_data) - sma_period + 1} punktów")
+                # Dodaj brakujące klucze dla pierwszych punktów
+                for i in range(sma_period - 1):
+                    stochastic_data[i]['d_percent'] = stochastic_data[i]['k_percent_smoothed']
+                
+                logger.info(f"Obliczono %D dla {len(stochastic_data)} punktów")
             else:
                 logger.warning(f"Za mało danych dla obliczenia %D: {len(stochastic_data)} < {sma_period}")
                 # Jeśli nie ma wystarczająco danych, użyj wygładzonych wartości %K jako %D
                 for data in stochastic_data:
                     data['d_percent'] = data['k_percent_smoothed']
             
-            # Usuń punkty bez pełnych danych
-            final_data = [data for data in stochastic_data if 'k_percent_smoothed' in data and 'd_percent' in data]
+            # Teraz wszystkie punkty mają wymagane klucze
+            final_data = stochastic_data
             
             logger.info(f"Stochastic Oscillator obliczony: {len(final_data)} punktów z {len(prices)} cen")
             

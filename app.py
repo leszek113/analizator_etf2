@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.11"
+__version__ = "1.9.12"
 
 from config import Config
 import pytz
@@ -659,7 +659,7 @@ def create_app():
             formatted_data = []
             for data in stochastic_data:
                 formatted_data.append({
-                    'date': data['date'].strftime('%Y-%m-%d'),
+                    'date': data['date'],  # data jest już stringiem
                     'k_percent': round(data['k_percent_smoothed'], 2),
                     'd_percent': round(data['d_percent'], 2),
                     'current_price': round(data['current_price'], 2),

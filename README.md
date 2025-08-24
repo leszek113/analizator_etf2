@@ -1,6 +1,6 @@
-# ETF Analyzer
+# ETF Analyzer v1.9.12
 
-**Wersja:** v1.9.11  
+**Wersja:** v1.9.12  
 **Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -59,6 +59,20 @@
 ### **❌ USUNIĘTE: Yahoo Finance & Alpha Vantage**
 - **Yahoo Finance**: API błędy, "Expecting value: line 1 column 1"
 - **Alpha Vantage**: Limit 25 requestów/dzień
+
+## 🆕 Najnowsze funkcjonalności (v1.9.12)
+
+### 🐛 **Naprawy błędów**
+- **Wykres Stochastic Oscillator**: Naprawiono błąd API endpoint - wykres jest teraz widoczny
+- **Wykres dywidend**: Przywrócono oryginalny wygląd z wartościami i procentami na szczytach
+
+### 🎨 **Ulepszenia UI/UX**
+- **Stochastic Oscillator**: Usunięto wartości liczbowe, dodano tooltip podobny do wykresu cen tygodniowych
+- **Konsystencja**: Ujednolicono format tooltipów między wykresami
+
+### 🔧 **Poprawki techniczne**
+- **API endpoint**: Naprawiono formatowanie danych w Stochastic Oscillator
+- **Datalabels**: Wyłączono etykiety liczbowe na wykresie Stochastic
 
 ## 🆕 **Najnowsze funkcjonalności (v1.9.11)**
 

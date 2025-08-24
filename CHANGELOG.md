@@ -5,7 +5,26 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
-## [1.9.11] - 2025-08-23
+## v1.9.12
+**Data:** 2025-08-24
+
+### 🐛 **Naprawy błędów**
+- **Wykres Stochastic Oscillator**: Naprawiono błąd `'str' object has no attribute 'strftime'` w API endpoint
+- **Wykres dywidend**: Przywrócono oryginalny wygląd z wartościami i procentami na szczytach słupków
+- **Kolory wykresów**: Przywrócono oryginalne kolory (niebieski dla brutto, zielony dla netto)
+
+### 🎨 **Ulepszenia UI/UX**
+- **Stochastic Oscillator**: Usunięto wartości liczbowe z wykresu, dodano tooltip podobny do wykresu cen tygodniowych
+- **Format tooltip**: Ujednolicono format daty (YYYY.MM.DD) w tooltipach wykresów
+
+### 🔧 **Poprawki techniczne**
+- **API endpoint**: Naprawiono formatowanie danych w `/api/etfs/<ticker>/weekly-stochastic`
+- **Datalabels**: Wyłączono etykiety liczbowe na wykresie Stochastic Oscillator
+- **Konsystencja**: Ujednolicono interakcję tooltipów między wykresami
+
+---
+
+## v1.9.11
 
 ### Naprawione
 - **Krytyczne błędy** - naprawiono wszystkie zidentyfikowane problemy w kodzie
