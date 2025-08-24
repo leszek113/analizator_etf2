@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 import logging
 from models import db, ETF, ETFPrice, ETFWeeklyPrice, ETFDividend, ETFSplit, SystemLog, DividendTaxRate
 from services.api_service import APIService
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -11,13 +12,44 @@ class DatabaseService:
     def __init__(self, api_service: APIService = None):
         self.api_service = api_service or APIService()
     
+    def _validate_ticker(self, ticker: str) -> bool:
+        """
+        Waliduje format ticker
+        
+        Args:
+            ticker: Ticker do walidacji
+            
+        Returns:
+            True jeśli ticker jest poprawny, False w przeciwnym razie
+        """
+        if not ticker or not isinstance(ticker, str):
+            return False
+        
+        ticker = ticker.upper().strip()
+        if not ticker or len(ticker) > 20:
+            return False
+        
+        # Sprawdź czy ticker zawiera tylko dozwolone znaki
+        if not re.match(r'^[A-Z0-9]+$', ticker):
+            return False
+        
+        return True
+    
     def add_etf(self, ticker: str) -> Optional[ETF]:
         """
         Dodaje nowy ETF do bazy danych wraz z historią
         """
         try:
+            # Walidacja inputu
+            if not self._validate_ticker(ticker):
+                logger.error(f"Invalid ticker format: {ticker}")
+                self._log_action('ERROR', f"Invalid ticker format: {ticker}", 'ERROR')
+                return None
+            
+            ticker = ticker.upper().strip()
+            
             # Sprawdzenie czy ETF już istnieje
-            existing_etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            existing_etf = ETF.query.filter_by(ticker=ticker).first()
             if existing_etf:
                 logger.info(f"ETF {ticker} already exists in database")
                 return existing_etf

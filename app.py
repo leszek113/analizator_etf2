@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.10"
+__version__ = "1.9.11"
 
 from config import Config
 import pytz
@@ -596,6 +596,97 @@ def create_app():
                 
         except Exception as e:
             logger.error(f"Error adding weekly prices for ETF {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/etfs/<ticker>/weekly-stochastic', methods=['GET'])
+    def get_etf_weekly_stochastic(ticker):
+        """API endpoint do pobierania Stochastic Oscillator dla cen tygodniowych ETF"""
+        try:
+            from models import ETF, ETFWeeklyPrice
+            from services.database_service import DatabaseService
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen tygodniowych z bazy danych
+            db_service = DatabaseService(api_service=api_service)
+            weekly_prices = db_service.get_weekly_prices(etf.id)
+            
+            if not weekly_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen tygodniowych dla {ticker}'
+                }), 404
+            
+            # Przygotowanie danych dla obliczeń
+            price_data = []
+            for price in weekly_prices:
+                price_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),  # Konwertuj date na string
+                    'close': price.normalized_close_price
+                })
+            
+            logger.info(f"Przygotowano {len(price_data)} cen dla Stochastic Oscillator")
+            logger.info(f"Przykładowe dane: {price_data[0] if price_data else 'Brak danych'}")
+            
+            # Obliczanie Stochastic Oscillator
+            stochastic_data = api_service.calculate_stochastic_oscillator(
+                price_data, 
+                lookback_period=36, 
+                smoothing_factor=12, 
+                sma_period=12
+            )
+            
+            logger.info(f"Funkcja calculate_stochastic_oscillator zwróciła: {len(stochastic_data) if stochastic_data else 0} punktów")
+            if stochastic_data:
+                logger.info(f"Przykładowy punkt: {stochastic_data[0]}")
+            
+            if not stochastic_data:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się obliczyć Stochastic Oscillator dla {ticker}'
+                }), 500
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for data in stochastic_data:
+                formatted_data.append({
+                    'date': data['date'].strftime('%Y-%m-%d'),
+                    'k_percent': round(data['k_percent_smoothed'], 2),
+                    'd_percent': round(data['d_percent'], 2),
+                    'current_price': round(data['current_price'], 2),
+                    'highest_high': round(data['highest_high'], 2),
+                    'lowest_low': round(data['lowest_low'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'stochastic': formatted_data,
+                    'count': len(formatted_data),
+                    'parameters': {
+                        'lookback_period': 36,
+                        'smoothing_factor': 12,
+                        'sma_period': 12
+                    },
+                    'date_range': {
+                        'start': formatted_data[0]['date'] if formatted_data else None,
+                        'end': formatted_data[-1]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF weekly stochastic for {ticker}: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)

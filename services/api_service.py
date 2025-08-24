@@ -360,12 +360,12 @@ class APIService:
                     
                     # Dodanie cen historycznych do cache
                     if 'eodhd_prices' in eodhd_data:
-                        data['fmp_prices'] = eodhd_data['eodhd_prices']  # Użyj jako fmp_prices dla kompatybilności
+                        data['eodhd_prices'] = eodhd_data['eodhd_prices']  # Zachowuję oryginalną nazwę
                         logger.info(f"Added EODHD prices to cache for {ticker}")
                     
                     # Dodanie dywidend do cache
                     if 'eodhd_dividends' in eodhd_data:
-                        data['fmp_dividends'] = eodhd_data['eodhd_dividends']  # Użyj jako fmp_dividends dla kompatybilności
+                        data['eodhd_dividends'] = eodhd_data['eodhd_dividends']  # Zachowuję oryginalną nazwę
                         logger.info(f"Added EODHD dividends to cache for {ticker}")
             
             # 3. FALLBACK: Tiingo - ostatnia cena
@@ -1486,3 +1486,127 @@ class APIService:
         except Exception as e:
             logger.error(f"Error calculating break-even dividends for {ticker}: {str(e)}")
             return {'error': str(e)}
+
+    def calculate_stochastic_oscillator(self, prices: List[Dict], lookback_period: int = 36, 
+                                      smoothing_factor: int = 12, sma_period: int = 12) -> List[Dict]:
+        """
+        Oblicza Stochastic Oscillator dla cen tygodniowych
+        
+        Args:
+            prices: Lista cen z polami 'date' i 'close' (znormalizowane)
+            lookback_period: Okres lookback dla %K (domyślnie 36)
+            smoothing_factor: Współczynnik wygładzania dla %K (domyślnie 12)
+            sma_period: Okres SMA dla %D (domyślnie 12)
+            
+        Returns:
+            Lista z datami i wartościami %K, %D
+        """
+        try:
+            logger.info(f"Rozpoczynam obliczanie Stochastic Oscillator: {len(prices)} cen, lookback={lookback_period}, smoothing={smoothing_factor}, sma={sma_period}")
+            
+            # Sprawdź format danych
+            if prices and len(prices) > 0:
+                sample_price = prices[0]
+                logger.info(f"Przykładowa cena: {sample_price}")
+                logger.info(f"Typ date: {type(sample_price['date'])}, Typ close: {type(sample_price['close'])}")
+            
+            # Test z prostymi danymi
+            if len(prices) >= 3:
+                test_prices = [
+                    {'date': '2020-01-01', 'close': 10.0},
+                    {'date': '2020-01-08', 'close': 12.0},
+                    {'date': '2020-01-15', 'close': 11.0}
+                ]
+                logger.info(f"Test z prostymi danymi: {test_prices}")
+            
+            if len(prices) < lookback_period:
+                logger.warning(f"Za mało danych dla Stochastic Oscillator: {len(prices)} < {lookback_period}")
+                return []
+            
+            # Sortowanie cen od najstarszych do najnowszych
+            sorted_prices = sorted(prices, key=lambda x: datetime.strptime(x['date'], '%Y-%m-%d').date() if isinstance(x['date'], str) else x['date'])
+            logger.info(f"Ceny posortowane: {len(sorted_prices)} punktów od {sorted_prices[0]['date']} do {sorted_prices[-1]['date']}")
+            
+            stochastic_data = []
+            
+            # Obliczanie %K dla każdego punktu
+            for i in range(lookback_period - 1, len(sorted_prices)):
+                current_price = sorted_prices[i]['close']
+                
+                # Znajdź najwyższą i najniższą cenę w okresie lookback
+                lookback_prices = sorted_prices[i - lookback_period + 1:i + 1]
+                high_prices = [p['close'] for p in lookback_prices]
+                low_prices = [p['close'] for p in lookback_prices]
+                
+                highest_high = max(high_prices)
+                lowest_low = min(low_prices)
+                
+                # Oblicz %K
+                if highest_high == lowest_low:
+                    k_percent = 50.0  # Jeśli wszystkie ceny są takie same
+                else:
+                    k_percent = ((current_price - lowest_low) / (highest_high - lowest_low)) * 100
+                
+                stochastic_data.append({
+                    'date': sorted_prices[i]['date'],
+                    'k_percent': k_percent,
+                    'highest_high': highest_high,
+                    'lowest_low': lowest_low,
+                    'current_price': current_price
+                })
+            
+            logger.info(f"Obliczono %K dla {len(stochastic_data)} punktów")
+            
+            # Wygładzanie %K (SMA)
+            if len(stochastic_data) >= smoothing_factor:
+                for i in range(smoothing_factor - 1, len(stochastic_data)):
+                    k_values = [stochastic_data[j]['k_percent'] for j in range(i - smoothing_factor + 1, i + 1)]
+                    smoothed_k = sum(k_values) / len(k_values)
+                    stochastic_data[i]['k_percent_smoothed'] = smoothed_k
+                
+                logger.info(f"Wygładzono %K dla {len(stochastic_data) - smoothing_factor + 1} punktów")
+            else:
+                logger.warning(f"Za mało danych dla wygładzania %K: {len(stochastic_data)} < {smoothing_factor}")
+                # Jeśli nie ma wystarczająco danych, użyj surowych wartości %K
+                for data in stochastic_data:
+                    data['k_percent_smoothed'] = data['k_percent']
+            
+            # Obliczanie %D (SMA z wygładzonego %K)
+            if len(stochastic_data) >= sma_period:
+                for i in range(sma_period - 1, len(stochastic_data)):
+                    smoothed_k_values = [stochastic_data[j]['k_percent_smoothed'] for j in range(i - sma_period + 1, i + 1)]
+                    d_percent = sum(smoothed_k_values) / len(smoothed_k_values)
+                    stochastic_data[i]['d_percent'] = d_percent
+                
+                logger.info(f"Obliczono %D dla {len(stochastic_data) - sma_period + 1} punktów")
+            else:
+                logger.warning(f"Za mało danych dla obliczenia %D: {len(stochastic_data)} < {sma_period}")
+                # Jeśli nie ma wystarczająco danych, użyj wygładzonych wartości %K jako %D
+                for data in stochastic_data:
+                    data['d_percent'] = data['k_percent_smoothed']
+            
+            # Usuń punkty bez pełnych danych
+            final_data = [data for data in stochastic_data if 'k_percent_smoothed' in data and 'd_percent' in data]
+            
+            logger.info(f"Stochastic Oscillator obliczony: {len(final_data)} punktów z {len(prices)} cen")
+            
+            # Debug - sprawdź co jest w stochastic_data
+            if stochastic_data:
+                logger.info(f"Przykład stochastic_data[0]: {stochastic_data[0]}")
+                logger.info(f"Pola w stochastic_data[0]: {list(stochastic_data[0].keys())}")
+            
+            # Test - sprawdź czy mamy dane
+            if final_data:
+                logger.info(f"PIERWSZY PUNKT: {final_data[0]}")
+                logger.info(f"OSTATNI PUNKT: {final_data[-1]}")
+            else:
+                logger.warning("BRAK DANYCH W FINAL_DATA!")
+                logger.warning(f"stochastic_data ma {len(stochastic_data)} punktów")
+                if stochastic_data:
+                    logger.warning(f"Przykład stochastic_data[0]: {stochastic_data[0]}")
+            
+            return final_data
+            
+        except Exception as e:
+            logger.error(f"Error calculating Stochastic Oscillator: {str(e)}")
+            return []

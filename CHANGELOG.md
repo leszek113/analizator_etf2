@@ -5,6 +5,34 @@ Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pli
 Format jest oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.0.0/),
 a projekt przestrzega [Semantic Versioning](https://semver.org/lang/pl/).
 
+## [1.9.11] - 2025-08-23
+
+### Naprawione
+- **Krytyczne błędy** - naprawiono wszystkie zidentyfikowane problemy w kodzie
+- **Aktualizacja zależności** - Flask zaktualizowany do wersji 2.3.3 (kompatybilnej z Python 3.11+)
+- **Walidacja inputów** - dodano sprawdzanie poprawności ticker w DatabaseService
+- **Spójność formatowania dat** - wszystkie modele używają UTC->CET konwersji
+- **Refaktoryzacja CSS** - wydzielono wspólne style do common.css
+- **Poprawiono nazewnictwo** - usunięto mylące aliasy w API service
+
+### Dodane
+- **Testy jednostkowe** - nowy plik test_unit.py z testami kluczowych funkcji
+- **Walidacja ticker** - metoda _validate_ticker w DatabaseService
+- **Wspólny CSS** - plik static/css/common.css z uniwersalnymi stylami
+- **Lepsze logowanie błędów** - szczegółowe komunikaty dla problemów z walidacją
+
+### Techniczne
+- **Flask 2.3.3** - stabilna wersja kompatybilna z Python 3.11+
+- **Werkzeug 2.3.7** - kompatybilna wersja z Flask 2.3.3
+- **NumPy 2.0.4** - zaktualizowana wersja dla lepszej wydajności
+- **Regex walidacja** - ticker musi zawierać tylko litery i cyfry
+- **Spójne formatowanie dat** - wszystkie timestampy używają UTC->CET
+
+### Poprawki bezpieczeństwa
+- **Walidacja inputów** - ochrona przed nieprawidłowymi ticker
+- **Sprawdzanie długości** - ticker nie może być dłuższy niż 20 znaków
+- **Format ticker** - tylko alfanumeryczne znaki (A-Z, 0-9)
+
 ## [1.9.10] - 2025-08-23
 
 ### Dodane

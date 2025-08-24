@@ -1,7 +1,7 @@
 # ETF Analyzer
 
-**Wersja:** v1.9.10  
-**Ostatnia aktualizacja:** 23 sierpnia 2025
+**Wersja:** v1.9.11  
+**Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
 
@@ -10,19 +10,20 @@
 ✅ **Tabela dywidend** - macierz miesięczna/kwartalna z sumami rocznymi
 ✅ **Normalizacja splitów** - automatyczne dostosowanie historycznych danych do splitów akcji
 ✅ **Wykres cen miesięcznych** - interaktywny wykres cen zamknięcia z ostatnich 15 lat
-✅ **Wykres rocznych dywidend** - interaktywny wykres słupkowy z przełącznikiem brutto/netto, etykietami kwot i procentami wzrostu
-✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend (12 miesięcznych, 4 kwartalnych, 1 rocznej)
+✅ **Wykres cen tygodniowych** - nowy wykres cen tygodniowych z ostatnich 15 lat
+✅ **Wykres rocznych dywidend** - interaktywny wykres słupkowy z przełącznikiem brutto/netto
+✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend
 ✅ **System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
-✅ **Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu, bazie danych i tokenach API
+✅ **Strona statusu systemu** - dedykowana pod-strona z informacjami o stanie systemu
 ✅ **Force Update System** - wymuszenie pełnej aktualizacji danych ETF z ignorowaniem cache
-✅ **API Token Optimization** - inteligentne oszczędzanie tokenów API poprzez wykorzystanie lokalnej bazy danych
+✅ **API Token Optimization** - inteligentne oszczędzanie tokenów API
 ✅ **Duplicate Prevention** - automatyczne sprawdzanie duplikatów przed dodaniem nowych danych
-✅ **Strefy czasowe w schedulerze** - automatyczna konwersja UTC ↔ CET z czytelnymi opisami zadań
+✅ **Strefy czasowe w schedulerze** - automatyczna konwersja UTC ↔ CET
 ✅ **Dashboard optimization** - zoptymalizowany układ kafelków z intuicyjną nawigacją
 ✅ **Scheduler Management** - zarządzanie zadaniami automatycznymi z interfejsem użytkownika
 ✅ **Ujednolicone nazwy zadań** - spójne nazewnictwo w całym systemie
-✅ **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend z wizualnymi wskaźnikami
-✅ **System podatku od dywidend** - globalne ustawienie stawki podatku z automatycznym przeliczaniem wszystkich wartości
+✅ **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend
+✅ **System podatku od dywidend** - globalne ustawienie stawki podatku z automatycznym przeliczaniem
 ✅ **Wartości brutto/netto** - wyświetlanie wartości przed i po podatku w czasie rzeczywistym
 ✅ **Polski format liczb** - wszystkie liczby wyświetlane z przecinkami jako separatorami dziesiętnymi
 ✅ **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
@@ -31,6 +32,9 @@
 ✅ **Interaktywne logi zadań** - podgląd historii wykonania zadań z czasami wykonania, statusami i błędami
 ✅ **Ręczne uruchamianie zadań** - możliwość ręcznego uruchomienia zadań scheduler'a przez API
 ✅ **Spójne strefy czasowe** - UTC wewnętrznie + CET w interfejsie użytkownika
+✅ **Walidacja inputów** - sprawdzanie poprawności ticker i innych danych wejściowych
+✅ **Testy jednostkowe** - pokrycie kodu testami dla kluczowych funkcji
+✅ **Wspólny CSS** - uniwersalne style dla całej aplikacji
 
 ## 🔌 **API Sources - Zaimplementowana Strategia**
 
@@ -56,7 +60,38 @@
 - **Yahoo Finance**: API błędy, "Expecting value: line 1 column 1"
 - **Alpha Vantage**: Limit 25 requestów/dzień
 
-## 🏗️ **Architektura**
+## 🆕 **Najnowsze funkcjonalności (v1.9.11)**
+
+### **🔒 Bezpieczeństwo i Walidacja**
+- **Walidacja ticker** - sprawdzanie poprawności formatu (tylko A-Z, 0-9, max 20 znaków)
+- **Regex walidacja** - automatyczne sprawdzanie poprawności danych wejściowych
+- **Ochrona przed błędami** - szczegółowe komunikaty dla problemów z walidacją
+- **Sprawdzanie długości** - ticker nie może być pusty ani za długi
+
+### **🧪 Testy i Jakość Kodu**
+- **Testy jednostkowe** - nowy plik `test_unit.py` z testami kluczowych funkcji
+- **Pokrycie testami** - testy dla APIService, DatabaseService, modeli i funkcji pomocniczych
+- **Mock obiekty** - testy bez zewnętrznych zależności (API, baza danych)
+- **Automatyczne uruchamianie** - skrypt do uruchamiania wszystkich testów
+
+### **🎨 Refaktoryzacja i Ulepszenia**
+- **Wspólny CSS** - plik `static/css/common.css` z uniwersalnymi stylami
+- **Usunięcie duplikatów** - style tabel, kart, przycisków w jednym miejscu
+- **Responsywny design** - media queries dla urządzeń mobilnych
+- **Spójne formatowanie** - jednolity wygląd w całej aplikacji
+
+### **📅 Spójność Formatowania Dat**
+- **UTC->CET konwersja** - wszystkie modele używają spójnej konwersji stref czasowych
+- **Poprawione modele** - APILimit i DividendTaxRate teraz używają UTC->CET
+- **Jednolite timestampy** - wszystkie daty w interfejsie użytkownika w czasie polskim
+
+### **📦 Aktualizacja Zależności**
+- **Flask 2.3.3** - stabilna wersja kompatybilna z Python 3.11+
+- **Werkzeug 2.3.7** - kompatybilna wersja z Flask 2.3.3
+- **NumPy 2.0.4** - zaktualizowana wersja dla lepszej wydajności
+- **Bezpieczne wersje** - wszystkie zależności w stabilnych wersjach produkcyjnych
+
+## ��️ **Architektura**
 
 - **Backend**: Flask + Python 3.11+
 - **Database**: SQLite (z możliwością migracji na PostgreSQL)
@@ -122,18 +157,42 @@ python app.py
 # - Kolumna wieku ETF (automatyczne obliczanie na podstawie daty IPO)
 # - Sortowanie według wieku na rynku
 # - Aktualizacje automatyczne przy każdej aktualizacji danych
+# - Rzeczywiste dane rynkowe (data IPO z FMP API)
+# - Automatyczne obliczanie wieku na podstawie daty IPO z FMP API
 
 ### **🎯 Nowe funkcjonalności dostępne po uruchomieniu:**
-- **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu w szczegółach ETF
-- **System podatku od dywidend** - edytowalne pole w dashboard z real-time przeliczaniem
-- **Wartości brutto/netto** - wszystkie kwoty pokazują wartości przed i po podatku
-- **Kolorowe wskaźniki** - zielone/czerwone badge'y dla trendów dywidendy
-- **Tooltipy informacyjne** - wyjaśnienia obliczeń po najechaniu myszką
-- **Real-time aktualizacje** - wszystkie wartości przeliczają się automatycznie
+- **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend
+- **System podatku od dywidend** - globalne ustawienie stawki podatku z real-time przeliczaniem
+- **Wartości brutto/netto** - wyświetlanie wartości przed i po podatku w całym systemie
+- **Kolorowe wskaźniki** - zielone badge'y dla wzrostu, czerwone dla spadku dywidendy
+- **Tooltipy informacyjne** - wyjaśnienia obliczeń i funkcjonalności po najechaniu myszką
+- **Real-time aktualizacje** - wszystkie wartości aktualizują się automatycznie
 - **Inteligentne fallback** - automatyczne przełączanie między rokiem poprzednim a bieżącym
 - **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
-- **Kolumna wieku ETF** - automatyczne obliczanie wieku ETF na podstawie daty IPO z FMP API
-- **Sortowanie według wieku** - możliwość sortowania ETF według wieku na rynku
+- **Spójne formatowanie** - jednolity wygląd liczb w całym systemie
+- **Filtry Jinja2** - `comma_format` i `dot_format` dla spójnego formatowania
+- **JavaScript compatibility** - rozdzielenie formatowania wyświetlania od parsowania
+- **Real-time obliczenia** - wszystkie wartości aktualizują się automatycznie
+- **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
+- **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
+- **Inteligentne fallback** - automatyczne przełączanie między rokiem poprzednim a bieżącym
+- **Real-time aktualizacje** - wszystkie wartości aktualizują się automatycznie
+- **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
+- **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
+- **Inteligentne fallback** - automatyczne przełączanie między różnymi źródłami danych
+- **Real-time aktualizacje** - wszystkie wartości aktualizują się automatycznie
+- **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
+- **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
+- **Inteligentne fallback** - automatyczne przełączanie między rokiem poprzednim a bieżącym
+- **Real-time aktualizacje** - wszystkie wartości aktualizują się automatycznie
+- **Wizualne wskaźniki** - kolorowe badge'y dla trendów dywidendy
+- **Tooltipy informacyjne** - wyjaśnienia funkcjonalności po najechaniu myszką
+- **Kolumna wieku ETF** - automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+- **Rzeczywiste dane rynkowe** - wiek oparty na dacie IPO, nie na dacie dodania do systemu
+- **Informacja o wersji systemu** - karta "Wersja systemu" na dashboard
+- **Walidacja inputów** - sprawdzanie poprawności ticker i innych danych wejściowych
+- **Testy jednostkowe** - pokrycie kodu testami dla kluczowych funkcji
+- **Wspólny CSS** - uniwersalne style dla całej aplikacji
 ```
 
 ## 🚀 **Force Update System**
@@ -666,6 +725,30 @@ Prognozowany wzrost = (Suma ostatnich dywidend - Suma roczna z poprzedniego roku
 
 ## 🧪 **Testowanie**
 
+### **Testy Integracyjne**
+- **test_system.py** - testy całego systemu (wymaga uruchomionej aplikacji)
+- **test_stochastic.py** - testy obliczeń Stochastic Oscillator
+
+### **Testy Jednostkowe (NOWE w v1.9.11)**
+- **test_unit.py** - testy kluczowych funkcji bez zewnętrznych zależności
+- **Pokrycie testami**:
+  - APIService: rate limiting, increment API calls
+  - DatabaseService: walidacja ticker, prognozy dywidend
+  - Modele: konwersja ETF na dict
+  - Funkcje pomocnicze: konwersja UTC->CET
+
+### **Uruchamianie testów**
+```bash
+# Testy jednostkowe (nie wymagają uruchomionej aplikacji)
+python3 test_unit.py
+
+# Testy integracyjne (wymagają uruchomionej aplikacji)
+python3 test_system.py
+
+# Testy Stochastic Oscillator
+python3 test_stochastic.py
+```
+
 ### **Przetestowane ETF**
 - **SPY** ✅ - Działa perfekcyjnie
   - Cena: $641.76 (prawdziwa z FMP)
@@ -816,10 +899,23 @@ MIT License - zobacz plik LICENSE
 11. **✅ System podatku od dywidend** - globalne ustawienie z real-time przeliczaniem
 12. **✅ Polski format liczb** - spójne formatowanie z przecinkami
 13. **✅ Kolumna wieku ETF** - rzeczywisty wiek ETF na rynku na podstawie daty IPO
+14. **✅ Wykres cen tygodniowych** - nowy wykres z ostatnich 15 lat
+15. **✅ Walidacja inputów** - sprawdzanie poprawności ticker (v1.9.11)
+16. **✅ Testy jednostkowe** - pokrycie kodu testami (v1.9.11)
+17. **✅ Wspólny CSS** - uniwersalne style dla całej aplikacji (v1.9.11)
+18. **✅ Spójne formatowanie dat** - UTC->CET w całym systemie (v1.9.11)
+19. **✅ Aktualizacja zależności** - stabilne wersje produkcyjne (v1.9.11)
 
 **Projekt jest gotowy do produkcji i spełnia wszystkie wymagania CEO!** 🚀
 
 **Następny etap: Implementacja prezentacji cen i dywidend dla każdego ETF**
+
+### **🎯 Najnowsze osiągnięcia (2025-08-24):**
+- **✅ Walidacja inputów** - sprawdzanie poprawności ticker i innych danych wejściowych
+- **✅ Testy jednostkowe** - pokrycie kodu testami dla kluczowych funkcji
+- **✅ Wspólny CSS** - uniwersalne style dla całej aplikacji
+- **✅ Spójne formatowanie dat** - UTC->CET konwersja w całym systemie
+- **✅ Aktualizacja zależności** - Flask 2.3.3, Werkzeug 2.3.7, NumPy 2.0.4
 
 ### **🎯 Najnowsze osiągnięcia (2025-08-23):**
 - **✅ Scheduler Management** - profesjonalny interfejs zarządzania zadaniami automatycznymi

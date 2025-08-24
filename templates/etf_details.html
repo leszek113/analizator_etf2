@@ -387,11 +387,22 @@
                     <div class="chart-container" style="position: relative; height:400px;">
                         <canvas id="weeklyPriceChart"></canvas>
                     </div>
+                    
+                    <!-- Wykres Stochastic Oscillator -->
+                    <div class="chart-container mt-3" style="position: relative; height:200px;">
+                        <canvas id="stochasticChart"></canvas>
+                    </div>
+                    
                     <div class="mt-3">
                         <small class="text-muted">
                             <i class="bi bi-info-circle"></i>
                             Wykres pokazuje ceny zamknięcia na koniec każdego tygodnia. 
                             Ceny są znormalizowane względem splitów akcji.
+                        </small>
+                        <br>
+                        <small class="text-muted">
+                            <i class="bi bi-graph-up"></i>
+                            Stochastic Oscillator: %K (zielona), %D (czerwona), poziomy 20% (oversold) i 80% (overbought)
                         </small>
                     </div>
                 </div>
@@ -437,6 +448,7 @@
         // Inicjalizacja wykresów
         let priceChart = null;
         let weeklyPriceChart = null;
+        let stochasticChart = null;
         let dividendChart = null;
         let breakEvenChart = null;
         
@@ -975,6 +987,130 @@
                 });
         }
         
+        // Funkcja do tworzenia wykresu Stochastic Oscillator
+        function createStochasticChart(ticker) {
+            fetch(`/api/etfs/${ticker}/weekly-stochastic`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const ctx = document.getElementById('stochasticChart').getContext('2d');
+                        
+                        // Przygotowanie danych dla Chart.js
+                        const labels = data.data.stochastic.map(s => s.date);
+                        const kPercent = data.data.stochastic.map(s => s.k_percent);
+                        const dPercent = data.data.stochastic.map(s => s.d_percent);
+                        
+                        // Usunięcie poprzedniego wykresu jeśli istnieje
+                        if (stochasticChart) {
+                            stochasticChart.destroy();
+                        }
+                        
+                        // Tworzenie nowego wykresu Stochastic Oscillator
+                        stochasticChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: '%K (zielona)',
+                                        data: kPercent,
+                                        borderColor: 'rgb(34, 197, 94)',
+                                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic'
+                                    },
+                                    {
+                                        label: '%D (czerwona)',
+                                        data: dPercent,
+                                        borderColor: 'rgb(239, 68, 68)',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderWidth: 2,
+                                        pointRadius: 1,
+                                        pointHoverRadius: 4,
+                                        tension: 0.1,
+                                        fill: false,
+                                        yAxisID: 'y-stochastic'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(context) {
+                                                // Format daty: YYYY.MM.DD
+                                                const date = new Date(context[0].label);
+                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                            },
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                const datasetLabel = context.dataset.label;
+                                                return `${datasetLabel}: ${value.toFixed(2)}%`;
+                                            }
+                                        }
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top'
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        display: false,  // Ukryj oś X - będzie wspólna z wykresem cen
+                                        grid: {
+                                            display: false
+                                        }
+                                    },
+                                    'y-stochastic': {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Stochastic %'
+                                        },
+                                        min: 0,
+                                        max: 100,
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value + '%';
+                                            }
+                                        },
+                                        grid: {
+                                            color: function(context) {
+                                                if (context.tick.value === 20 || context.tick.value === 80) {
+                                                    return 'rgba(239, 68, 68, 0.5)';  // Czerwone linie dla 20% i 80%
+                                                }
+                                                return 'rgba(0, 0, 0, 0.1)';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        console.log(`Wykres Stochastic Oscillator utworzony dla ${ticker}: ${data.data.count} punktów danych`);
+                    } else {
+                        console.error('Błąd pobierania danych Stochastic Oscillator:', data.error);
+                        document.getElementById('stochasticChart').innerHTML = 
+                            '<div class="alert alert-warning">Nie udało się załadować wykresu Stochastic Oscillator</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania danych Stochastic Oscillator:', error);
+                    document.getElementById('stochasticChart').innerHTML = 
+                        '<div class="alert alert-danger">Błąd podczas ładowania wykresu Stochastic Oscillator</div>';
+                });
+        }
+        
         // Funkcja do tworzenia wykresu cen
         function createPriceChart(ticker) {
             fetch(`/api/etfs/${ticker}/prices`)
@@ -1080,6 +1216,7 @@
             
             createPriceChart(ticker);
             createWeeklyPriceChart(ticker);
+            createStochasticChart(ticker); // Dodanie wywołania createStochasticChart
             createBreakEvenChart(ticker);
             
             // Inicjalizacja opisów target percentage

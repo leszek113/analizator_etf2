@@ -1,31 +1,35 @@
 #!/bin/bash
 
 # =============================================================================
-# ETF Analyzer - Application Management Script
+# ETF Analyzer - Skrypt Zarządzania Aplikacją v1.9.11
 # =============================================================================
 # 
-# Usage: ./scripts/manage-app.sh [start|stop|restart|status|logs|clean]
+# Użycie:
+#   ./manage-app.sh [start|stop|restart|status|logs|test|deploy|version]
 # 
-# Commands:
-#   start   - Start the ETF Analyzer application
-#   stop    - Stop the running application
-#   restart - Restart the application
-#   status  - Show application status and information
-#   logs    - Show recent application logs
-#   clean   - Clean up old processes and logs
+# Przykłady:
+#   ./manage-app.sh start      # Uruchomienie aplikacji
+#   ./manage-app.sh stop       # Zatrzymanie aplikacji
+#   ./manage-app.sh restart    # Restart aplikacji
+#   ./manage-app.sh status     # Status aplikacji
+#   ./manage-app.sh logs       # Wyświetlenie logów
+#   ./manage-app.sh test       # Uruchomienie testów
+#   ./manage-app.sh deploy     # Wdrożenie nowej wersji
+#   ./manage-app.sh version    # Informacje o wersji
 # =============================================================================
 
-# Configuration
+# Konfiguracja
 APP_NAME="ETF Analyzer"
-APP_PORT=${APP_PORT_OVERRIDE:-5005}
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_FILE="$APP_DIR/app.py"
-VENV_DIR="$APP_DIR/venv"
-PID_FILE="$APP_DIR/etf-analyzer.pid"
-LOG_FILE="$APP_DIR/etf-analyzer.log"
-LOCK_FILE="$APP_DIR/etf-analyzer.lock"
+APP_VERSION="v1.9.11"
+APP_FILE="app.py"
+APP_PORT="5005"
+APP_HOST="127.0.0.1"
+LOG_FILE="etf-analyzer.log"
+PID_FILE="etf-analyzer.pid"
+VENV_DIR="venv"
+PYTHON_CMD="python3"
 
-# Colors for output
+# Kolory dla output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,322 +38,366 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Function to print colored output
-print_status() {
-    local color=$1
-    local message=$2
-    echo -e "${color}[$(date '+%Y-%m-%d %H:%M:%S')] $message${NC}"
+# Funkcje pomocnicze
+print_header() {
+    echo -e "${CYAN}"
+    echo "============================================================================="
+    echo "  $APP_NAME $APP_VERSION - Skrypt Zarządzania"
+    echo "============================================================================="
+    echo -e "${NC}"
 }
 
-# Function to check if application is running
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
+print_step() {
+    echo -e "${PURPLE}🔧 $1${NC}"
+}
+
+# Sprawdzenie czy aplikacja jest uruchomiona
 is_running() {
-    # First check PID file
     if [ -f "$PID_FILE" ]; then
-        local pid=$(cat "$PID_FILE")
-        if ps -p "$pid" > /dev/null 2>&1; then
+        PID=$(cat "$PID_FILE")
+        if ps -p $PID > /dev/null 2>&1; then
             return 0
         else
-            # PID file exists but process is dead
             rm -f "$PID_FILE"
-        fi
-    fi
-    
-    # Check if any Python process is running app.py
-    if pgrep -f "python.*app\.py" > /dev/null 2>&1; then
-        return 0
-    fi
-    
-    # Check if port is listening
-    if lsof -i :$APP_PORT > /dev/null 2>&1; then
-        return 0
-    fi
-    
-    return 1
-}
-
-# Function to get running PID
-get_running_pid() {
-    # First try PID file
-    if [ -f "$PID_FILE" ]; then
-        local pid=$(cat "$PID_FILE")
-        if ps -p "$pid" > /dev/null 2>&1; then
-            echo "$pid"
-            return 0
-        fi
-    fi
-    
-    # Try to find Python process running app.py
-    local python_pid=$(pgrep -f "python.*app\.py" | head -1)
-    if [ -n "$python_pid" ]; then
-        echo "$python_pid"
-        return 0
-    fi
-    
-    # Try to find process using the port
-    local port_pid=$(lsof -ti :$APP_PORT 2>/dev/null | head -1)
-    if [ -n "$port_pid" ]; then
-        echo "$port_pid"
-        return 0
-    fi
-    
-    echo ""
-    return 1
-}
-
-# Function to get application status
-get_status() {
-    if is_running; then
-        local pid=$(get_running_pid)
-        if [ -z "$pid" ]; then
-            echo -e "${RED}✗ $APP_NAME is NOT RUNNING${NC}"
-            echo -e "  Port $APP_PORT is available"
             return 1
         fi
-        
-        local uptime=$(ps -o etime= -p "$pid" 2>/dev/null || echo "Unknown")
-        local memory=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{print $1/1024 " MB"}' || echo "Unknown")
-        local cpu=$(ps -o %cpu= -p "$pid" 2>/dev/null || echo "Unknown")
-        
-        echo -e "${GREEN}✓ $APP_NAME is RUNNING${NC}"
-        echo -e "  PID: $pid"
-        echo -e "  Port: $APP_PORT"
-        echo -e "  Uptime: $uptime"
-        echo -e "  Memory: $memory"
-        echo -e "  CPU: $cpu%"
-        
-        # Check if port is listening
-        if lsof -i :$APP_PORT > /dev/null 2>&1; then
-            echo -e "  Port Status: ${GREEN}LISTENING${NC}"
-        else
-            echo -e "  Port Status: ${RED}NOT LISTENING${NC}"
-        fi
-        
-        # Check API health
-        if curl -s "http://localhost:$APP_PORT/api/system/status" > /dev/null 2>&1; then
-            echo -e "  API Health: ${GREEN}HEALTHY${NC}"
-            
-            # Get system version
-            local version=$(curl -s "http://localhost:$APP_PORT/api/system/version" | awk -F'"' '/"version":/ {print $4}' 2>/dev/null || echo "Unknown")
-            echo -e "  System Version: ${CYAN}v$version${NC}"
-        else
-            echo -e "  API Health: ${RED}UNHEALTHY${NC}"
-        fi
-        
+    fi
+    return 1
+}
+
+# Sprawdzenie czy port jest zajęty
+is_port_occupied() {
+    if lsof -Pi :$APP_PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
+        return 0
     else
-        echo -e "${RED}✗ $APP_NAME is NOT RUNNING${NC}"
-        echo -e "  Port $APP_PORT is available"
+        return 1
     fi
 }
 
-# Function to start application
-start_app() {
-    if is_running; then
-        print_status $YELLOW "$APP_NAME is already running"
-        get_status
-        return 0
-    fi
-    
-    # Check if port is available
-    if lsof -i :$APP_PORT > /dev/null 2>&1; then
-        print_status $RED "Port $APP_PORT is already in use by another process"
-        lsof -i :$APP_PORT
-        return 1
-    fi
-    
-    # Check if app file exists
-    if [ ! -f "$APP_FILE" ]; then
-        print_status $RED "Application file not found: $APP_FILE"
-        return 1
-    fi
-    
-    # Check if virtual environment exists
+# Sprawdzenie czy virtual environment istnieje
+check_venv() {
     if [ ! -d "$VENV_DIR" ]; then
-        print_status $RED "Virtual environment not found: $VENV_DIR"
+        print_warning "Virtual environment nie istnieje. Tworzenie..."
+        $PYTHON_CMD -m venv "$VENV_DIR"
+        print_success "Virtual environment utworzony"
+    fi
+    
+    if [ ! -f "$VENV_DIR/bin/activate" ]; then
+        print_error "Błąd: Virtual environment jest uszkodzony"
+        exit 1
+    fi
+}
+
+# Aktywacja virtual environment
+activate_venv() {
+    source "$VENV_DIR/bin/activate"
+    print_info "Virtual environment aktywowany"
+}
+
+# Sprawdzenie zależności
+check_dependencies() {
+    print_step "Sprawdzanie zależności..."
+    
+    if ! pip show Flask > /dev/null 2>&1; then
+        print_warning "Flask nie jest zainstalowany. Instalowanie zależności..."
+        pip install -r requirements.txt
+        print_success "Zależności zainstalowane"
+    else
+        print_success "Wszystkie zależności są zainstalowane"
+    fi
+}
+
+# Uruchomienie aplikacji
+start_app() {
+    print_step "Uruchamianie $APP_NAME..."
+    
+    if is_running; then
+        print_warning "Aplikacja jest już uruchomiona (PID: $(cat $PID_FILE))"
         return 1
     fi
     
-    print_status $BLUE "Starting $APP_NAME..."
+    if is_port_occupied; then
+        print_error "Port $APP_PORT jest już zajęty"
+        return 1
+    fi
     
-    # Create log directory if it doesn't exist
-    mkdir -p "$(dirname "$LOG_FILE")"
+    check_venv
+    activate_venv
+    check_dependencies
     
-    # Start application in background
-    cd "$APP_DIR"
-    source "$VENV_DIR/bin/activate"
+    print_step "Uruchamianie aplikacji na porcie $APP_PORT..."
     
-    # Start with nohup to keep it running
-    nohup python "$APP_FILE" > "$LOG_FILE" 2>&1 &
-    local pid=$!
+    # Uruchomienie w tle z logowaniem
+    nohup $PYTHON_CMD $APP_FILE > "$LOG_FILE" 2>&1 &
+    PID=$!
+    echo $PID > "$PID_FILE"
     
-    # Save PID to file
-    echo $pid > "$PID_FILE"
-    
-    # Wait a moment and check if it started successfully
+    # Czekanie na uruchomienie
     sleep 3
     
     if is_running; then
-        print_status $GREEN "$APP_NAME started successfully (PID: $pid)"
-        print_status $BLUE "Logs: $LOG_FILE"
-        print_status $BLUE "Dashboard: http://localhost:$APP_PORT"
-        get_status
+        print_success "Aplikacja uruchomiona pomyślnie (PID: $PID)"
+        print_info "Dashboard dostępny pod adresem: http://$APP_HOST:$APP_PORT"
+        print_info "API status: http://$APP_HOST:$APP_PORT/api/system/status"
+        print_info "Logi: tail -f $LOG_FILE"
     else
-        print_status $RED "Failed to start $APP_NAME"
-        print_status $YELLOW "Check logs: $LOG_FILE"
+        print_error "Błąd uruchamiania aplikacji"
+        rm -f "$PID_FILE"
         return 1
     fi
 }
 
-# Function to stop application
+# Zatrzymanie aplikacji
 stop_app() {
-    if ! is_running; then
-        print_status $YELLOW "$APP_NAME is not running"
-        return 0
-    fi
+    print_step "Zatrzymywanie $APP_NAME..."
     
-    local pid=$(get_running_pid)
-    if [ -z "$pid" ]; then
-        print_status $RED "Could not determine PID of running application"
+    if ! is_running; then
+        print_warning "Aplikacja nie jest uruchomiona"
         return 1
     fi
     
-    print_status $BLUE "Stopping $APP_NAME (PID: $pid)..."
+    PID=$(cat "$PID_FILE")
+    print_info "Zatrzymywanie procesu (PID: $PID)..."
     
-    # Try graceful shutdown first
-    kill "$pid" 2>/dev/null
+    kill $PID
     
-    # Wait for graceful shutdown
-    local count=0
-    while [ $count -lt 10 ] && is_running; do
+    # Czekanie na zakończenie
+    for i in {1..10}; do
+        if ! is_running; then
+            break
+        fi
         sleep 1
-        count=$((count + 1))
     done
     
-    # Force kill if still running
     if is_running; then
-        print_status $YELLOW "Force killing process..."
-        kill -9 "$pid" 2>/dev/null
+        print_warning "Proces nie zakończył się. Wymuszenie zakończenia..."
+        kill -9 $PID
         sleep 1
     fi
     
-    # Clean up PID file
-    if [ -f "$PID_FILE" ]; then
-        rm -f "$PID_FILE"
-    fi
-    
-    # Check if port is free
-    if ! lsof -i :$APP_PORT > /dev/null 2>&1; then
-        print_status $GREEN "$APP_NAME stopped successfully"
-    else
-        print_status $RED "Failed to stop $APP_NAME - port still in use"
-        lsof -i :$APP_PORT
-        return 1
-    fi
+    rm -f "$PID_FILE"
+    print_success "Aplikacja zatrzymana"
 }
 
-# Function to restart application
+# Restart aplikacji
 restart_app() {
-    print_status $BLUE "Restarting $APP_NAME..."
+    print_step "Restart $APP_NAME..."
     stop_app
     sleep 2
     start_app
 }
 
-# Function to show logs
-show_logs() {
-    if [ -f "$LOG_FILE" ]; then
-        print_status $BLUE "Recent logs from $LOG_FILE:"
-        echo "----------------------------------------"
-        tail -50 "$LOG_FILE"
-    else
-        print_status $YELLOW "No log file found: $LOG_FILE"
-    fi
-}
-
-# Function to clean up
-clean_up() {
-    print_status $BLUE "Cleaning up $APP_NAME..."
+# Status aplikacji
+show_status() {
+    print_step "Status $APP_NAME..."
     
-    # Remove PID file if process is not running
-    if [ -f "$PID_FILE" ]; then
-        local pid=$(cat "$PID_FILE")
-        if ! ps -p "$pid" > /dev/null 2>&1; then
-            rm -f "$PID_FILE"
-            print_status $GREEN "Removed stale PID file"
+    if is_running; then
+        PID=$(cat "$PID_FILE")
+        print_success "Aplikacja jest uruchomiona (PID: $PID)"
+        
+        # Sprawdzenie portu
+        if is_port_occupied; then
+            print_success "Port $APP_PORT jest aktywny"
+        else
+            print_warning "Port $APP_PORT nie jest aktywny"
+        fi
+        
+        # Sprawdzenie API
+        if curl -s "http://$APP_HOST:$APP_PORT/api/system/status" > /dev/null 2>&1; then
+            print_success "API odpowiada"
+        else
+            print_warning "API nie odpowiada"
+        fi
+        
+        # Informacje o procesie
+        if ps -p $PID > /dev/null 2>&1; then
+            CPU=$(ps -p $PID -o %cpu --no-headers)
+            MEM=$(ps -p $PID -o %mem --no-headers)
+            print_info "Użycie CPU: ${CPU}%, Pamięć: ${MEM}%"
+        fi
+        
+    else
+        print_warning "Aplikacja nie jest uruchomiona"
+        
+        # Sprawdzenie czy port jest zajęty przez inny proces
+        if is_port_occupied; then
+            print_warning "Port $APP_PORT jest zajęty przez inny proces"
+            lsof -i :$APP_PORT
         fi
     fi
     
-    # Remove lock file if exists
-    if [ -f "$LOCK_FILE" ]; then
-        rm -f "$LOCK_FILE"
-        print_status $GREEN "Removed lock file"
-    fi
-    
-    # Kill any remaining processes on the port
-    local port_processes=$(lsof -ti :$APP_PORT 2>/dev/null)
-    if [ -n "$port_processes" ]; then
-        print_status $YELLOW "Killing processes using port $APP_PORT: $port_processes"
-        echo "$port_processes" | xargs kill -9 2>/dev/null
-    fi
-    
-    print_status $GREEN "Cleanup completed"
+    # Informacje o systemie
+    echo
+    print_info "Informacje o systemie:"
+    echo "  - Python: $($PYTHON_CMD --version 2>/dev/null || echo 'Nie zainstalowany')"
+    echo "  - Virtual Environment: $([ -d "$VENV_DIR" ] && echo 'Dostępny' || echo 'Nie istnieje')"
+    echo "  - Port: $APP_PORT"
+    echo "  - Host: $APP_HOST"
+    echo "  - Logi: $LOG_FILE"
 }
 
-# Function to show help
-show_help() {
-    echo -e "${CYAN}$APP_NAME Management Script${NC}"
-    echo "=================================="
-    echo ""
-    echo "Usage: $0 [COMMAND]"
-    echo ""
-    echo "Commands:"
-    echo -e "  ${GREEN}start${NC}   - Start the $APP_NAME application"
-    echo -e "  ${GREEN}stop${NC}    - Stop the running application"
-    echo -e "  ${GREEN}restart${NC} - Restart the application"
-    echo -e "  ${GREEN}status${NC}  - Show application status and information"
-    echo -e "  ${GREEN}logs${NC}    - Show recent application logs"
-    echo -e "  ${GREEN}clean${NC}   - Clean up old processes and logs"
-    echo -e "  ${GREEN}help${NC}    - Show this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0 start"
-    echo "  $0 status"
-    echo "  $0 restart"
-    echo ""
-    echo "Configuration:"
-    echo "  App Directory: $APP_DIR"
-    echo "  Port: $APP_PORT"
-    echo "  PID File: $PID_FILE"
-    echo "  Log File: $LOG_FILE"
+# Wyświetlenie logów
+show_logs() {
+    print_step "Logi $APP_NAME..."
+    
+    if [ ! -f "$LOG_FILE" ]; then
+        print_warning "Plik logów nie istnieje"
+        return 1
+    fi
+    
+    if [ "$1" = "follow" ]; then
+        print_info "Wyświetlanie logów w czasie rzeczywistym (Ctrl+C aby zatrzymać)..."
+        tail -f "$LOG_FILE"
+    else
+        print_info "Ostatnie 50 linii logów:"
+        tail -50 "$LOG_FILE"
+        echo
+        print_info "Aby śledzić logi w czasie rzeczywistym: $0 logs follow"
+    fi
 }
 
-# Main script logic
-case "${1:-help}" in
+# Uruchomienie testów
+run_tests() {
+    print_step "Uruchamianie testów $APP_NAME..."
+    
+    check_venv
+    activate_venv
+    check_dependencies
+    
+    echo
+    print_info "Testy jednostkowe (nie wymagają uruchomionej aplikacji):"
+    $PYTHON_CMD test_unit.py
+    
+    echo
+    print_info "Testy integracyjne (wymagają uruchomionej aplikacji):"
+    if is_running; then
+        $PYTHON_CMD test_system.py
+    else
+        print_warning "Aplikacja nie jest uruchomiona. Uruchom testy po uruchomieniu aplikacji."
+    fi
+    
+    echo
+    print_info "Testy Stochastic Oscillator:"
+    $PYTHON_CMD test_stochastic.py
+}
+
+# Wdrożenie nowej wersji
+deploy_app() {
+    print_step "Wdrażanie nowej wersji $APP_NAME..."
+    
+    print_info "Wersja docelowa: $APP_VERSION"
+    
+    # Sprawdzenie czy są niezacommitowane zmiany
+    if [ -d ".git" ]; then
+        if ! git diff-index --quiet HEAD --; then
+            print_warning "Wykryto niezacommitowane zmiany. Zatwierdź je przed wdrożeniem."
+            git status --short
+            return 1
+        fi
+    fi
+    
+    # Zatrzymanie aplikacji
+    if is_running; then
+        print_info "Zatrzymywanie aplikacji przed wdrożeniem..."
+        stop_app
+    fi
+    
+    # Aktualizacja zależności
+    print_step "Aktualizacja zależności..."
+    check_venv
+    activate_venv
+    pip install -r requirements.txt --upgrade
+    
+    # Uruchomienie testów
+    print_step "Uruchamianie testów po aktualizacji..."
+    run_tests
+    
+    # Uruchomienie aplikacji
+    print_step "Uruchamianie aplikacji po aktualizacji..."
+    start_app
+    
+    print_success "Wdrożenie zakończone pomyślnie!"
+}
+
+# Informacje o wersji
+show_version() {
+    print_header
+    echo "  Wersja: $APP_VERSION"
+    echo "  Data: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "  Python: $($PYTHON_CMD --version 2>/dev/null || echo 'Nie zainstalowany')"
+    echo "  Katalog: $(pwd)"
+    echo "  Użytkownik: $(whoami)"
+    echo "  System: $(uname -s) $(uname -r)"
+    echo
+    print_info "Dostępne komendy:"
+    echo "  start    - Uruchomienie aplikacji"
+    echo "  stop     - Zatrzymanie aplikacji"
+    echo "  restart  - Restart aplikacji"
+    echo "  status   - Status aplikacji"
+    echo "  logs     - Wyświetlenie logów"
+    echo "  test     - Uruchomienie testów"
+    echo "  deploy   - Wdrożenie nowej wersji"
+    echo "  version  - Informacje o wersji"
+}
+
+# Główna logika
+case "$1" in
     start)
+        print_header
         start_app
         ;;
     stop)
+        print_header
         stop_app
         ;;
     restart)
+        print_header
         restart_app
         ;;
     status)
-        get_status
+        print_header
+        show_status
         ;;
     logs)
-        show_logs
+        print_header
+        show_logs "$2"
         ;;
-    clean)
-        clean_up
+    test)
+        print_header
+        run_tests
         ;;
-    help|--help|-h)
-        show_help
+    deploy)
+        print_header
+        deploy_app
+        ;;
+    version)
+        show_version
         ;;
     *)
-        print_status $RED "Unknown command: $1"
-        echo ""
-        show_help
+        show_version
+        echo
+        print_error "Nieznana komenda: $1"
+        echo
+        print_info "Użycie: $0 [start|stop|restart|status|logs|test|deploy|version]"
         exit 1
         ;;
 esac
+
+exit 0
 

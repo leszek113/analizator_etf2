@@ -232,9 +232,9 @@ class APILimit(db.Model):
             'api_type': self.api_type,
             'current_count': self.current_count,
             'daily_limit': self.daily_limit,
-            'last_reset': self.last_reset.isoformat() if self.last_reset else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'last_reset': utc_to_cet(self.last_reset).isoformat() if self.last_reset else None,
+            'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None,
+            'updated_at': utc_to_cet(self.updated_at).isoformat() if self.updated_at else None
         }
 
 class DividendTaxRate(db.Model):
@@ -254,6 +254,6 @@ class DividendTaxRate(db.Model):
             'id': self.id,
             'tax_rate': self.tax_rate,
             'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None,
+            'updated_at': utc_to_cet(self.updated_at).isoformat() if self.updated_at else None
         }
