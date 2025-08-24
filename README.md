@@ -1,6 +1,6 @@
-# 📊 ETF Analyzer v1.9.15
+# 📊 ETF Analyzer v1.9.16
 
-**Wersja:** v1.9.15  
+**Wersja:** v1.9.16  
 **Ostatnia aktualizacja:** 24 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
@@ -11,6 +11,7 @@
 ✅ **Normalizacja splitów** - automatyczne dostosowanie historycznych danych do splitów akcji
 ✅ **Wykres cen miesięcznych** - interaktywny wykres cen zamknięcia z ostatnich 15 lat
 ✅ **Wykres cen tygodniowych** - nowy wykres cen tygodniowych z ostatnich 15 lat
+✅ **Wykres cen dziennych** - nowy wykres cen dziennych z rolling window 365 dni
 ✅ **Wykres rocznych dywidend** - interaktywny wykres słupkowy z przełącznikiem brutto/netto
 ✅ **Suma ostatnich dywidend** - automatyczne obliczanie sumy ostatnich dywidend
 ✅ **System powiadomień API** - monitoring tokenów API z ostrzeżeniami o wyczerpaniu limitów
@@ -89,6 +90,45 @@
 2. **MACD (8-17-9)** - Moving Average Convergence Divergence
 3. **Stochastic Oscillator (36-12-12)** - długoterminowy
 4. **Stochastic Oscillator (9-3-3)** - krótkoterminowy
+
+## 🆕 Najnowsze funkcjonalności (v1.9.16)
+
+### 🆕 **Nowe funkcjonalności**
+- **Nowa tabela `etf_daily_prices`**: Obsługa cen dziennych (1D) z rolling window 365 dni
+- **Dane 1D**: Ceny dzienne z polami close, open, high, low, volume
+- **Funkcja `get_historical_daily_prices`**: Pobieranie cen dziennych z API (EODHD → FMP → Tiingo)
+- **Funkcja `verify_daily_completeness`**: Sprawdzanie kompletności danych 1D (365±5 dni)
+- **Funkcja `cleanup_old_daily_prices`**: Automatyczne usuwanie cen starszych niż 365 dni
+- **Nowe API endpointy**:
+  - `/api/etfs/<ticker>/daily-prices` - pobieranie cen dziennych
+  - `/api/etfs/<ticker>/add-daily-prices` - dodawanie cen dziennych
+- **Nowe zadanie schedulera**: `update_all_timeframes()` zastępuje `update_all_etfs()`
+- **Priorytet źródeł API dla 1D**: EODHD → FMP → Tiingo (EODHD lepszy dla cen dziennych)
+
+### 🎨 **Ulepszenia UI/UX**
+- **Scheduler**: Czas zmieniony z 5:00 CET na 23:50 CET (22:50 UTC)
+- **Nazwa zadania**: `update_all_etfs` → `update_all_timeframes`
+- **Logika kompletności**: Sprawdzanie wszystkich ram czasowych (1M, 1W, 1D)
+- **System status**: Aktualizacja opisów i nazw zadań
+
+### 🔧 **Poprawki techniczne**
+- **Rozszerzenie `smart_history_completion`**: Obsługa danych 1D wraz z 1M i 1W
+- **Relacje modeli**: Dodano relację `daily_prices` w modelu ETF
+- **Importy**: Dodano import `ETFDailyPrice` w `database_service.py`
+- **Funkcje konwersji**: Dodano `_convert_*_prices_to_daily` dla wszystkich źródeł API
+
+### 🐛 **Naprawy błędów**
+- **Brakująca obsługa 1D**: Dodano pełną obsługę cen dziennych w systemie
+- **Niespójność nazw**: Ujednolicono nazwy zadań w całym systemie
+
+### 📊 **Zestaw ram czasowych**
+1. **1M (Miesięczne)** - ostatnie 15 lat + rosnąca historia
+2. **1W (Tygodniowe)** - ostatnie 15 lat + rosnąca historia  
+3. **1D (Dzienne)** - rolling window 365 dni (365±5 dni)
+
+### ⏰ **Harmonogram schedulera**
+- **`update_all_timeframes`**: Codziennie o 23:50 CET (poniedziałek-piątek)
+- **`update_etf_prices`**: Co 15 minut w dni robocze 13:00-23:00 CET
 
 ## 🆕 Najnowsze funkcjonalności (v1.9.14)
 

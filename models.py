@@ -30,6 +30,7 @@ class ETF(db.Model):
     # Relationships
     prices = db.relationship('ETFPrice', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
     weekly_prices = db.relationship('ETFWeeklyPrice', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
+    daily_prices = db.relationship('ETFDailyPrice', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
     dividends = db.relationship('ETFDividend', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
     splits = db.relationship('ETFSplit', backref='etf', lazy='dynamic', cascade='all, delete-orphan')
     
@@ -104,6 +105,37 @@ class ETFWeeklyPrice(db.Model):
             'split_ratio_applied': self.split_ratio_applied,
             'year': self.year,
             'week_of_year': self.week_of_year,
+            'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None
+        }
+
+class ETFDailyPrice(db.Model):
+    __tablename__ = 'etf_daily_prices'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    etf_id = db.Column(db.Integer, db.ForeignKey('etfs.id'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, index=True)  # Data notowania
+    close_price = db.Column(db.Float, nullable=False)  # Cena zamknięcia
+    open_price = db.Column(db.Float)  # Cena otwarcia
+    high_price = db.Column(db.Float)  # Najwyższa cena
+    low_price = db.Column(db.Float)   # Najniższa cena
+    volume = db.Column(db.Integer)    # Wolumen
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (db.UniqueConstraint('etf_id', 'date', name='_etf_daily_date_uc'),)
+    
+    def __repr__(self):
+        return f'<ETFDailyPrice {self.etf_id} {self.date}: ${self.close_price}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'etf_id': self.etf_id,
+            'date': self.date.isoformat() if self.date else None,
+            'close_price': self.close_price,
+            'open_price': self.open_price,
+            'high_price': self.high_price,
+            'low_price': self.low_price,
+            'volume': self.volume,
             'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None
         }
 

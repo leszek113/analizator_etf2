@@ -2,6 +2,45 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.16] - 2025-08-24
+
+### 🆕 Dodano
+- **Nowa tabela `etf_daily_prices`**: Obsługa cen dziennych (1D) z rolling window 365 dni
+- **Dane 1D**: Ceny dzienne z polami close, open, high, low, volume
+- **Funkcja `get_historical_daily_prices`**: Pobieranie cen dziennych z API (EODHD → FMP → Tiingo)
+- **Funkcja `verify_daily_completeness`**: Sprawdzanie kompletności danych 1D (365±5 dni)
+- **Funkcja `cleanup_old_daily_prices`**: Automatyczne usuwanie cen starszych niż 365 dni
+- **Nowe API endpointy**:
+  - `/api/etfs/<ticker>/daily-prices` - pobieranie cen dziennych
+  - `/api/etfs/<ticker>/add-daily-prices` - dodawanie cen dziennych
+- **Nowe zadanie schedulera**: `update_all_timeframes()` zastępuje `update_all_etfs()`
+- **Priorytet źródeł API dla 1D**: EODHD → FMP → Tiingo (EODHD lepszy dla cen dziennych)
+
+### 🎨 Zmieniono
+- **Scheduler**: Czas zmieniony z 5:00 CET na 23:50 CET (22:50 UTC)
+- **Nazwa zadania**: `update_all_etfs` → `update_all_timeframes`
+- **Logika kompletności**: Sprawdzanie wszystkich ram czasowych (1M, 1W, 1D)
+- **System status**: Aktualizacja opisów i nazw zadań
+
+### 🔧 Poprawiono
+- **Rozszerzenie `smart_history_completion`**: Obsługa danych 1D wraz z 1M i 1W
+- **Relacje modeli**: Dodano relację `daily_prices` w modelu ETF
+- **Importy**: Dodano import `ETFDailyPrice` w `database_service.py`
+- **Funkcje konwersji**: Dodano `_convert_*_prices_to_daily` dla wszystkich źródeł API
+
+### 🐛 Naprawiono
+- **Brakująca obsługa 1D**: Dodano pełną obsługę cen dziennych w systemie
+- **Niespójność nazw**: Ujednolicono nazwy zadań w całym systemie
+
+### 📊 **Zestaw ram czasowych**
+1. **1M (Miesięczne)** - ostatnie 15 lat + rosnąca historia
+2. **1W (Tygodniowe)** - ostatnie 15 lat + rosnąca historia  
+3. **1D (Dzienne)** - rolling window 365 dni (365±5 dni)
+
+### ⏰ **Harmonogram schedulera**
+- **`update_all_timeframes`**: Codziennie o 23:50 CET (poniedziałek-piątek)
+- **`update_etf_prices`**: Co 15 minut w dni robocze 13:00-23:00 CET
+
 ## [v1.9.15] - 2025-08-24
 
 ### 🆕 Dodano

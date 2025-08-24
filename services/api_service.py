@@ -1683,3 +1683,200 @@ class APIService:
         except Exception as e:
             logger.error(f"Error calculating Stochastic Oscillator: {str(e)}")
             return []
+
+    def get_historical_daily_prices(self, ticker: str, days: int = 365, normalize_splits: bool = True) -> List[Dict]:
+        """
+        Pobiera historyczne ceny dzienne ETF z EODHD lub FMP z opcjonalną normalizacją splitu
+        
+        Args:
+            ticker: Symbol ETF
+            days: Liczba dni historii (domyślnie 365)
+            normalize_splits: Czy normalizować split akcji
+            
+        Returns:
+            Lista cen dziennych z ostatnich X dni
+        """
+        try:
+            daily_data = []
+            
+            # PRIORYTET 1: EODHD (lepszy dla cen dziennych)
+            if self.config.EODHD_API_KEY:
+                # Sprawdzanie rate limit
+                if not self._check_rate_limit('eodhd'):
+                    logger.warning(f"Rate limit reached for EODHD, trying FMP for {ticker}")
+                else:
+                    price_url = f"{self.config.EODHD_BASE_URL}/eod/{ticker}"
+                    price_params = {
+                        'api_token': self.config.EODHD_API_KEY,
+                        'fmt': 'json',
+                        'period': 'd',  # dzienne
+                        'limit': days
+                    }
+                    
+                    price_response = self._make_request_with_retry(price_url, params=price_params)
+                    if price_response and price_response.status_code == 200:
+                        # Zwiększanie licznika API calls
+                        self._increment_api_call('eodhd')
+                        
+                        price_data = price_response.json()
+                        if price_data:
+                            daily_data = self._convert_eodhd_prices_to_daily(price_data)
+                            
+                            # Normalizacja splitu jeśli wymagana
+                            if normalize_splits and daily_data:
+                                splits = self.get_stock_splits(ticker)
+                                if splits:
+                                    logger.info(f"Found {len(splits)} splits for {ticker}, normalizing daily prices")
+                                    daily_data = self.normalize_prices_for_splits(daily_data, splits)
+                            
+                            logger.info(f"Successfully got {len(daily_data)} daily prices from EODHD for {ticker}")
+                            return daily_data
+            
+            # PRIORYTET 2: FMP (fallback)
+            if not daily_data and self.config.FMP_API_KEY:
+                # Sprawdzanie rate limit
+                if not self._check_rate_limit('fmp'):
+                    logger.warning(f"Rate limit reached for FMP, skipping {ticker}")
+                    return []
+                
+                price_url = f"{self.config.FMP_BASE_URL}/historical-price-full/{ticker}"
+                price_params = {'apikey': self.config.FMP_API_KEY}
+                
+                price_response = self._make_request_with_retry(price_url, params=price_params)
+                if price_response and price_response.status_code == 200:
+                    # Zwiększanie licznika API calls
+                    self._increment_api_call('fmp')
+                    
+                    price_data = price_response.json()
+                    if 'historical' in price_data:
+                        daily_data = self._convert_fmp_prices_to_daily(price_data['historical'], days)
+                        
+                        # Normalizacja splitu jeśli wymagana
+                        if normalize_splits and daily_data:
+                            splits = self.get_stock_splits(ticker)
+                            if splits:
+                                logger.info(f"Found {len(splits)} splits for {ticker}, normalizing daily prices")
+                                daily_data = self.normalize_prices_for_splits(daily_data, splits)
+                        
+                        logger.info(f"Successfully got {len(daily_data)} daily prices from FMP for {ticker}")
+                        return daily_data
+            
+            # PRIORYTET 3: Tiingo (ostateczny fallback)
+            if not daily_data and self.config.TIINGO_API_KEY:
+                # Sprawdzanie rate limit
+                if not self._check_rate_limit('tiingo'):
+                    logger.warning(f"Rate limit reached for Tiingo, skipping {ticker}")
+                    return []
+                
+                # Tiingo ma ograniczone dane historyczne, ale może dać ostatnie ceny
+                price_url = f"{self.config.TIINGO_BASE_URL}/{ticker}/prices"
+                price_params = {
+                    'token': self.config.TIINGO_API_KEY,
+                    'startDate': (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d'),
+                    'endDate': datetime.now().strftime('%Y-%m-%d')
+                }
+                
+                price_response = self._make_request_with_retry(price_url, params=price_params)
+                if price_response and price_response.status_code == 200:
+                    # Zwiększanie licznika API calls
+                    self._increment_api_call('tiingo')
+                    
+                    price_data = price_response.json()
+                    if price_data:
+                        daily_data = self._convert_tiingo_prices_to_daily(price_data)
+                        logger.info(f"Successfully got {len(daily_data)} daily prices from Tiingo for {ticker}")
+                        return daily_data
+            
+            if not daily_data:
+                logger.warning(f"Could not get daily prices for {ticker} from any source")
+            
+            return daily_data
+            
+        except Exception as e:
+            logger.error(f"Error getting historical daily prices for {ticker}: {str(e)}")
+        
+        return []
+    
+    def _convert_fmp_prices_to_daily(self, prices: List[Dict], days: int) -> List[Dict]:
+        """
+        Konwertuje ceny FMP na dzienne
+        """
+        daily_data = []
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        for price in prices:
+            price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+            if price_date >= cutoff_date:
+                daily_data.append({
+                    'date': price_date.date(),
+                    'close': float(price['close']),
+                    'open': float(price['open']),
+                    'high': float(price['high']),
+                    'low': float(price['low']),
+                    'volume': int(price['volume'])
+                })
+        
+        return daily_data
+    
+    def _convert_eodhd_prices_to_daily(self, prices: List[Dict]) -> List[Dict]:
+        """
+        Konwertuje ceny EODHD na dzienne
+        """
+        daily_data = []
+        
+        for price in prices:
+            price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+            daily_data.append({
+                'date': price_date.date(),
+                'close': float(price['close']),
+                'open': float(price['open']),
+                'high': float(price['high']),
+                'low': float(price['low']),
+                'volume': int(price['volume'])
+            })
+        
+        return daily_data
+    
+    def _convert_tiingo_prices_to_daily(self, prices: List[Dict]) -> List[Dict]:
+        """
+        Konwertuje ceny Tiingo na dzienne
+        """
+        daily_data = []
+        
+        for price in prices:
+            try:
+                price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+                daily_data.append({
+                    'date': price_date.date(),
+                    'close': float(price['close']),
+                    'open': float(price.get('open', price['close'])),
+                    'high': float(price.get('high', price['close'])),
+                    'low': float(price.get('low', price['close'])),
+                    'volume': int(price.get('volume', 0))
+                })
+            except (KeyError, ValueError) as e:
+                logger.warning(f"Error parsing Tiingo price data: {str(e)}")
+                continue
+        
+        return daily_data
+    
+    def _convert_fmp_prices_to_monthly(self, prices: List[Dict], years: int) -> List[Dict]:
+        """
+        Konwertuje ceny FMP na miesięczne
+        """
+        monthly_data = []
+        cutoff_date = datetime.now() - timedelta(days=years*365)
+        
+        for price in prices:
+            price_date = datetime.strptime(price['date'], '%Y-%m-%d')
+            if price_date >= cutoff_date:
+                monthly_data.append({
+                    'date': price_date.date(),
+                    'close': float(price['close']),  # Zmienione na 'close' dla kompatybilności
+                    'open': float(price['open']),    # Zmienione na 'open' dla kompatybilności
+                    'high': float(price['high']),    # Zmienione na 'high' dla kompatybilności
+                    'low': float(price['low']),      # Zmienione na 'low' dla kompatybilności
+                    'volume': int(price['volume'])
+                })
+        
+        return monthly_data

@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 import logging
 import os
 import time
@@ -83,8 +83,8 @@ def create_app():
     scheduler.start()
     
     # Dodawanie zadań do schedulera
-    def update_all_etfs():
-        """Zadanie schedulera do codziennej aktualizacji wszystkich ETF (Aktualizacja wszystkich ETF)"""
+    def update_all_timeframes():
+        """Zadanie schedulera do codziennej aktualizacji wszystkich ETF (1M, 1W, 1D) - Aktualizacja wszystkich ram czasowych"""
         start_time = time.time()
         with app.app_context():
             try:
@@ -95,43 +95,55 @@ def create_app():
                     'etfs_with_complete_history': 0,
                     'prices_filled_total': 0,
                     'dividends_filled_total': 0,
+                    'weekly_prices_filled_total': 0,
+                    'daily_prices_filled_total': 0,
                     'api_calls_used_total': 0
                 }
                 
                 for etf in etfs:
-                    logger.info(f"Processing ETF {etf.ticker} for daily update")
+                    logger.info(f"Processing ETF {etf.ticker} for daily update (all timeframes)")
                     
                     # Standardowa aktualizacja (nowe ceny, dywidendy)
                     if db_service.update_etf_data(etf.ticker):
                         updated_count += 1
                     
-                    # Inteligentne uzupełnianie historii (raz dziennie)
-                    logger.info(f"Checking history completion for ETF {etf.ticker}")
+                    # Inteligentne uzupełnianie historii (raz dziennie) - 1M, 1W, 1D
+                    logger.info(f"Checking history completion for ETF {etf.ticker} (1M, 1W, 1D)")
                     completion_result = db_service.smart_history_completion(etf.id, etf.ticker)
                     
                     # Aktualizacja statystyk
-                    if completion_result['prices_complete'] and completion_result['dividends_complete']:
+                    if (completion_result['prices_complete'] and 
+                        completion_result['dividends_complete'] and
+                        completion_result['weekly_prices_complete'] and
+                        completion_result['daily_prices_complete']):
                         history_completion_stats['etfs_with_complete_history'] += 1
                     
                     history_completion_stats['prices_filled_total'] += completion_result['prices_filled']
                     history_completion_stats['dividends_filled_total'] += completion_result['dividends_filled']
+                    history_completion_stats['weekly_prices_filled_total'] += completion_result['weekly_prices_filled']
+                    history_completion_stats['daily_prices_filled_total'] += completion_result['daily_prices_filled']
                     history_completion_stats['api_calls_used_total'] += completion_result['api_calls_used']
                 
                 execution_time_ms = int((time.time() - start_time) * 1000)
-                total_records = history_completion_stats['prices_filled_total'] + history_completion_stats['dividends_filled_total']
+                total_records = (history_completion_stats['prices_filled_total'] + 
+                               history_completion_stats['dividends_filled_total'] +
+                               history_completion_stats['weekly_prices_filled_total'] +
+                               history_completion_stats['daily_prices_filled_total'])
                 
                 # Logowanie sukcesu zadania
                 job_log = SystemLog.create_job_log(
-                    job_name="update_all_etfs",
+                    job_name="update_all_timeframes",
                     success=True,
                     execution_time_ms=execution_time_ms,
                     records_processed=total_records,
-                    details=f"Zaktualizowano {updated_count}/{len(etfs)} ETF, uzupełniono {history_completion_stats['prices_filled_total']} cen, {history_completion_stats['dividends_filled_total']} dywidend, użyto {history_completion_stats['api_calls_used_total']} wywołań API",
+                    details=f"Zaktualizowano {updated_count}/{len(etfs)} ETF, uzupełniono {history_completion_stats['prices_filled_total']} cen 1M, {history_completion_stats['weekly_prices_filled_total']} cen 1W, {history_completion_stats['daily_prices_filled_total']} cen 1D, {history_completion_stats['dividends_filled_total']} dywidend, użyto {history_completion_stats['api_calls_used_total']} wywołań API",
                     metadata={
                         'etfs_updated': updated_count,
                         'total_etfs': len(etfs),
                         'prices_filled': history_completion_stats['prices_filled_total'],
                         'dividends_filled': history_completion_stats['dividends_filled_total'],
+                        'weekly_prices_filled': history_completion_stats['weekly_prices_filled_total'],
+                        'daily_prices_filled': history_completion_stats['daily_prices_filled_total'],
                         'api_calls_used': history_completion_stats['api_calls_used_total'],
                         'etfs_with_complete_history': history_completion_stats['etfs_with_complete_history']
                     }
@@ -141,11 +153,12 @@ def create_app():
                 
                 logger.info(f"Daily update completed: {updated_count} out of {len(etfs)} ETFs updated")
                 logger.info(f"History completion: {history_completion_stats['etfs_with_complete_history']}/{history_completion_stats['total_etfs']} ETFs have complete history")
-                logger.info(f"Data filled: {history_completion_stats['prices_filled_total']} prices, {history_completion_stats['dividends_filled_total']} dividends")
+                logger.info(f"Data filled: {history_completion_stats['prices_filled_total']} prices 1M, {history_completion_stats['weekly_prices_filled_total']} prices 1W, {history_completion_stats['daily_prices_filled_total']} prices 1D, {history_completion_stats['dividends_filled_total']} dividends")
                 logger.info(f"API calls used for history completion: {history_completion_stats['api_calls_used_total']}")
                 
-                # Czyszczenie starych logów
+                # Czyszczenie starych logów i cen dziennych
                 db_service.cleanup_old_data()
+                db_service.cleanup_old_daily_prices()  # Rolling window 365 dni
                 
             except Exception as e:
                 execution_time_ms = int((time.time() - start_time) * 1000)
@@ -154,11 +167,11 @@ def create_app():
                 
                 # Logowanie błędu zadania
                 job_log = SystemLog.create_job_log(
-                    job_name="update_all_etfs",
+                    job_name="update_all_timeframes",
                     success=False,
                     execution_time_ms=execution_time_ms,
                     records_processed=0,
-                    details="Błąd podczas aktualizacji wszystkich ETF",
+                    details="Błąd podczas aktualizacji wszystkich ram czasowych ETF",
                     error_message=error_msg
                 )
                 db.session.add(job_log)
@@ -240,16 +253,16 @@ def create_app():
                 db.session.add(job_log)
                 db.session.commit()
     
-    # Uruchamianie aktualizacji wszystkich ETF raz dziennie o 5:00 CET (poniedziałek-piątek)
-    # Używamy UTC wewnętrznie: 5:00 CET = 4:00 UTC (zimą) lub 3:00 UTC (latem)
+    # Uruchamianie aktualizacji wszystkich ram czasowych raz dziennie o 23:50 CET (poniedziałek-piątek)
+    # Używamy UTC wewnętrznie: 23:50 CET = 22:50 UTC (zimą) lub 21:50 UTC (latem)
     scheduler.add_job(
-        func=update_all_etfs,
+        func=update_all_timeframes,
         trigger="cron",
         day_of_week="mon-fri",
-        hour=4,  # UTC - odpowiada 5:00 CET
-        minute=0,
+        hour=22,  # UTC - odpowiada 23:50 CET
+        minute=50,
         timezone="UTC",  # Używamy UTC wewnętrznie
-        id="daily_etf_update"
+        id="daily_timeframes_update"
     )
     
     # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 13:00-23:00 CET)
@@ -1112,7 +1125,7 @@ def create_app():
             
             # Dodaj nowe zadanie z nowym czasem
             app.scheduler.add_job(
-                func=update_all_etfs,
+                func=update_all_timeframes,
                 trigger="cron",
                 hour=int(hour),
                 minute=int(minute),
@@ -1278,7 +1291,7 @@ def create_app():
             if job_name == 'update_all_etfs':
                 # Uruchomienie w tle
                 app.scheduler.add_job(
-                    func=update_all_etfs,
+                    func=update_all_timeframes,
                     trigger='date',
                     run_date=datetime.now(timezone.utc),
                     id=f'manual_{job_name}_{int(time.time())}',
@@ -1315,7 +1328,7 @@ def create_app():
         """API endpoint do ręcznego uruchamiania aktualizacji wszystkich ETF"""
         try:
             # Uruchomienie zadania w tle
-            update_all_etfs()
+            update_all_timeframes()
             
             return jsonify({
                 'success': True,
@@ -1588,6 +1601,132 @@ def create_app():
             
         except Exception as e:
             logger.error(f"Error getting ETF monthly stochastic short for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/daily-prices', methods=['GET'])
+    def get_etf_daily_prices(ticker):
+        """API endpoint do pobierania cen dziennych ETF (ostatnie 365 dni)"""
+        try:
+            from models import ETF, ETFDailyPrice
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen dziennych z bazy danych (ostatnie 365 dni)
+            cutoff_date = date.today() - timedelta(days=365)
+            daily_prices = ETFDailyPrice.query.filter(
+                ETFDailyPrice.etf_id == etf.id,
+                ETFDailyPrice.date >= cutoff_date
+            ).order_by(ETFDailyPrice.date.desc()).all()
+            
+            if not daily_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Brak danych cen dziennych dla {ticker}'
+                }), 404
+            
+            # Formatowanie danych dla frontend
+            formatted_data = []
+            for price in daily_prices:
+                formatted_data.append({
+                    'date': price.date.strftime('%Y-%m-%d'),
+                    'close': round(price.close_price, 2),
+                    'open': round(price.open_price, 2) if price.open_price else None,
+                    'high': round(price.high_price, 2) if price.high_price else None,
+                    'low': round(price.low_price, 2) if price.low_price else None,
+                    'volume': price.volume if price.volume else None
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'ticker': ticker.upper(),
+                    'daily_prices': formatted_data,
+                    'count': len(formatted_data),
+                    'date_range': {
+                        'start': formatted_data[-1]['date'] if formatted_data else None,
+                        'end': formatted_data[0]['date'] if formatted_data else None
+                    }
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting ETF daily prices for {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/etfs/<ticker>/add-daily-prices', methods=['POST'])
+    def add_etf_daily_prices(ticker):
+        """API endpoint do dodawania cen dziennych dla istniejącego ETF"""
+        try:
+            from models import ETF
+            
+            # Sprawdzanie czy ETF istnieje
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Pobieranie cen dziennych z API
+            daily_prices = api_service.get_historical_daily_prices(ticker, days=365, normalize_splits=True)
+            
+            if not daily_prices:
+                return jsonify({
+                    'success': False,
+                    'error': f'Nie udało się pobrać cen dziennych dla {ticker}'
+                }), 500
+            
+            # Dodawanie cen do bazy danych
+            added_count = 0
+            for price_data in daily_prices:
+                # Sprawdź czy już nie mamy tej ceny
+                existing_price = ETFDailyPrice.query.filter_by(
+                    etf_id=etf.id,
+                    date=price_data['date']
+                ).first()
+                
+                if not existing_price:
+                    daily_price = ETFDailyPrice(
+                        etf_id=etf.id,
+                        date=price_data['date'],
+                        close_price=price_data['close'],
+                        open_price=price_data.get('open'),
+                        high_price=price_data.get('high'),
+                        low_price=price_data.get('low'),
+                        volume=price_data.get('volume')
+                    )
+                    db.session.add(daily_price)
+                    added_count += 1
+            
+            if added_count > 0:
+                db.session.commit()
+                logger.info(f"Added {added_count} daily prices for {ticker}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Dodano {added_count} nowych cen dziennych dla {ticker}',
+                'data': {
+                    'ticker': ticker.upper(),
+                    'prices_added': added_count,
+                    'total_daily_prices': len(daily_prices)
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error adding daily prices for {ticker}: {str(e)}")
+            db.session.rollback()
             return jsonify({
                 'success': False,
                 'error': str(e)

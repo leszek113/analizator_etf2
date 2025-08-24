@@ -401,7 +401,7 @@
                             <div class="col-md-6">
                                 <h6>Inteligentne uzupełnianie historii:</h6>
                                 <ul class="list-unstyled">
-                                    <li><i class="bi bi-check-circle text-success"></i> Poniedziałek-piątek o 5:00 CET (czas polski)</li>
+                                    <li><i class="bi bi-check-circle text-success"></i> Poniedziałek-piątek o 23:50 CET (czas polski)</li>
                                     <li><i class="bi bi-check-circle text-success"></i> Sprawdza kompletność względem wieku ETF</li>
                                     <li><i class="bi bi-check-circle text-success"></i> Uzupełnia brakujące dane</li>
                                     <li><i class="bi bi-check-circle text-success"></i> Oszczędza tokeny API</li>
@@ -436,7 +436,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        job_id: 'create_app.<locals>.update_all_etfs',
+                        job_id: 'create_app.<locals>.update_all_timeframes',
                         hour: 9,
                         minute: 0
                     })
@@ -461,10 +461,10 @@
             // Pokaż prosty status bez API call
             let status = 'Status schedulera:\n';
             status += '- Status: Aktywny\n';
-            status += '- Zadanie: Aktualizacja wszystkich ETF\n';
-            status += '- Czas: Poniedziałek-piątek o 5:00 CET (czas polski)\n';
+            status += '- Zadanie: Aktualizacja wszystkich ram czasowych (1M, 1W, 1D)\n';
+            status += '- Czas: Poniedziałek-piątek o 23:50 CET (czas polski)\n';
             status += '- Ostatnie uruchomienie: ' + (new Date().toLocaleString('pl-PL')) + '\n';
-            status += '- Następne uruchomienie: Jutro o 5:00 CET';
+            status += '- Następne uruchomienie: Jutro o 23:50 CET';
             alert(status);
         }
         
@@ -490,7 +490,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        job_id: 'create_app.<locals>.update_all_etfs',
+                        job_id: 'create_app.<locals>.update_all_timeframes',
                         hour: parseInt(hour),
                         minute: parseInt(minute)
                     })
@@ -586,7 +586,7 @@
                     <td><small>${dividendsFilled}</small></td>
                     <td><small>${apiCallsUsed}</small></td>
                     <td>
-                        <button class="btn btn-outline-info btn-sm" onclick="showJobDetails('${log.id}', 'update_all_etfs')">
+                        <button class="btn btn-outline-info btn-sm" onclick="showJobDetails('${log.id}', 'update_all_timeframes')">
                             <i class="bi bi-info-circle"></i> Szczegóły
                         </button>
                     </td>

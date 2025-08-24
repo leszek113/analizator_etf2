@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Optional
 from sqlalchemy.exc import IntegrityError
 import logging
-from models import db, ETF, ETFPrice, ETFWeeklyPrice, ETFDividend, ETFSplit, SystemLog, DividendTaxRate
+from models import db, ETF, ETFPrice, ETFWeeklyPrice, ETFDailyPrice, ETFDividend, ETFSplit, SystemLog, DividendTaxRate
 from services.api_service import APIService
 import re
 
@@ -1074,6 +1074,23 @@ class DatabaseService:
             logger.error(f"Error during cleanup: {str(e)}")
             db.session.rollback()
 
+    def cleanup_old_daily_prices(self, days: int = 365) -> None:
+        """
+        Usuwa ceny dzienne starsze niż X dni (rolling window)
+        """
+        try:
+            cutoff_date = datetime.now(timezone.utc).date() - timedelta(days=days)
+            deleted = ETFDailyPrice.query.filter(ETFDailyPrice.date < cutoff_date).delete()
+            db.session.commit()
+            
+            if deleted > 0:
+                logger.info(f"Cleaned up {deleted} old daily prices (older than {days} days)")
+                self._log_action('CLEANUP', f"Removed {deleted} old daily prices")
+                
+        except Exception as e:
+            logger.error(f"Error during daily prices cleanup: {str(e)}")
+            db.session.rollback()
+
     def _check_api_health_before_update(self, ticker: str) -> Dict:
         """
         Sprawdza zdrowie API przed aktualizacją ETF
@@ -1647,6 +1664,107 @@ class DatabaseService:
                 'expected_years': 0
             }
 
+    def verify_daily_completeness(self, etf_id: int, ticker: str) -> Dict:
+        """
+        Sprawdza kompletność danych dziennych ETF (365±5 dni)
+        
+        Args:
+            etf_id: ID ETF w bazie danych
+            ticker: Ticker ETF
+            
+        Returns:
+            Dict z informacjami o kompletności danych dziennych:
+            {
+                'daily_prices_complete': bool,
+                'missing_daily_days': List[date],
+                'oldest_daily_date': date,
+                'newest_daily_date': date,
+                'days_of_daily_data': int,
+                'expected_days': int
+            }
+        """
+        try:
+            from datetime import date, timedelta
+            
+            today = date.today()
+            expected_days = 365
+            tolerance_days = 5
+            
+            # Sprawdzanie kompletności cen dziennych
+            daily_prices = ETFDailyPrice.query.filter_by(etf_id=etf_id).order_by(ETFDailyPrice.date).all()
+            
+            if not daily_prices:
+                return {
+                    'daily_prices_complete': False,
+                    'missing_daily_days': [],
+                    'oldest_daily_date': None,
+                    'newest_daily_date': None,
+                    'days_of_daily_data': 0,
+                    'expected_days': expected_days
+                }
+            
+            oldest_daily_date = daily_prices[0].date
+            newest_daily_date = daily_prices[-1].date
+            days_of_daily_data = (newest_daily_date - oldest_daily_date).days + 1
+            
+            # Sprawdzanie czy mamy dzisiejszą cenę
+            has_today_price = ETFDailyPrice.query.filter_by(
+                etf_id=etf_id,
+                date=today
+            ).first() is not None
+            
+            # Sprawdzanie brakujących dni
+            missing_daily_days = []
+            current_date = oldest_daily_date
+            
+            while current_date <= newest_daily_date:
+                # Sprawdź czy mamy cenę w tym dniu
+                daily_price = ETFDailyPrice.query.filter(
+                    ETFDailyPrice.etf_id == etf_id,
+                    ETFDailyPrice.date == current_date
+                ).first()
+                
+                if not daily_price:
+                    missing_daily_days.append(current_date)
+                
+                current_date += timedelta(days=1)
+            
+            # Określanie kompletności (365±5 dni)
+            min_expected_days = expected_days - tolerance_days  # 360 dni
+            max_expected_days = expected_days + tolerance_days  # 370 dni
+            
+            daily_prices_complete = (
+                days_of_daily_data >= min_expected_days and 
+                days_of_daily_data <= max_expected_days and
+                has_today_price and
+                len(missing_daily_days) == 0
+            )
+            
+            logger.info(f"Daily prices completeness check for {ticker}: "
+                       f"Days of data: {days_of_daily_data}, expected: {expected_days}±{tolerance_days}; "
+                       f"Complete: {daily_prices_complete}, missing days: {len(missing_daily_days)}; "
+                       f"Has today: {has_today_price}")
+            
+            return {
+                'daily_prices_complete': daily_prices_complete,
+                'missing_daily_days': missing_daily_days,
+                'oldest_daily_date': oldest_daily_date,
+                'newest_daily_date': newest_daily_date,
+                'days_of_daily_data': days_of_daily_data,
+                'expected_days': expected_days
+            }
+            
+        except Exception as e:
+            logger.error(f"Error verifying daily completeness for ETF {ticker}: {str(e)}")
+            return {
+                'daily_prices_complete': False,
+                'missing_daily_days': [],
+                'oldest_daily_date': None,
+                'newest_daily_date': None,
+                'days_of_daily_data': 0,
+                'expected_days': 365
+            }
+
     def smart_history_completion(self, etf_id: int, ticker: str) -> Dict:
         """
         Inteligentnie uzupełnia brakujące dane historyczne ETF
@@ -1661,25 +1779,33 @@ class DatabaseService:
                 'prices_filled': int,
                 'dividends_filled': int,
                 'weekly_prices_filled': int,
+                'daily_prices_filled': int,
                 'prices_complete': bool,
                 'dividends_complete': bool,
                 'weekly_prices_complete': bool,
+                'daily_prices_complete': bool,
                 'api_calls_used': int
             }
         """
         try:
             # Sprawdź kompletność danych
             completeness = self.verify_data_completeness(etf_id, ticker)
+            daily_completeness = self.verify_daily_completeness(etf_id, ticker)
             
-            if completeness['prices_complete'] and completeness['dividends_complete'] and completeness['weekly_prices_complete']:
-                logger.info(f"ETF {ticker} already has complete 15-year history")
+            if (completeness['prices_complete'] and 
+                completeness['dividends_complete'] and 
+                completeness['weekly_prices_complete'] and
+                daily_completeness['daily_prices_complete']):
+                logger.info(f"ETF {ticker} already has complete 15-year history and 365-day daily data")
                 return {
                     'prices_filled': 0,
                     'dividends_filled': 0,
                     'weekly_prices_filled': 0,
+                    'daily_prices_filled': 0,
                     'prices_complete': True,
                     'dividends_complete': True,
                     'weekly_prices_complete': True,
+                    'daily_prices_complete': True,
                     'api_calls_used': 0
                 }
             
@@ -1687,6 +1813,7 @@ class DatabaseService:
             prices_filled = 0
             dividends_filled = 0
             weekly_prices_filled = 0
+            daily_prices_filled = 0
             
             # Uzupełnianie brakujących cen miesięcznych
             if not completeness['prices_complete']:
@@ -1901,10 +2028,91 @@ class DatabaseService:
                         db.session.commit()
                         logger.info(f"Successfully committed {weekly_prices_filled} new weekly prices to database for {ticker}")
             
+            # Uzupełnianie brakujących cen dziennych
+            if not daily_completeness['daily_prices_complete']:
+                if daily_completeness['missing_daily_days']:
+                    logger.info(f"ETF {ticker} missing {len(daily_completeness['missing_daily_days'])} daily price days, attempting to fill")
+                else:
+                    logger.warning(f"ETF {ticker} has NO daily price data at all - fetching full 365-day daily data!")
+                
+                # Pobierz brakujące ceny dzienne z API
+                if daily_completeness['missing_daily_days']:
+                    missing_days = daily_completeness['missing_daily_days']
+                    oldest_missing = min(missing_days)
+                    logger.info(f"Fetching daily prices from {oldest_missing} for {ticker}")
+                else:
+                    # Brak cen dziennych w bazie - pobierz pełną historię
+                    missing_days = []
+                    oldest_missing = None
+                    logger.info(f"ETF {ticker} has no daily price data - fetching full 365-day daily data")
+                
+                # Pobierz ceny dzienne z API
+                historical_daily_prices = self.api_service.get_historical_daily_prices(
+                    ticker, 
+                    days=365,  # 365 dni wstecz
+                    normalize_splits=True
+                )
+                
+                if historical_daily_prices:
+                    api_calls_used += 1
+                    
+                    # Dodaj ceny do bazy
+                    if missing_days:
+                        # Dodaj tylko brakujące ceny
+                        for price_data in historical_daily_prices:
+                            price_date = price_data['date']
+                            
+                            # Sprawdź czy to brakujący dzień
+                            if price_date in missing_days:
+                                # Sprawdź czy już nie mamy tej ceny
+                                existing_price = ETFDailyPrice.query.filter_by(
+                                    etf_id=etf_id,
+                                    date=price_date
+                                ).first()
+                                
+                                if not existing_price:
+                                    price = ETFDailyPrice(
+                                        etf_id=etf_id,
+                                        date=price_date,
+                                        close_price=price_data['close'],
+                                        normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                                        split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
+                                    )
+                                    db.session.add(price)
+                                    daily_prices_filled += 1
+                        
+                        logger.info(f"Filled {daily_prices_filled} missing daily prices for {ticker}")
+                    else:
+                        # Brak cen dziennych w bazie - dodaj wszystkie pobrane ceny
+                        for price_data in historical_daily_prices:
+                            # Sprawdź czy już nie mamy tej ceny (zabezpieczenie przed duplikatami)
+                            existing_price = ETFDailyPrice.query.filter_by(
+                                etf_id=etf_id,
+                                date=price_data['date']
+                            ).first()
+                            
+                            if not existing_price:
+                                price = ETFDailyPrice(
+                                    etf_id=etf_id,
+                                    date=price_data['date'],
+                                    close_price=price_data['close'],
+                                    normalized_close_price=price_data.get('normalized_close', price_data['close']),
+                                    split_ratio_applied=price_data.get('split_ratio_applied', 1.0)
+                                )
+                                db.session.add(price)
+                                daily_prices_filled += 1
+                        
+                        logger.info(f"Added {daily_prices_filled} historical daily prices for {ticker} (no existing data)")
+                    
+                    # Zatwierdź zmiany w bazie
+                    if daily_prices_filled > 0:
+                        db.session.commit()
+                        logger.info(f"Successfully committed {daily_prices_filled} new daily prices to database for {ticker}")
+            
             # Commit zmian
-            if prices_filled > 0 or dividends_filled > 0 or weekly_prices_filled > 0:
+            if prices_filled > 0 or dividends_filled > 0 or weekly_prices_filled > 0 or daily_prices_filled > 0:
                 db.session.commit()
-                logger.info(f"Successfully filled {prices_filled} prices, {dividends_filled} dividends, and {weekly_prices_filled} weekly prices for {ticker}")
+                logger.info(f"Successfully filled {prices_filled} prices, {dividends_filled} dividends, {weekly_prices_filled} weekly prices, and {daily_prices_filled} daily prices for {ticker}")
             
             # Sprawdź kompletność po uzupełnieniu
             updated_completeness = self.verify_data_completeness(etf_id, ticker)
@@ -1913,9 +2121,11 @@ class DatabaseService:
                 'prices_filled': prices_filled,
                 'dividends_filled': dividends_filled,
                 'weekly_prices_filled': weekly_prices_filled,
+                'daily_prices_filled': daily_prices_filled,
                 'prices_complete': updated_completeness['prices_complete'],
                 'dividends_complete': updated_completeness['dividends_complete'],
                 'weekly_prices_complete': updated_completeness['weekly_prices_complete'],
+                'daily_prices_complete': daily_completeness['daily_prices_complete'],
                 'api_calls_used': api_calls_used
             }
             
@@ -1926,9 +2136,11 @@ class DatabaseService:
                 'prices_filled': 0,
                 'dividends_filled': 0,
                 'weekly_prices_filled': 0,
+                'daily_prices_filled': 0,
                 'prices_complete': False,
                 'dividends_complete': False,
                 'weekly_prices_complete': False,
+                'daily_prices_complete': False,
                 'api_calls_used': 0
             }
     

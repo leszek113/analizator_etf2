@@ -1,10 +1,29 @@
-# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.11
+# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.16
 
 ## 📋 **Przegląd Wersji**
 
-**Wersja:** v1.9.11  
+**Wersja:** v1.9.16  
 **Data wydania:** 24 sierpnia 2025  
-**Typ wydania:** Minor Release (poprawki bezpieczeństwa i jakości)
+**Typ wydania:** Minor Release (nowe funkcjonalności danych 1D + poprawki)
+
+## 🆕 **Co nowego w v1.9.16**
+
+### **Nowe Funkcjonalności**
+- ✅ **Dane dzienne (1D)** - nowa tabela `etf_daily_prices` z rolling window 365 dni
+- ✅ **Nowe zadanie schedulera** - `update_all_timeframes()` zastępuje `update_all_etfs()`
+- ✅ **API endpointy 1D** - `/api/etfs/<ticker>/daily-prices` i `/api/etfs/<ticker>/add-daily-prices`
+- ✅ **Priorytet źródeł API dla 1D** - EODHD → FMP → Tiingo (EODHD lepszy dla cen dziennych)
+- ✅ **Automatyczny cleanup** - usuwanie cen dziennych starszych niż 365 dni
+
+### **Ulepszenia Systemu**
+- ✅ **Harmonogram schedulera** - zmieniony z 5:00 CET na 23:50 CET
+- ✅ **Logika kompletności** - sprawdzanie wszystkich ram czasowych (1M, 1W, 1D)
+- ✅ **System status** - aktualizacja opisów i nazw zadań
+
+### **Poprawki Techniczne**
+- ✅ **Rozszerzenie `smart_history_completion`** - obsługa danych 1D wraz z 1M i 1W
+- ✅ **Relacje modeli** - dodano relację `daily_prices` w modelu ETF
+- ✅ **Funkcje konwersji** - dodano `_convert_*_prices_to_daily` dla wszystkich źródeł API
 
 ## 🔧 **Co zostało naprawione w v1.9.11**
 
