@@ -7,8 +7,8 @@ import logging
 import os
 import time
 
-# Wersja systemu
-__version__ = "1.9.19"
+# Wersja systemu - import z config.py
+from config import __version__, VERSION_INFO
 
 from config import Config
 import pytz

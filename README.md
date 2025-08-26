@@ -269,6 +269,11 @@
 - **Aktualna wersja**: v1.9.19
 - **Status**: Gotowy do produkcji
 - **Ostatnia aktualizacja**: 2025-08-24
+
+### **Skrypty Zarządzania**
+- **`./scripts/manage-app.sh`**: Zarządzanie aplikacją (start/stop/restart/status)
+- **`./scripts/bump-version.sh`**: Automatyczne zwiększanie wersji (patch/minor/major)
+- **Wersja automatyczna**: Skrypt pobiera wersję z config.py
 - **`KNOWN_SPLITS`**: Konfiguracja znanych splitów ETF
 
 ### **Kroki instalacji**

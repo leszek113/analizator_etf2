@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# ETF Analyzer - Skrypt Zarządzania Aplikacją v1.9.11
+# ETF Analyzer - Skrypt Zarządzania Aplikacją
 # =============================================================================
 # 
 # Użycie:
@@ -20,7 +20,6 @@
 
 # Konfiguracja
 APP_NAME="ETF Analyzer"
-APP_VERSION="v1.9.11"
 APP_FILE="app.py"
 APP_PORT="5005"
 APP_HOST="127.0.0.1"
@@ -28,6 +27,22 @@ LOG_FILE="etf-analyzer.log"
 PID_FILE="etf-analyzer.pid"
 VENV_DIR="venv"
 PYTHON_CMD="python3"
+
+# Dynamiczne pobieranie wersji z config.py
+get_app_version() {
+    if [ -f "config.py" ]; then
+        VERSION=$(python3 -c "from config import __version__; print(__version__)" 2>/dev/null)
+        if [ $? -eq 0 ] && [ ! -z "$VERSION" ]; then
+            echo "v$VERSION"
+        else
+            echo "v1.9.19"  # Fallback
+        fi
+    else
+        echo "v1.9.19"  # Fallback
+    fi
+}
+
+APP_VERSION=$(get_app_version)
 
 # Kolory dla output
 RED='\033[0;31m'
@@ -65,6 +80,10 @@ print_info() {
 
 print_step() {
     echo -e "${PURPLE}🔧 $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
 }
 
 # Sprawdzenie czy aplikacja jest uruchomiona
@@ -195,12 +214,50 @@ stop_app() {
     print_success "Aplikacja zatrzymana"
 }
 
-# Restart aplikacji
+# Restart aplikacji - POPRAWIONA FUNKCJA
 restart_app() {
     print_step "Restart $APP_NAME..."
-    stop_app
-    sleep 2
+    
+    # Sprawdzenie czy aplikacja jest uruchomiona
+    if is_running; then
+        print_info "Aplikacja jest uruchomiona, zatrzymuję..."
+        stop_app
+        sleep 3  # Dłuższe oczekiwanie na zwolnienie portu
+    else
+        print_info "Aplikacja nie jest uruchomiona"
+    fi
+    
+    # Sprawdzenie czy port jest wolny
+    if is_port_occupied; then
+        print_warning "Port $APP_PORT jest nadal zajęty. Wymuszenie zwolnienia..."
+        
+        # Znajdź proces używający portu
+        PORT_PID=$(lsof -ti :$APP_PORT 2>/dev/null)
+        if [ ! -z "$PORT_PID" ]; then
+            print_warning "Proces $PORT_PID używa portu $APP_PORT. Zatrzymuję..."
+            kill -9 $PORT_PID 2>/dev/null
+            sleep 2
+        fi
+        
+        # Sprawdź ponownie
+        if is_port_occupied; then
+            print_error "Nie można zwolnić portu $APP_PORT"
+            return 1
+        fi
+    fi
+    
+    # Uruchom aplikację
+    print_info "Uruchamianie aplikacji..."
     start_app
+    
+    # Sprawdź czy się uruchomiła
+    sleep 3
+    if is_running; then
+        print_success "Restart zakończony pomyślnie"
+    else
+        print_error "Restart nie powiódł się"
+        return 1
+    fi
 }
 
 # Status aplikacji

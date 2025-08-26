@@ -3,6 +3,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Wersja systemu - CENTRALNE ŹRÓDŁO PRAWDY
+__version__ = "1.9.19"
+
+# Informacje o wersji
+VERSION_INFO = {
+    'version': __version__,
+    'release_date': '2025-08-24',
+    'status': 'production_ready',
+    'build': '620408c'  # Git commit hash
+}
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///etf_analyzer.db'
