@@ -8,7 +8,7 @@ import os
 import time
 
 # Wersja systemu
-__version__ = "1.9.18"
+__version__ = "1.9.19"
 
 from config import Config
 import pytz
@@ -35,6 +35,17 @@ logger = logging.getLogger(__name__)
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    
+    # Walidacja środowiska
+    env = os.environ.get('FLASK_ENV', 'development')
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    if env == 'production' and debug_mode:
+        logger.warning("⚠️  UWAGA: Debug mode włączony w produkcji! Automatyczne wyłączenie...")
+        os.environ['FLASK_DEBUG'] = 'False'
+        debug_mode = False
+    
+    logger.info(f"🌍 Środowisko: {env.upper()}, Debug: {'WŁĄCZONY' if debug_mode else 'WYŁĄCZONY'}")
     
     # Pobieranie portu i hosta z konfiguracji
     port = app.config.get('PORT', 5005)
@@ -158,7 +169,10 @@ def create_app():
                 
                 # Czyszczenie starych logów i cen dziennych
                 db_service.cleanup_old_data()
-                db_service.cleanup_old_daily_prices()  # Rolling window 365 dni
+                # Rolling window z konfiguracji
+                from config import Config
+                config = Config()
+                db_service.cleanup_old_daily_prices(config.DAILY_PRICES_WINDOW_DAYS)
                 
             except Exception as e:
                 execution_time_ms = int((time.time() - start_time) * 1000)
@@ -2100,4 +2114,12 @@ if __name__ == '__main__':
     # Używaj ustawień z Config (HOST/PORT) z możliwością nadpisania przez env
     host = app.config.get('HOST', '0.0.0.0')
     port = int(os.environ.get('PORT', app.config.get('PORT', 5005)))
-    app.run(debug=True, host=host, port=port)
+    
+    # Inteligentny debug mode - tylko w development
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    if debug_mode:
+        logger.info("🚀 Uruchamianie w trybie DEBUG (development)")
+    else:
+        logger.info("🚀 Uruchamianie w trybie PRODUCTION")
+    
+    app.run(debug=debug_mode, host=host, port=port)

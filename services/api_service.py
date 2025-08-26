@@ -135,7 +135,7 @@ class APIService:
         if (now - api_info['minute_reset']).total_seconds() >= 60:
             api_info['minute_count'] = 0
             api_info['minute_reset'] = now
-            logger.debug(f"Minute rate limit reset for {api_type}")
+            logger.info(f"Minute rate limit reset for {api_type}")
         
         # Sprawdzanie minutowego limitu (tylko dla FMP)
         if api_type == 'fmp':
@@ -244,7 +244,7 @@ class APIService:
                 api_info['minute_count'] = 0
                 api_info['minute_reset'] = datetime.now()
             api_info['minute_count'] += 1
-            logger.debug(f"FMP API call: {api_info['minute_count']}/5 per minute, {api_info['count']}/500 per day")
+            logger.info(f"FMP API call: {api_info['minute_count']}/5 per minute, {api_info['count']}/500 per day")
         
         # Aktualizacja w bazie danych
         try:
@@ -257,7 +257,7 @@ class APIService:
         except Exception as e:
             logger.error(f"Error updating API limit in database for {api_type}: {str(e)}")
         
-        logger.debug(f"API call incremented for {api_type}: {api_info['count']}")
+        logger.info(f"API call incremented for {api_type}: {api_info['count']}")
 
     def get_api_status(self) -> Dict:
         """
@@ -914,7 +914,7 @@ class APIService:
                 
                 dividend_data = dividend_response.json()
                 if 'historical' in dividend_data:
-                    # Debug logging
+                    # Dividend data processing
                     total_dividends = len(dividend_data['historical'])
                     logger.info(f"FMP API returned {total_dividends} total dividends for {ticker}")
                     
@@ -1135,14 +1135,12 @@ class APIService:
         except Exception as e:
             logger.error(f"Error getting stock splits for {ticker}: {str(e)}")
         
-        # Fallback: hardcoded split data dla znanych ETF
-        if ticker == 'SCHD':
-            logger.info(f"Using hardcoded split data for {ticker}")
-            return [{
-                'date': '2024-10-11',
-                'ratio': 3.0,
-                'description': '3:1 Stock Split'
-            }]
+        # Fallback: split data z konfiguracji
+        from config import Config
+        config = Config()
+        if ticker in config.KNOWN_SPLITS:
+            logger.info(f"Using configured split data for {ticker}")
+            return config.KNOWN_SPLITS[ticker]
         
         return []
 
@@ -1575,14 +1573,14 @@ class APIService:
                 logger.info(f"Przykładowa cena: {sample_price}")
                 logger.info(f"Typ date: {type(sample_price['date'])}, Typ close: {type(sample_price['close'])}")
             
-            # Test z prostymi danymi
+            # Sample data for testing
             if len(prices) >= 3:
-                test_prices = [
+                sample_prices = [
                     {'date': '2020-01-01', 'close': 10.0},
                     {'date': '2020-01-08', 'close': 12.0},
                     {'date': '2020-01-15', 'close': 11.0}
                 ]
-                logger.info(f"Test z prostymi danymi: {test_prices}")
+                logger.info(f"Using sample data for testing: {sample_prices}")
             
             if len(prices) < lookback_period:
                 logger.warning(f"Za mało danych dla Stochastic Oscillator: {len(prices)} < {lookback_period}")
@@ -1663,12 +1661,12 @@ class APIService:
             
             logger.info(f"Stochastic Oscillator obliczony: {len(final_data)} punktów z {len(prices)} cen")
             
-            # Debug - sprawdź co jest w stochastic_data
+            # Data validation
             if stochastic_data:
-                logger.info(f"Przykład stochastic_data[0]: {stochastic_data[0]}")
-                logger.info(f"Pola w stochastic_data[0]: {list(stochastic_data[0].keys())}")
+                logger.info(f"Sample stochastic_data[0]: {stochastic_data[0]}")
+                logger.info(f"Fields in stochastic_data[0]: {list(stochastic_data[0].keys())}")
             
-            # Test - sprawdź czy mamy dane
+            # Data verification
             if final_data:
                 logger.info(f"PIERWSZY PUNKT: {final_data[0]}")
                 logger.info(f"OSTATNI PUNKT: {final_data[-1]}")

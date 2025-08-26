@@ -253,15 +253,15 @@
         });
 
         function setupEventListeners() {
-            console.log('🔧 Setting up event listeners...');
+            // Setting up event listeners
             
             // Search input
             const searchInput = document.getElementById('searchInput');
             if (searchInput) {
                 searchInput.addEventListener('input', filterData);
-                console.log('✅ Search input listener added');
+                // Search input listener added
             } else {
-                console.log('❌ Search input not found!');
+                console.warn('Search input not found');
             }
             
             // Filters
@@ -270,41 +270,38 @@
             
             if (frequencyFilter) {
                 frequencyFilter.addEventListener('change', filterData);
-                console.log('✅ Frequency filter listener added');
+                // Frequency filter listener added
             } else {
-                console.log('❌ Frequency filter not found!');
+                console.warn('Frequency filter not found');
             }
             
             if (yieldFilter) {
                 yieldFilter.addEventListener('change', filterData);
-                console.log('✅ Yield filter listener added');
+                // Yield filter listener added
             } else {
-                console.log('❌ Yield filter not found!');
+                console.warn('Yield filter not found');
             }
 
             // Tax rate change
             const taxRateInput = document.getElementById('taxRateInput');
             if (taxRateInput) {
-                console.log('✅ Tax rate input found, adding listener...');
+                // Tax rate input found, adding listener
                 taxRateInput.addEventListener('input', function() {
                     const newTaxRate = parseFloat(this.value) || 0;
-                    console.log('🎯 Tax rate input changed to:', newTaxRate, 'current:', currentTaxRate);
                     if (newTaxRate !== currentTaxRate) {
                         currentTaxRate = newTaxRate;
-                        console.log('🔄 Tax rate updated, calling recalculateAllValues()...');
                         // Natychmiastowe przeliczenie wszystkich wartości
                         recalculateAllValues();
                         // Aktualizacja w bazie danych
-                        console.log('💾 Saving tax rate to database...');
                         updateTaxRate(newTaxRate);
                     }
                 });
-                console.log('✅ Tax rate listener added');
+                // Tax rate listener added
             } else {
-                console.log('❌ Tax rate input not found!');
+                console.warn('Tax rate input not found');
             }
             
-            console.log('🔧 Event listeners setup complete');
+            // Event listeners setup complete
         }
 
         async function loadDashboard() {
@@ -343,7 +340,7 @@
                     // Ładowanie wersji systemu
                     await loadSystemVersion();
                 } else {
-                    showAlert('Błąd podczas ładowania danych: ' + result.error, 'danger');
+                    showAlert('Błąd podczas ładowania danych: ' + (result.error || 'Nieznany błąd'), 'danger');
                 }
             } catch (error) {
                 showAlert('Błąd połączenia: ' + error.message, 'danger');
@@ -399,7 +396,7 @@
 
         async function loadTaxRate() {
             try {
-                console.log('🔄 Loading tax rate from API...');
+                // Loading tax rate from API
                 const response = await fetch('/api/system/dividend-tax-rate');
                 const result = await response.json();
                 
@@ -419,7 +416,7 @@
 
         async function loadSystemVersion() {
             try {
-                console.log('🔄 Loading system version from API...');
+                // Loading system version from API
                 const response = await fetch('/api/system/version');
                 const result = await response.json();
                 
@@ -472,9 +469,9 @@
             console.log('📊 ETF data length:', etfData ? etfData.length : 'undefined');
             
             if (!etfData || etfData.length === 0) {
-                console.log('❌ No ETF data available for recalculation!');
-                return;
-            }
+                        console.warn('No ETF data available for recalculation');
+        return;
+    }
             
             // Przelicz yield i kwoty dywidend dla wszystkich ETF
             etfData.forEach((etf, index) => {
@@ -496,11 +493,11 @@
                 }
             });
             
-            console.log('🔄 Refreshing table and stats...');
+            // Refreshing table and stats
             // Odśwież tabelę
             renderTable();
             updateStats();
-            console.log('✅ Recalculation complete!');
+            // Recalculation complete
         }
 
 

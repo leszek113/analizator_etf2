@@ -2,6 +2,45 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.19] - 2025-08-24
+
+### 🔒 **Bezpieczeństwo i Konfiguracja**
+- **Inteligentny debug mode** - automatyczne przełączanie między development a production
+- **Walidacja środowiska** - automatyczne wyłączenie debug w produkcji
+- **Konfiguracja magic numbers** - przeniesienie hardcoded wartości do config.py
+- **System split data** - konfigurowalne split data dla ETF zamiast hardcoded
+
+### 🎛️ **Nowe Ustawienia Konfiguracyjne**
+- **`MAX_HISTORY_YEARS`**: Maksymalna liczba lat historii (domyślnie: 15)
+- **`DAILY_PRICES_WINDOW_DAYS`**: Rolling window dla cen dziennych (domyślnie: 365)
+- **`WEEKLY_PRICES_WINDOW_DAYS`**: Rolling window dla cen tygodniowych (domyślnie: 780)
+- **`ENABLE_DEBUG_LOGS`**: Włączanie debug logów (domyślnie: False)
+- **`KNOWN_SPLITS`**: Konfiguracja znanych splitów ETF
+
+### 🧹 **Porządkowanie i Optymalizacja Kodu**
+- **Czyszczenie debug logów** - usunięcie nadmiarowych console.log z emoji
+- **Ujednolicenie logowania** - podniesienie logger.debug do logger.info
+- **Czytelność kodu** - zastąpienie debug logów komentarzami
+- **Optymalizacja frontend** - czyszczenie dashboard.html i etf_details.html
+- **Refaktoryzacja backend** - czyszczenie api_service.py i database_service.py
+
+### 📊 **Statystyki Porządkowania**
+- **Usunięto**: 65+ debug logów z emoji
+- **Zastąpiono**: console.log komentarzami
+- **Ujednolicono**: poziomy logowania
+- **Poprawiono**: czytelność kodu
+
+### 🔧 **Poprawki Techniczne**
+- **Usunięcie hardcoded split data** - SCHD split data przeniesione do konfiguracji
+- **Konfigurowalne rolling windows** - wszystkie magic numbers zastąpione konfiguracją
+- **Inteligentne logowanie** - kontrolowany poziom logów w zależności od środowiska
+
+### 🚀 **Korzyści**
+- **Bezpieczeństwo produkcji** - debug mode automatycznie wyłączany
+- **Łatwość konfiguracji** - zmiana parametrów bez modyfikacji kodu
+- **Elastyczność** - dostosowanie do różnych środowisk i wymagań
+- **Utrzymywalność** - centralna konfiguracja wszystkich parametrów
+
 ## [v1.9.18] - 2025-08-24
 
 ### 🆕 Dodano

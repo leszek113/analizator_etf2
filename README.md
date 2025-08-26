@@ -259,6 +259,18 @@
 - **EODHD API**: Backup klucz (100 requestów/dzień)
 - **Tiingo API**: Fallback klucz (50 requestów/dzień)
 
+### **Konfiguracja**
+- **`MAX_HISTORY_YEARS`**: Maksymalna liczba lat historii (domyślnie: 15)
+- **`DAILY_PRICES_WINDOW_DAYS`**: Rolling window dla cen dziennych (domyślnie: 365)
+- **`WEEKLY_PRICES_WINDOW_DAYS`**: Rolling window dla cen tygodniowych (domyślnie: 780)
+- **`ENABLE_DEBUG_LOGS`**: Włączanie debug logów (domyślnie: False)
+
+### **Wersja Systemu**
+- **Aktualna wersja**: v1.9.19
+- **Status**: Gotowy do produkcji
+- **Ostatnia aktualizacja**: 2025-08-24
+- **`KNOWN_SPLITS`**: Konfiguracja znanych splitów ETF
+
 ### **Kroki instalacji**
 ```bash
 # 1. Klonowanie repozytorium

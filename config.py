@@ -30,9 +30,30 @@ class Config:
     MAX_HISTORY_YEARS = 15
     DIVIDEND_CHECK_INTERVAL_HOURS = 24
     
+    # Timeframe settings
+    DAILY_PRICES_WINDOW_DAYS = 365  # Rolling window dla cen dziennych
+    WEEKLY_PRICES_WINDOW_DAYS = 780  # 15 lat * 52 tygodnie
+    MONTHLY_PRICES_WINDOW_DAYS = 5475  # 15 lat * 365 dni
+    
     # Cache settings
     CACHE_TTL_SECONDS = 3600  # 1 godzina
+    
+    # Logging settings
+    DEBUG_LEVEL = os.environ.get('DEBUG_LEVEL', 'INFO')  # DEBUG, INFO, WARNING, ERROR
+    ENABLE_DEBUG_LOGS = os.environ.get('ENABLE_DEBUG_LOGS', 'False').lower() == 'true'
     
     # Retry settings
     MAX_RETRIES = 3
     RETRY_DELAY_BASE = 0.5  # seconds - zmniejszone z 2 na 0.5
+    
+    # Known splits configuration
+    KNOWN_SPLITS = {
+        'SCHD': [
+            {
+                'date': '2024-10-11',
+                'ratio': 3.0,
+                'description': '3:1 Stock Split'
+            }
+        ]
+        # Dodaj więcej ETF z splitami tutaj
+    }

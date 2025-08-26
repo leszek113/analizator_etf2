@@ -438,7 +438,7 @@ class DatabaseService:
             cached_data = self.api_service.cache.get(f"etf_data_{ticker}")
             prices_data = []
             
-            # Debug logging
+            # Cache validation
             logger.info(f"Cache check for {ticker}: {list(self.api_service.cache.keys()) if self.api_service.cache else 'Empty cache'}")
             if cached_data:
                 logger.info(f"Cache data keys for {ticker}: {list(cached_data['data'].keys())}")
@@ -748,7 +748,7 @@ class DatabaseService:
                 logger.warning(f"No dividends returned from API for {ticker}")
                 return False
             
-            # Debug logging - sprawdzenie struktury danych
+            # Data structure validation
             if all_dividends:
                 sample_dividend = all_dividends[0]
                 logger.info(f"Sample dividend data structure for {ticker}: {list(sample_dividend.keys())}")
@@ -794,9 +794,9 @@ class DatabaseService:
                         )
                         db.session.add(dividend)
                         added_count += 1
-                        logger.debug(f"Added dividend for {ticker} on {dividend_data['payment_date']}: {dividend_data['original_amount']}")
+                        logger.info(f"Added dividend for {ticker} on {dividend_data['payment_date']}: {dividend_data['original_amount']}")
                     else:
-                        logger.debug(f"Dividend for {ticker} on {dividend_data['payment_date']} already exists")
+                        logger.info(f"Dividend for {ticker} on {dividend_data['payment_date']} already exists")
                         
                 except Exception as e:
                     logger.error(f"Error adding dividend for {ticker} on {dividend_data['payment_date']}: {str(e)}")
@@ -903,7 +903,7 @@ class DatabaseService:
                 logger.warning(f"No historical prices returned from API for {ticker}")
                 return False
             
-            # Debug logging - sprawdzenie struktury danych
+            # Data structure validation
             if historical_prices:
                 sample_price = historical_prices[0]
                 logger.info(f"Sample price data structure for {ticker}: {list(sample_price.keys())}")
@@ -948,9 +948,9 @@ class DatabaseService:
                         )
                         db.session.add(new_price)
                         added_count += 1
-                        logger.debug(f"Added price for {ticker} on {price_data['date']}: {price_data['original_close']}")
+                        logger.info(f"Added price for {ticker} on {price_data['date']}: {price_data['original_close']}")
                     else:
-                        logger.debug(f"Price for {ticker} on {price_data['date']} already exists")
+                        logger.info(f"Price for {ticker} on {price_data['date']} already exists")
                         
                 except Exception as e:
                     logger.error(f"Error adding price for {ticker} on {price_data['date']}: {str(e)}")
@@ -1478,17 +1478,21 @@ class DatabaseService:
             etf_inception_date = etf.inception_date if etf and etf.inception_date else None
             
             # Określ oczekiwaną liczbę lat historii
+            from config import Config
+            config = Config()
+            max_history_years = config.MAX_HISTORY_YEARS
+            
             if etf_inception_date:
                 etf_age_years = (today - etf_inception_date).days / 365.25
-                expected_years = min(15, int(etf_age_years))  # Maksymalnie 15 lat lub wiek ETF
+                expected_years = min(max_history_years, int(etf_age_years))  # Maksymalnie z konfiguracji lub wiek ETF
                 target_start_date = etf_inception_date
                 logger.info(f"ETF {ticker} has inception date {etf_inception_date}, age: {etf_age_years:.1f} years, expecting {expected_years} years of history")
             else:
-                # Fallback - zakładamy 15 lat
-                etf_age_years = 15.0
-                expected_years = 15
-                target_start_date = today - timedelta(days=15*365)
-                logger.info(f"ETF {ticker} has no inception date, using 15-year fallback")
+                # Fallback - z konfiguracji
+                etf_age_years = float(max_history_years)
+                expected_years = max_history_years
+                target_start_date = today - timedelta(days=max_history_years*365)
+                logger.info(f"ETF {ticker} has no inception date, using {max_history_years}-year fallback")
             
             # Sprawdzanie kompletności cen
             prices = ETFPrice.query.filter_by(etf_id=etf_id).order_by(ETFPrice.date).all()
@@ -1712,9 +1716,11 @@ class DatabaseService:
         """
         try:
             from datetime import date, timedelta
+            from config import Config
             
             today = date.today()
-            expected_days = 365
+            config = Config()
+            expected_days = config.DAILY_PRICES_WINDOW_DAYS
             tolerance_days = 5
             
             # Sprawdzanie kompletności cen dziennych
@@ -1819,11 +1825,16 @@ class DatabaseService:
             completeness = self.verify_data_completeness(etf_id, ticker)
             daily_completeness = self.verify_daily_completeness(etf_id, ticker)
             
+            from config import Config
+            config = Config()
+            max_history_years = config.MAX_HISTORY_YEARS
+            daily_window_days = config.DAILY_PRICES_WINDOW_DAYS
+            
             if (completeness['prices_complete'] and 
                 completeness['dividends_complete'] and 
                 completeness['weekly_prices_complete'] and
                 daily_completeness['daily_prices_complete']):
-                logger.info(f"ETF {ticker} already has complete 15-year history and 365-day daily data")
+                logger.info(f"ETF {ticker} already has complete {max_history_years}-year history and {daily_window_days}-day daily data")
                 return {
                     'prices_filled': 0,
                     'dividends_filled': 0,
@@ -1858,12 +1869,12 @@ class DatabaseService:
                     # Brak cen w bazie - pobierz pełną historię
                     missing_months = []
                     oldest_missing = None
-                    logger.info(f"ETF {ticker} has no price data - fetching full 15-year history")
+                    logger.info(f"ETF {ticker} has no price data - fetching full {max_history_years}-year history")
                 
                 # Pobierz ceny z API
                 historical_prices = self.api_service.get_historical_prices(
                     ticker, 
-                    years=15, 
+                    years=max_history_years, 
                     normalize_splits=True
                 )
                 

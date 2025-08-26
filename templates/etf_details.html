@@ -860,7 +860,7 @@
                             }
                         });
                         
-                        console.log(`✅ Wykres break-even utworzony pomyślnie!`);
+                        // Wykres break-even utworzony pomyślnie
                         console.log(`📊 Wykres ma ${labels.length} punktów danych`);
                         
                         // Sprawdzenie czy wykres jest widoczny
@@ -898,7 +898,7 @@
          
         // Funkcja do zmiany target percentage
         function changeTargetPercentage(delta) {
-            console.log(`🔄 Zmiana target percentage o ${delta}`);
+            // Zmiana target percentage o ${delta}
             const input = document.getElementById('targetPercentage');
             if (!input) {
                 console.error('❌ Element targetPercentage nie został znaleziony!');
@@ -918,13 +918,13 @@
             updateTargetDisplays();
             
             // Aktualizacja wykresu
-            console.log(`🔄 Wywołanie updateBreakEvenChart()...`);
+            // Wywołanie updateBreakEvenChart
             updateBreakEvenChart();
         }
         
         // Funkcja do aktualizacji wykresu break-even
         function updateBreakEvenChart() {
-            console.log(`🔄 Aktualizacja wykresu break-even...`);
+            // Aktualizacja wykresu break-even
             const h2Element = document.querySelector('h2');
             if (!h2Element) {
                 console.error('❌ Element h2 nie został znaleziony!');
@@ -949,14 +949,14 @@
                 return;
             }
             
-            console.log(`✅ Ticker jest poprawny: ${currentTicker}`);
+            // Ticker jest poprawny: ${currentTicker}
             updateTargetDisplays(); // Aktualizacja opisów przed wykresem
             createBreakEvenChart(currentTicker);
         }
         
         // Funkcja do aktualizacji opisów na stronie
         function updateTargetDisplays() {
-            console.log(`🔄 Aktualizacja opisów na stronie...`);
+            // Aktualizacja opisów na stronie
             const targetPercentage = document.getElementById('targetPercentage').value;
             const targetAmount = (1000 * parseFloat(targetPercentage) / 100).toFixed(2);
             console.log(`📊 Target percentage: ${targetPercentage}%, Target amount: $${targetAmount}`);
@@ -968,7 +968,7 @@
             if (targetAmountElement && targetPercentageElement) {
                 targetAmountElement.textContent = `$${targetAmount}`;
                 targetPercentageElement.textContent = targetPercentage;
-                console.log(`✅ Opisy zaktualizowane: $${targetAmount} (${targetPercentage}%)`);
+                // Opisy zaktualizowane: $${targetAmount} (${targetPercentage}%)
             } else {
                 console.error('❌ Elementy opisów nie zostały znalezione!');
                 console.error('  - targetAmountElement:', targetAmountElement);
@@ -978,7 +978,7 @@
         
         // Funkcja do tworzenia wykresu cen tygodniowych
         function createWeeklyPriceChart(ticker) {
-            console.log(`🔄 Tworzenie wykresu cen tygodniowych dla ${ticker}...`);
+            // Tworzenie wykresu cen tygodniowych dla ${ticker}
             
             fetch(`/api/etfs/${ticker}/weekly-prices`)
                 .then(response => {
@@ -1080,7 +1080,7 @@
                             }
                         });
                         
-                        console.log(`✅ Wykres cen tygodniowych utworzony pomyślnie!`);
+                        // Wykres cen tygodniowych utworzony pomyślnie
                         
                     } else {
                         console.error('Błąd pobierania danych cen tygodniowych:', data.error);
@@ -1097,7 +1097,7 @@
         
         // Funkcja do tworzenia wykresu Stochastic Oscillator
         function createStochasticChart(ticker) {
-            console.log(`🔄 Tworzenie wykresu Stochastic Oscillator dla ${ticker}...`);
+            // Tworzenie wykresu Stochastic Oscillator dla ${ticker}
             
             fetch(`/api/etfs/${ticker}/weekly-stochastic`)
                 .then(response => {
@@ -1270,7 +1270,7 @@
                             }
                         });
                         
-                        console.log(`✅ Wykres Stochastic Oscillator utworzony pomyślnie!`);
+                        // Wykres Stochastic Oscillator utworzony pomyślnie
                         console.log(`📊 Wykres ma ${data.data.count} punktów danych`);
                         
                         // Sprawdzenie czy wykres jest widoczny
@@ -1417,8 +1417,8 @@
                             }
                         });
                         
-                        console.log(`✅ Wykres cen miesięcznych utworzony pomyślnie!`);
-                        console.log(`📊 Wykres ma ${data.data.count} punktów danych`);
+                                // Wykres cen miesięcznych utworzony pomyślnie
+        console.log(`📊 Wykres ma ${data.data.count} punktów danych`);
                         
                         // Sprawdzenie czy wykres jest widoczny
                         setTimeout(() => {
@@ -1455,42 +1455,42 @@
         
         // Inicjalizacja wykresu po załadowaniu strony
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 DOM loaded, initializing...');
+            // DOM loaded, initializing
             const ticker = '{{ etf.ticker }}';
-            console.log('📊 Ticker:', ticker);
+            // Ticker: ${ticker}
             
-            console.log('🔄 Rozpoczynam tworzenie wykresów...');
+            // Rozpoczynam tworzenie wykresów
             
-            console.log('📊 1. Tworzenie wykresu cen miesięcznych...');
+            // 1. Tworzenie wykresu cen miesięcznych
             createPriceChart(ticker);
             
-            console.log('📊 2. Tworzenie wykresu cen tygodniowych...');
+            // 2. Tworzenie wykresu cen tygodniowych
             createWeeklyPriceChart(ticker);
             
-            console.log('📊 2a. Tworzenie wykresu MACD (8-17-9)...');
+            // 2a. Tworzenie wykresu MACD (8-17-9)
             createMACDChart(ticker);
             
-            console.log('📊 3. Tworzenie wykresu Stochastic Oscillator...');
+            // 3. Tworzenie wykresu Stochastic Oscillator
             createStochasticChart(ticker); // Dodanie wywołania createStochasticChart
             
-            console.log('📊 3a. Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3)...');
+            // 3a. Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3)
             createStochasticChartShort(ticker);
             
-            console.log('📊 4. Tworzenie wykresu break-even...');
+            // 4. Tworzenie wykresu break-even
             createBreakEvenChart(ticker);
             
-            console.log('✅ Wszystkie wykresy zostały zainicjalizowane');
+            // Wszystkie wykresy zostały zainicjalizowane
             
             // Debug - sprawdzenie stanu wszystkich wykresów po 2 sekundach
             setTimeout(() => {
-                console.log('🔍 === SPRAWDZENIE STANU WSZYSTKICH WYKRESÓW ===');
-                console.log('📊 Price Chart:', priceChart ? 'OK' : 'NULL');
-                console.log('📊 Weekly Price Chart:', weeklyPriceChart ? 'OK' : 'NULL');
-                console.log('📊 MACD Chart:', macdChart ? 'OK' : 'NULL');
-                console.log('📊 Stochastic Chart:', stochasticChart ? 'OK' : 'NULL');
-                console.log('📊 Stochastic Short Chart:', stochasticChartShort ? 'OK' : 'NULL');
-                console.log('📊 Dividend Chart:', dividendChart ? 'OK' : 'NULL');
-                console.log('📊 Break Even Chart:', breakEvenChart ? 'OK' : 'NULL');
+                // === SPRAWDZENIE STANU WSZYSTKICH WYKRESÓW ===
+                // Price Chart: ${priceChart ? 'OK' : 'NULL'}
+                // Weekly Price Chart: ${weeklyPriceChart ? 'OK' : 'NULL'}
+                // MACD Chart: ${macdChart ? 'OK' : 'NULL'}
+                // Stochastic Chart: ${stochasticChart ? 'OK' : 'NULL'}
+                // Stochastic Short Chart: ${stochasticChartShort ? 'OK' : 'NULL'}
+                // Dividend Chart: ${dividendChart ? 'OK' : 'NULL'}
+                // Break Even Chart: ${breakEvenChart ? 'OK' : 'NULL'}
                 
                 // Sprawdzenie canvas elementów
                 const priceCanvas = document.getElementById('priceChart');
@@ -1501,27 +1501,27 @@
                 const dividendCanvas = document.getElementById('dividendChart');
                 const breakEvenCanvas = document.getElementById('breakEvenChart');
                 
-                console.log('🔍 Canvas elements:');
-                console.log('  - priceChart:', priceCanvas ? `${priceCanvas.width}x${priceCanvas.height}` : 'NOT FOUND');
-                console.log('  - weeklyPriceChart:', weeklyCanvas ? `${weeklyCanvas.width}x${weeklyCanvas.height}` : 'NOT FOUND');
-                console.log('  - macdChart:', macdCanvas ? `${macdCanvas.width}x${macdCanvas.height}` : 'NOT FOUND');
-                console.log('  - stochasticChart:', stochasticCanvas ? `${stochasticCanvas.width}x${stochasticCanvas.height}` : 'NOT FOUND');
-                console.log('  - stochasticShortChart:', stochasticShortCanvas ? `${stochasticShortCanvas.width}x${stochasticShortCanvas.height}` : 'NOT FOUND');
-                console.log('  - dividendChart:', dividendCanvas ? `${dividendCanvas.width}x${dividendCanvas.height}` : 'NOT FOUND');
-                console.log('  - breakEvenChart:', breakEvenCanvas ? `${breakEvenCanvas.width}x${breakEvenCanvas.height}` : 'NOT FOUND');
+                // Canvas elements
+                //   - priceChart: ${priceCanvas ? `${priceCanvas.width}x${priceCanvas.height}` : 'NOT FOUND'}
+                //   - weeklyPriceChart: ${weeklyCanvas ? `${weeklyCanvas.width}x${weeklyCanvas.height}` : 'NOT FOUND'}
+                //   - macdChart: ${macdCanvas ? `${macdCanvas.width}x${macdCanvas.height}` : 'NOT FOUND'}
+                //   - stochasticChart: ${stochasticCanvas ? `${stochasticCanvas.width}x${stochasticCanvas.height}` : 'NOT FOUND'}
+                //   - stochasticShortChart: ${stochasticShortCanvas ? `${stochasticShortCanvas.width}x${stochasticShortCanvas.height}` : 'NOT FOUND'}
+                //   - dividendChart: ${dividendCanvas ? `${dividendCanvas.width}x${dividendCanvas.height}` : 'NOT FOUND'}
+                //   - breakEvenChart: ${breakEvenCanvas ? `${breakEvenCanvas.width}x${breakEvenCanvas.height}` : 'NOT FOUND'}
                 
                 // Sprawdzenie stylów
                 if (stochasticCanvas) {
                     const style = window.getComputedStyle(stochasticCanvas);
-                    console.log('🔍 Stochastic Canvas styles:');
-                    console.log('  - display:', style.display);
-                    console.log('  - visibility:', style.visibility);
-                    console.log('  - opacity:', style.opacity);
-                    console.log('  - width:', style.width);
-                    console.log('  - height:', style.height);
+                    // Stochastic Canvas styles
+                    //   - display: ${style.display}
+                    //   - visibility: ${style.visibility}
+                    //   - opacity: ${style.opacity}
+                    //   - width: ${style.width}
+                    //   - height: ${style.height}
                 }
                 
-                console.log('🔍 === KONIEC SPRAWDZENIA ===');
+                // === KONIEC SPRAWDZENIA ===
             }, 2000);
             
             // Inicjalizacja opisów target percentage
@@ -1550,7 +1550,7 @@
             });
             
             // Ładowanie stawki podatku i przeliczanie wartości
-            console.log('🔄 Calling loadTaxRate()...');
+            // Calling loadTaxRate
             loadTaxRate();
         });
         
@@ -1575,26 +1575,26 @@
         
         async function loadTaxRate() {
             try {
-                console.log('🔄 Fetching tax rate from API...');
+                // Fetching tax rate from API
                 const response = await fetch('/api/system/dividend-tax-rate');
                 const result = await response.json();
-                console.log('📊 API response:', result);
+                // API response: ${result}
                 
                 if (result.success) {
                     currentTaxRate = result.data.tax_rate;
-                    console.log('📊 Tax rate loaded:', currentTaxRate);
+                    // Tax rate loaded: ${currentTaxRate}
                     
                     // Aktualizacja badge z stawką podatku
                     const taxRateElement = document.getElementById('currentTaxRate');
                     if (taxRateElement) {
                         taxRateElement.textContent = currentTaxRate;
-                        console.log('✅ Tax rate badge updated');
+                        // Tax rate badge updated
                     } else {
                         console.error('❌ Tax rate element not found');
                     }
                     
                     // Przeliczenie wszystkich wartości
-                    console.log('🔄 Calling recalculateAllValues()...');
+                    // Calling recalculateAllValues
                     recalculateAllValues();
                 } else {
                     console.error('❌ API returned error:', result.error);
@@ -1614,7 +1614,7 @@
                 if (originalYield && !isNaN(originalYield)) {
                     const afterTaxYield = calculateAfterTaxYield(originalYield, currentTaxRate);
                     currentYieldElement.textContent = `${formatNumber(originalYield, 2)} (B), ${formatNumber(afterTaxYield, 2)} (N)`;
-                    console.log(`✅ Yield przeliczony: ${originalYield}% -> ${afterTaxYield}%`);
+                    // Yield przeliczony: ${originalYield}% -> ${afterTaxYield}%
                 } else {
                     console.warn('⚠️ Brak oryginalnej wartości yield do przeliczenia');
                 }
@@ -1629,7 +1629,7 @@
                 if (originalValue && !isNaN(originalValue)) {
                     const afterTaxValue = calculateAfterTaxAmount(originalValue, currentTaxRate);
                     lastDividendsSumElement.textContent = `${formatNumber(originalValue, 5)} (B), ${formatNumber(afterTaxValue, 5)} (N)`;
-                    console.log(`✅ Suma dywidend przeliczona: $${originalValue} -> $${afterTaxValue}`);
+                    // Suma dywidend przeliczona: $${originalValue} -> $${afterTaxValue}
                 } else {
                     console.warn('⚠️ Brak oryginalnej wartości sumy dywidend do przeliczenia');
                 }
@@ -1638,12 +1638,12 @@
             }
             
             // Przeliczenie kolumny "Suma Roczna" w tabeli dywidend
-            console.log('🔄 Przeliczanie sum rocznych w tabeli dywidend...');
+            // Przeliczanie sum rocznych w tabeli dywidend
             recalculateYearlyTotals();
             
             // Aktualizacja wykresu dywidend z nową stawką podatku
             if (dividendChart && window.dividendChartData) {
-                console.log('🔄 Aktualizacja wykresu dywidend z nową stawką podatku...');
+                // Aktualizacja wykresu dywidend z nową stawką podatku
                 // Aktualizacja danych netto z nową stawką podatku
                 const { labels, grossData, currentYear } = window.dividendChartData;
                 const lastDividendsSumElement = document.getElementById('lastDividendsSum');
@@ -1662,7 +1662,7 @@
                         
                         // Pobranie aktualnie wybranego typu i aktualizacja wykresu
                         const selectedType = document.querySelector('input[name="dividendType"]:checked').value;
-                        console.log(`🔄 Aktualizacja wykresu dywidend dla typu: ${selectedType}`);
+                        // Aktualizacja wykresu dywidend dla typu: ${selectedType}
                         updateDividendChart(selectedType);
                     }
                 }
@@ -1672,11 +1672,11 @@
         }
         
         function recalculateYearlyTotals() {
-            console.log('🔄 Przeliczanie sum rocznych w tabeli dywidend...');
+            // Przeliczanie sum rocznych w tabeli dywidend
             
             // Przeliczenie kolumny "Suma Roczna"
             const yearlyTotalCells = document.querySelectorAll('.yearly-total');
-            console.log(`📊 Znaleziono ${yearlyTotalCells.length} komórek z sumami rocznymi`);
+                            // Znaleziono ${yearlyTotalCells.length} komórek z sumami rocznymi
             
             yearlyTotalCells.forEach((cell, index) => {
                 const originalValue = parseFloat(cell.getAttribute('data-original'));
@@ -1688,7 +1688,7 @@
                             <small class="text-muted">${formatNumber(originalValue, 5)}</small>
                         </div>
                     `;
-                    console.log(`✅ Suma roczna ${index + 1}: $${originalValue} -> $${afterTaxValue}`);
+                    // Suma roczna ${index + 1}: $${originalValue} -> $${afterTaxValue}
                 } else {
                     console.warn(`⚠️ Brak oryginalnej wartości dla sumy rocznej ${index + 1}`);
                 }
@@ -1696,7 +1696,7 @@
             
             // Przeliczenie WSZYSTKICH komórek z dywidendami (miesięczne/kwartalne)
             const allDividendCells = document.querySelectorAll('.monthly-dividend, .dividend-summary');
-            console.log(`📊 Znaleziono ${allDividendCells.length} komórek z dywidendami miesięcznymi/kwartalnymi`);
+            // Znaleziono ${allDividendCells.length} komórek z dywidendami miesięcznymi/kwartalnymi
             
             allDividendCells.forEach((cell, index) => {
                 const originalValue = parseFloat(cell.getAttribute('data-original'));
@@ -1709,7 +1709,7 @@
                         </div>
                     `;
                     if (index < 5) { // Loguj tylko pierwsze 5 dla czytelności
-                        console.log(`✅ Dywidenda ${index + 1}: $${originalValue} -> $${afterTaxValue}`);
+                        // Dywidenda ${index + 1}: $${originalValue} -> $${afterTaxValue}
                     }
                 } else {
                     if (index < 5) { // Loguj tylko pierwsze 5 dla czytelności
@@ -1718,20 +1718,20 @@
                 }
             });
             
-            console.log('✅ Przeliczanie sum rocznych zakończone');
+            // Przeliczanie sum rocznych zakończone
         }
         
         // Funkcja do tworzenia krótkiego wykresu Stochastic Oscillator (9-3-3)
         function createStochasticChartShort(ticker) {
-            console.log(`🔄 Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3) dla ${ticker}...`);
+            // Tworzenie krótkiego wykresu Stochastic Oscillator (9-3-3) dla ${ticker}
             
             fetch(`/api/etfs/${ticker}/weekly-stochastic-short`)
                 .then(response => {
-                    console.log(`📊 Short Stochastic response status: ${response.status}`);
+                    // Short Stochastic response status: ${response.status}
                     return response.json();
                 })
                 .then(data => {
-                    console.log(`📊 Short Stochastic data response:`, data);
+                    // Short Stochastic data response: ${data}
                     
                     if (data.success) {
                         const canvasElement = document.getElementById('stochasticChartShort');
@@ -1751,7 +1751,7 @@
                         const kPercent = data.data.stochastic.map(s => s.k_percent);
                         const dPercent = data.data.stochastic.map(s => s.d_percent);
                         
-                        console.log(`📊 Krótki Stochastic: ${labels.length} etykiet, ${kPercent.length} wartości %K, ${dPercent.length} wartości %D`);
+                        // Krótki Stochastic: ${labels.length} etykiet, ${kPercent.length} wartości %K, ${dPercent.length} wartości %D
                         
                         // Usunięcie poprzedniego wykresu jeśli istnieje
                         if (stochasticChartShort) {
@@ -1857,7 +1857,7 @@
                             }
                         });
                         
-                        console.log(`✅ Krótki wykres Stochastic Oscillator (9-3-3) utworzony pomyślnie!`);
+                        // Krótki wykres Stochastic Oscillator (9-3-3) utworzony pomyślnie
                         
                     } else {
                         console.error('Błąd pobierania danych krótkiego Stochastic:', data.error);
@@ -1874,15 +1874,15 @@
 
         // Funkcja do tworzenia wykresu MACD (8-17-9)
         function createMACDChart(ticker) {
-            console.log(`🔄 Tworzenie wykresu MACD (8-17-9) dla ${ticker}...`);
+            // Tworzenie wykresu MACD (8-17-9) dla ${ticker}
             
             fetch(`/api/etfs/${ticker}/weekly-macd`)
                 .then(response => {
-                    console.log(`📊 MACD response status: ${response.status}`);
+                    // MACD response status: ${response.status}
                     return response.json();
                 })
                 .then(data => {
-                    console.log(`📊 MACD data response:`, data);
+                    // MACD data response: ${data}
                     
                     if (data.success) {
                         const canvasElement = document.getElementById('macdChart');
@@ -1903,7 +1903,7 @@
                         const signalLine = data.data.macd.map(m => m.signal_line);
                         const histogram = data.data.macd.map(m => m.histogram);
                         
-                        console.log(`📊 MACD: ${labels.length} etykiet, ${macdLine.length} wartości MACD Line, ${signalLine.length} wartości Signal Line`);
+                        // MACD: ${labels.length} etykiet, ${macdLine.length} wartości MACD Line, ${signalLine.length} wartości Signal Line
                         
                         // Usunięcie poprzedniego wykresu jeśli istnieje
                         if (macdChart) {
@@ -2014,7 +2014,7 @@
                             }
                         });
                         
-                        console.log(`✅ Wykres MACD (8-17-9) utworzony pomyślnie!`);
+                        // Wykres MACD (8-17-9) utworzony pomyślnie
                         
                     } else {
                         console.error('Błąd pobierania danych MACD:', data.error);
@@ -2033,18 +2033,18 @@
         function switchTimeframe(timeframe) {
             // Pobierz ticker z aktualnej strony
             const ticker = window.location.pathname.split('/').pop();
-            console.log(`🔄 Przełączanie timeframe na: ${timeframe} dla ticker: ${ticker}`);
-            console.log(`🔍 Debug: timeframe = "${timeframe}", ticker = "${ticker}"`);
+            // Przełączanie timeframe na: ${timeframe} dla ticker: ${ticker}
+            // Timeframe switch: ${timeframe} for ${ticker}
             
             // Aktualizacja wykresu cen
             if (timeframe === 'weekly') {
-                console.log(`📊 Wywołuję createWeeklyPriceChart(${ticker})`);
+                // Wywołuję createWeeklyPriceChart(${ticker})
                 createWeeklyPriceChart(ticker);
             } else if (timeframe === 'monthly') {
-                console.log(`📊 Wywołuję createMonthlyPriceChart(${ticker})`);
+                // Wywołuję createMonthlyPriceChart(${ticker})
                 createMonthlyPriceChart(ticker);
             } else if (timeframe === 'daily') {
-                console.log(`📊 Wywołuję createDailyPriceChart(${ticker})`);
+                // Wywołuję createDailyPriceChart(${ticker})
                 createDailyPriceChart(ticker);
             } else {
                 console.error(`❌ Nieznany timeframe: "${timeframe}"`);
@@ -2052,17 +2052,17 @@
             
             // Aktualizacja wszystkich wskaźników technicznych
             if (timeframe === 'weekly') {
-                console.log(`📊 Wywołuję wskaźniki tygodniowe dla ${ticker}`);
+                // Wywołuję wskaźniki tygodniowe dla ${ticker}
                 createMACDChart(ticker);
                 createStochasticChart(ticker);
                 createStochasticChartShort(ticker);
             } else if (timeframe === 'monthly') {
-                console.log(`📊 Wywołuję wskaźniki miesięczne dla ${ticker}`);
+                // Wywołuję wskaźniki miesięczne dla ${ticker}
                 createMonthlyMACDChart(ticker);
                 createMonthlyStochasticChart(ticker);
                 createMonthlyStochasticChartShort(ticker);
             } else if (timeframe === 'daily') {
-                console.log(`📊 Wywołuję wskaźniki dzienne dla ${ticker}`);
+                // Wywołuję wskaźniki dzienne dla ${ticker}
                 createDailyMACDChart(ticker);
                 createDailyStochasticChart(ticker);
                 createDailyStochasticShortChart(ticker);
@@ -2070,24 +2070,24 @@
                 console.error(`❌ Nieznany timeframe dla wskaźników: "${timeframe}"`);
             }
             
-            console.log(`✅ Funkcja switchTimeframe zakończona dla ${timeframe}`);
+            // Funkcja switchTimeframe zakończona dla ${timeframe}
         }
 
         // Event listener dla przełącznika timeframe
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 DOM loaded, dodaję event listener dla timeframe...');
+            // DOM loaded, dodaję event listener dla timeframe
             const timeframeSelect = document.getElementById('timeframeSelect');
-            console.log('🔍 Znaleziony timeframeSelect:', timeframeSelect);
+            // Znaleziony timeframeSelect: ${timeframeSelect}
             
             if (timeframeSelect) {
-                console.log('✅ Dodaję event listener dla timeframeSelect');
+                // Dodaję event listener dla timeframeSelect
                 timeframeSelect.addEventListener('change', function() {
                     const selectedTimeframe = this.value;
-                    console.log(`🔄 Event listener: zmiana timeframe na "${selectedTimeframe}"`);
-                    console.log(`🔍 this.value = "${this.value}", selectedTimeframe = "${selectedTimeframe}"`);
+                    // Event listener: zmiana timeframe na "${selectedTimeframe}"
+                    // this.value = "${this.value}", selectedTimeframe = "${selectedTimeframe}"
                     switchTimeframe(selectedTimeframe);
                 });
-                console.log('✅ Event listener dodany pomyślnie');
+                // Event listener dodany pomyślnie
             } else {
                 console.error('❌ Nie znaleziono elementu timeframeSelect!');
             }
@@ -2095,15 +2095,15 @@
 
         // Funkcja do tworzenia wykresu cen miesięcznych
         function createMonthlyPriceChart(ticker) {
-            console.log(`🔄 Tworzenie wykresu cen miesięcznych dla ${ticker}...`);
+            // Tworzenie wykresu cen miesięcznych dla ${ticker}
             
             fetch(`/api/etfs/${ticker}/monthly-prices`)
                 .then(response => {
-                    console.log(`📊 Monthly prices response status: ${response.status}`);
+                    // Monthly prices response status: ${response.status}
                     return response.json();
                 })
                 .then(data => {
-                    console.log(`📊 Monthly prices data response:`, data);
+                    // Monthly prices data response: ${data}
                     
                     if (data.success) {
                         const canvasElement = document.getElementById('weeklyPriceChart');
@@ -2118,7 +2118,7 @@
                         const labels = data.data.prices.map(p => p.date);
                         const prices = data.data.prices.map(p => p.close_price);
                         
-                        console.log(`📊 Przygotowane dane miesięczne: ${labels.length} etykiet, ${prices.length} cen`);
+                        // Przygotowane dane miesięczne: ${labels.length} etykiet, ${prices.length} cen
                         
                         // Usunięcie poprzedniego wykresu jeśli istnieje
                         if (weeklyPriceChart) {
@@ -2198,7 +2198,7 @@
                             }
                         });
                         
-                        console.log(`✅ Wykres cen miesięcznych utworzony pomyślnie!`);
+                        // Wykres cen miesięcznych utworzony pomyślnie
                         
                     } else {
                         console.error('Błąd pobierania danych cen miesięcznych:', data.error);
