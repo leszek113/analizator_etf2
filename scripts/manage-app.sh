@@ -3,6 +3,24 @@
 # =============================================================================
 # ETF Analyzer - Skrypt Zarządzania Aplikacją
 # =============================================================================
+
+# Automatyczne przejście do głównego katalogu projektu
+# Skrypt może być uruchamiany z dowolnego miejsca
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Przejście do głównego katalogu projektu
+cd "$PROJECT_ROOT"
+
+# Sprawdzenie czy jesteśmy w odpowiednim katalogu
+if [ ! -f "app.py" ] || [ ! -f "config.py" ] || [ ! -f "requirements.txt" ]; then
+    echo "❌ Błąd: Skrypt musi być uruchamiany z katalogu scripts/ lub głównego katalogu projektu"
+    echo "📁 Aktualny katalog: $(pwd)"
+    echo "📁 Oczekiwany katalog: $PROJECT_ROOT"
+    exit 1
+fi
+
+echo "📁 Przejście do głównego katalogu projektu: $(pwd)"
 # 
 # Użycie:
 #   ./manage-app.sh [start|stop|restart|status|logs|test|deploy|version]
