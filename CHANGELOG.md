@@ -2,6 +2,23 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.20] - 2025-08-26
+
+### 🐛 **Naprawione**
+- **System Status - szczegóły zadań**: Naprawiono funkcjonalność przycisku "Szczegóły" dla zadań schedulera
+- **System Status - wyrównanie kolumn**: Poprawiono wyrównanie nagłówków kolumn z danymi w tabelach logów
+- **System Status - wyświetlanie**: Zmieniono z 5 wierszy + scroll na 10 ostatnich wywołań bez scrollowania
+
+### 🔧 **Zmienione**
+- **JavaScript funkcje**: `populateUpdateAllEtfsTable()` i `populateUpdateEtfPricesTable()` teraz wyświetlają 10 ostatnich wywołań
+- **Informacje o wyświetlaniu**: Zaktualizowano tekst z "5 wierszy + scroll" na "10 ostatnich wywołań (z X dostępnych)"
+- **CSS**: Uproszczono style tabel, usunięto problematyczne scrollowanie
+
+### 📊 **Statystyki**
+- **Usunięto**: CSS scrollowania i problematyczne style wyrównania kolumn
+- **Dodano**: Endpoint API `/api/system/job-logs` dla szczegółów zadań
+- **Poprawiono**: Wyrównanie kolumn w tabelach logów zadań
+
 ## [v1.9.19] - 2025-08-24
 
 ### 🔒 **Bezpieczeństwo i Konfiguracja**

@@ -4,14 +4,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Wersja systemu - CENTRALNE ŹRÓDŁO PRAWDY
-__version__ = "1.9.19"
+__version__ = "1.9.20"
 
 # Informacje o wersji
 VERSION_INFO = {
     'version': __version__,
-    'release_date': '2025-08-24',
+    'release_date': '2025-08-26',
     'status': 'production_ready',
-    'build': '620408c'  # Git commit hash
+    'build': 'e5c1de9'  # Git commit hash
 }
 
 class Config:

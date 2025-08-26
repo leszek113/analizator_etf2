@@ -26,6 +26,12 @@
             left: 20px;
             z-index: 1000;
         }
+        
+        /* Poprawka dla Bootstrap - zachowanie układu tabeli */
+        .table-scroll thead {
+            background: #343a40;
+            color: white;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -330,7 +336,7 @@
                                 <small class="text-muted">(Historia: 3 miesiące)</small>
                             </h5>
                             <div class="table-responsive">
-                                <table class="table table-hover table-sm" id="updateAllEtfsTable">
+                                <table class="table table-hover table-sm table-scroll" id="updateAllEtfsTable">
                                     <thead class="table-dark">
                                         <tr>
                                             <th>Data i godzina (CET)</th>
@@ -343,13 +349,13 @@
                                             <th>Szczegóły</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="updateAllEtfsBody" style="max-height: 200px; overflow-y: auto;">
+                                    <tbody id="updateAllEtfsBody">
                                         <!-- Dynamicznie wypełniane przez JavaScript -->
                                     </tbody>
                                 </table>
                             </div>
                             <div class="text-center mt-2">
-                                <small class="text-muted">Wyświetlanie: 5 wierszy + scroll (ostatnie 20 wykonań)</small>
+                                <small class="text-muted update-all-etfs-info">Wyświetlanie: 5 wierszy + scroll (ostatnie 20 wykonań)</small>
                             </div>
                         </div>
 
@@ -361,7 +367,7 @@
                                 <small class="text-muted">(Historia: 2 tygodnie)</small>
                             </h5>
                             <div class="table-responsive">
-                                <table class="table table-hover table-sm" id="updateEtfPricesTable">
+                                <table class="table table-hover table-sm table-scroll" id="updateEtfPricesTable">
                                     <thead class="table-dark">
                                         <tr>
                                             <th>Data i godzina (CET)</th>
@@ -372,13 +378,13 @@
                                             <th>Szczegóły</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="updateEtfPricesBody" style="max-height: 200px; overflow-y: auto;">
+                                    <tbody id="updateEtfPricesBody">
                                         <!-- Dynamicznie wypełniane przez JavaScript -->
                                     </tbody>
                                 </table>
                             </div>
                             <div class="text-center mt-2">
-                                <small class="text-muted">Wyświetlanie: 5 wierszy + scroll (ostatnie 20 wykonań)</small>
+                                <small class="text-muted update-etf-prices-info">Wyświetlanie: 5 wierszy + scroll (ostatnie 20 wykonań)</small>
                             </div>
                         </div>
                     </div>
@@ -518,22 +524,25 @@
         }
         
         function refreshUpdateAllEtfsLogs() {
-            fetch('/api/system/job-logs/update_all_etfs')
+            console.log('🔄 Ładowanie logów update_all_timeframes...');
+            fetch('/api/system/job-logs?job_name=update_all_timeframes&limit=50')
                 .then(response => response.json())
                 .then(data => {
+                    console.log('📊 Otrzymane dane:', data);
                     if (data.success) {
+                        console.log(`✅ Znaleziono ${data.logs.length} logów`);
                         populateUpdateAllEtfsTable(data.logs);
                     } else {
-                        console.error('Błąd pobierania logów update_all_etfs:', data.error);
+                        console.error('❌ Błąd pobierania logów update_all_timeframes:', data.error);
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('❌ Error:', error);
                 });
         }
         
         function refreshUpdateEtfPricesLogs() {
-            fetch('/api/system/job-logs/update_etf_prices')
+            fetch('/api/system/job-logs?job_name=update_etf_prices&limit=50')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -548,7 +557,13 @@
         }
         
         function populateUpdateAllEtfsTable(logs) {
+            console.log('📋 Wypełnianie tabeli updateAllEtfsBody z', logs.length, 'logami');
             const tbody = document.getElementById('updateAllEtfsBody');
+            if (!tbody) {
+                console.error('❌ Nie znaleziono elementu updateAllEtfsBody!');
+                return;
+            }
+            console.log('✅ Znaleziono element updateAllEtfsBody:', tbody);
             tbody.innerHTML = '';
             
             if (logs.length === 0) {
@@ -556,7 +571,11 @@
                 return;
             }
             
-            logs.forEach(log => {
+            // Ograniczenie do 10 ostatnich wywołań
+            const displayLogs = logs.slice(0, 10);
+            const totalLogs = logs.length;
+            
+            displayLogs.forEach(log => {
                 const row = document.createElement('tr');
                 const timestamp = new Date(log.timestamp).toLocaleString('pl-PL');
                 const status = log.success ? 
@@ -594,6 +613,12 @@
                 
                 tbody.appendChild(row);
             });
+            
+            // Aktualizacja informacji o wyświetlaniu
+            const infoElement = document.querySelector('.update-all-etfs-info');
+            if (infoElement) {
+                infoElement.textContent = `Wyświetlanie: 10 ostatnich wywołań (z ${totalLogs} dostępnych)`;
+            }
         }
         
         function populateUpdateEtfPricesTable(logs) {
@@ -605,7 +630,11 @@
                 return;
             }
             
-            logs.forEach(log => {
+            // Ograniczenie do 10 ostatnich wywołań
+            const displayLogs = logs.slice(0, 10);
+            const totalLogs = logs.length;
+            
+            displayLogs.forEach(log => {
                 const row = document.createElement('tr');
                 const timestamp = new Date(log.timestamp).toLocaleString('pl-PL');
                 const status = log.success ? 
@@ -637,22 +666,35 @@
                 
                 tbody.appendChild(row);
             });
+            
+            // Aktualizacja informacji o wyświetlaniu
+            const infoElement = document.querySelector('.update-etf-prices-info');
+            if (infoElement) {
+                infoElement.textContent = `Wyświetlanie: 10 ostatnich wywołań (z ${totalLogs} dostępnych)`;
+            }
         }
         
         function showJobDetails(logId, jobType) {
             // Pobierz szczegóły zadania z bazy danych
-            fetch(`/api/system/job-logs?job_name=${jobType}&limit=1`)
+            fetch(`/api/system/job-logs?job_name=${jobType}&limit=100`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.logs.length > 0) {
                         const log = data.logs.find(l => l.id == logId);
                         if (log) {
                             displayJobDetailsModal(log);
+                        } else {
+                            console.error('Log not found for ID:', logId);
+                            alert('Nie znaleziono szczegółów dla tego zadania');
                         }
+                    } else {
+                        console.error('No logs found for job type:', jobType);
+                        alert('Brak logów dla tego typu zadania');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
+                    alert('Błąd podczas pobierania szczegółów zadania');
                 });
         }
         
@@ -717,7 +759,12 @@
         
         // Inicjalizacja przy ładowaniu strony
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 DOM loaded, inicjalizacja...');
+            console.log('🔍 Sprawdzanie elementów...');
+            console.log('updateAllEtfsBody:', document.getElementById('updateAllEtfsBody'));
+            console.log('updateEtfPricesBody:', document.getElementById('updateEtfPricesBody'));
             // Załaduj logi zadań przy starcie
+            console.log('📊 Ładowanie logów zadań...');
             refreshAllJobLogs();
         });
     </script>
