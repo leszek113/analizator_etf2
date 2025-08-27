@@ -1317,7 +1317,7 @@ class APIService:
             url = f"{self.config.FMP_BASE_URL}/quote/{ticker}"
             params = {'apikey': self.config.FMP_API_KEY}
             
-            response = self.session.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=5)
             response.raise_for_status()
             
             data = response.json()
@@ -1336,7 +1336,7 @@ class APIService:
             url = f"{self.config.EODHD_BASE_URL}/real-time/{ticker}"
             params = {'api_token': self.config.EODHD_API_KEY, 'fmt': 'json'}
             
-            response = self.session.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=5)
             response.raise_for_status()
             
             data = response.json()
@@ -1355,7 +1355,7 @@ class APIService:
             url = f"{self.config.TIINGO_BASE_URL}/tiingo/daily/{ticker}/prices"
             params = {'token': self.config.TIINGO_API_KEY}
             
-            response = self.session.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=5)
             response.raise_for_status()
             
             data = response.json()

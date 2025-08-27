@@ -205,6 +205,12 @@ def create_app():
                     try:
                         logger.info(f"Updating price for ETF {etf.ticker}...")
                         
+                        # Sprawdzenie czy nie przekroczyliśmy czasu (maksymalnie 10 minut)
+                        elapsed_time = time.time() - start_time
+                        if elapsed_time > 600:  # 10 minut
+                            logger.warning(f"Price update taking too long ({elapsed_time:.1f}s), stopping early")
+                            break
+                        
                         # Pobieranie aktualnej ceny
                         current_price = api_service.get_current_price(etf.ticker)
                         
