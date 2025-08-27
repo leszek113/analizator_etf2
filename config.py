@@ -4,14 +4,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Wersja systemu - CENTRALNE ŹRÓDŁO PRAWDY
-__version__ = "1.9.20"
+__version__ = "1.9.21"
 
 # Informacje o wersji
 VERSION_INFO = {
     'version': __version__,
-    'release_date': '2025-08-26',
+    'release_date': '2025-08-27',
     'status': 'production_ready',
-    'build': 'e5c1de9'  # Git commit hash
+    'build': '82169fc'  # Git commit hash
 }
 
 class Config:
@@ -27,6 +27,11 @@ class Config:
     FMP_API_KEY = os.environ.get('FMP_API_KEY')
     EODHD_API_KEY = os.environ.get('EODHD_API_KEY')
     TIINGO_API_KEY = os.environ.get('TIINGO_API_KEY')
+    
+    # Notification Settings
+    SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL')
+    SLACK_CHANNEL = os.environ.get('SLACK_CHANNEL', '#etf-analyzer')
+    SLACK_USERNAME = os.environ.get('SLACK_USERNAME', 'ETF Analyzer Bot')
 
     # Base URLs
     FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3'

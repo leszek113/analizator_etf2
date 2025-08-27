@@ -273,6 +273,30 @@ def create_app():
                 db.session.add(job_log)
                 db.session.commit()
     
+    def check_alerts():
+        """Zadanie schedulera do sprawdzania alertów wskaźników technicznych raz dziennie"""
+        with app.app_context():
+            try:
+                from services.notification_service import NotificationService
+                notification_service = NotificationService(config)
+                notification_service.check_technical_alerts()
+                logger.info("Daily technical alerts check completed")
+            except Exception as e:
+                logger.error(f"Error in daily alerts check: {str(e)}")
+    
+    def check_alerts_frequent():
+        """Zadanie schedulera do sprawdzania alertów co 10 minut (ceny, logi, zadania)"""
+        with app.app_context():
+            try:
+                from services.notification_service import NotificationService
+                notification_service = NotificationService(config)
+                notification_service.check_price_alerts()
+                notification_service.check_scheduler_alerts()
+                notification_service.check_log_alerts()
+                logger.info("Frequent alerts check completed")
+            except Exception as e:
+                logger.error(f"Error in frequent alerts check: {str(e)}")
+    
     # Uruchamianie aktualizacji wszystkich ram czasowych raz dziennie o 23:50 CET (poniedziałek-piątek)
     # Używamy UTC wewnętrznie: 23:50 CET = 22:50 UTC (zimą) lub 21:50 UTC (latem)
     scheduler.add_job(
@@ -295,6 +319,26 @@ def create_app():
         minute="*/15",  # co 15 minut
         timezone="UTC",  # Używamy UTC wewnętrznie
         id="price_update_15min"
+    )
+    
+    # Uruchamianie sprawdzania alertów co 10 minut (ceny, logi, zadania) + raz dziennie o 10:30 CET (wskaźniki)
+    # Używamy UTC wewnętrznie: 10:30 CET = 09:30 UTC (zimą) lub 08:30 UTC (latem)
+    scheduler.add_job(
+        func=check_alerts,
+        trigger="cron",
+        day_of_week="mon-fri",
+        hour="9",  # UTC - odpowiada 10:30 CET
+        minute="30",
+        timezone="UTC",
+        id="daily_alerts_check"
+    )
+    
+    # Sprawdzanie alertów co 10 minut (ceny, logi, zadania)
+    scheduler.add_job(
+        func=check_alerts_frequent,
+        trigger="interval",
+        minutes=10,
+        id="frequent_alerts_check"
     )
     
     # Dodanie schedulera do app context
@@ -2092,6 +2136,39 @@ def create_app():
             'version': __version__,
             'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
         })
+    
+    # Test endpoint dla Slack webhook
+    @app.route('/api/test/slack', methods=['POST'])
+    def test_slack_webhook():
+        """Test endpoint dla Slack webhook"""
+        try:
+            from services.notification_service import NotificationService
+            from config import Config
+            
+            # Test bezpośredni Config
+            config = Config()
+            logger.info(f"Config test - SLACK_WEBHOOK_URL: {config.SLACK_WEBHOOK_URL}")
+            logger.info(f"Config test - SLACK_CHANNEL: {config.SLACK_CHANNEL}")
+            logger.info(f"Config test - SLACK_USERNAME: {config.SLACK_USERNAME}")
+            
+            notification_service = NotificationService(config)
+            
+            # Testowe powiadomienie
+            test_message = "🧪 Test powiadomienia Slack z ETF Analyzer v1.9.20"
+            notification_service.send_slack_notification(0, test_message, 'info')
+            
+            return jsonify({
+                'success': True,
+                'message': 'Test powiadomienia Slack wysłany',
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error testing Slack webhook: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
     
 
     

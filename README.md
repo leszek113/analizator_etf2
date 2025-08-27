@@ -266,9 +266,9 @@
 - **`ENABLE_DEBUG_LOGS`**: Włączanie debug logów (domyślnie: False)
 
 ### **Wersja Systemu**
-- **Aktualna wersja**: v1.9.20
+- **Aktualna wersja**: v1.9.21
 - **Status**: Gotowy do produkcji
-- **Ostatnia aktualizacja**: 2025-08-26
+- **Ostatnia aktualizacja**: 2025-08-27
 
 ### **Skrypty Zarządzania**
 - **`./scripts/manage-app.sh`**: Zarządzanie aplikacją (start/stop/restart/status)
@@ -308,6 +308,7 @@ python app.py
 # - Aktualizacje automatyczne przy każdej aktualizacji danych
 # - Rzeczywiste dane rynkowe (data IPO z FMP API)
 # - Automatyczne obliczanie wieku na podstawie daty IPO z FMP API
+# - System powiadomień Slack - alerty w czasie rzeczywistym na telefon
 
 ### **🎯 Nowe funkcjonalności dostępne po uruchomieniu:**
 - **Prognozowany wzrost dywidendy** - automatyczne obliczanie trendu wzrostu/spadku dywidend
@@ -342,6 +343,9 @@ python app.py
 - **Walidacja inputów** - sprawdzanie poprawności ticker i innych danych wejściowych
 - **Testy jednostkowe** - pokrycie kodu testami dla kluczowych funkcji
 - **Wspólny CSS** - uniwersalne style dla całej aplikacji
+- **System powiadomień Slack** - alerty w czasie rzeczywistym na telefon
+- **Automatyczne sprawdzanie alertów** - ceny, wskaźniki, scheduler, logi
+- **Konfigurowalne warunki alertów** - możliwość ustawienia własnych kryteriów
 ```
 
 ## 🚀 **Force Update System**

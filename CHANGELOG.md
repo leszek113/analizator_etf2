@@ -2,6 +2,32 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.21] - 2025-08-27
+
+### 🆕 **Dodano**
+- **System powiadomień Slack** - pełna infrastruktura alertów i powiadomień
+- **Modele bazy danych** - `AlertConfig`, `AlertHistory`, `Notification` dla systemu alertów
+- **Serwis powiadomień** - `NotificationService` z logiką sprawdzania alertów
+- **Integracja ze schedulerem** - sprawdzanie alertów co 10 min + raz dziennie o 10:30 CET
+- **Slack webhook** - powiadomienia na telefon przez aplikację Slack
+
+### 🔧 **Zmienione**
+- **Optymalizacja schedulera** - timeout API zmniejszony z 10s do 5s, limit czasu 10 min
+- **Konfiguracja Slack** - `SLACK_WEBHOOK_URL`, `SLACK_CHANNEL`, `SLACK_USERNAME`
+- **Endpoint testowy** - `/api/test/slack` do testowania webhook
+
+### 📊 **Statystyki**
+- **Dodano**: 3 nowe modele bazy danych dla alertów
+- **Dodano**: Pełny serwis powiadomień z obsługą Slack
+- **Dodano**: 2 nowe zadania schedulera dla alertów
+- **Poprawiono**: Wydajność aktualizacji cen ETF (2x szybsze)
+
+### 🚀 **Korzyści**
+- **Powiadomienia w czasie rzeczywistym** - alerty na telefon przez Slack
+- **Automatyczne sprawdzanie** - ceny, wskaźniki, scheduler, logi
+- **Konfigurowalne alerty** - możliwość ustawienia własnych warunków
+- **Stabilność schedulera** - zabezpieczenie przed zawieszeniem
+
 ## [v1.9.20] - 2025-08-26
 
 ### 🐛 **Naprawione**

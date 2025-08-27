@@ -296,3 +296,55 @@ class DividendTaxRate(db.Model):
             'created_at': utc_to_cet(self.created_at).isoformat() if self.created_at else None,
             'updated_at': utc_to_cet(self.updated_at).isoformat() if self.updated_at else None
         }
+
+class AlertConfig(db.Model):
+    """Konfiguracja alertów do monitorowania"""
+    __tablename__ = 'alerts_config'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    type = db.Column(db.String(50), nullable=False)  # price, technical, scheduler, log
+    conditions = db.Column(db.JSON, nullable=False)  # Warunki w formacie JSON
+    enabled = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<AlertConfig {self.name}: {self.type}>'
+
+class AlertHistory(db.Model):
+    """Historia wyzwolonych alertów"""
+    __tablename__ = 'alerts_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    alert_config_id = db.Column(db.Integer, db.ForeignKey('alerts_config.id'), nullable=False)
+    etf_ticker = db.Column(db.String(20), nullable=True)  # Dla alertów ETF
+    message = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.String(20), default='info')  # info, warning, error, critical
+    priority = db.Column(db.Integer, default=1)
+    triggered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default='active')  # active, resolved, dismissed
+    
+    # Relacje
+    alert_config = db.relationship('AlertConfig', backref='history')
+    
+    def __repr__(self):
+        return f'<AlertHistory {self.alert_config.name}: {self.status}>'
+
+class Notification(db.Model):
+    """Historia wysłanych powiadomień"""
+    __tablename__ = 'notifications'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    alert_id = db.Column(db.Integer, db.ForeignKey('alerts_history.id'), nullable=False)
+    channel = db.Column(db.String(50), nullable=False)  # slack, email, sms
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='sent')  # sent, failed, pending
+    error_message = db.Column(db.Text, nullable=True)
+    
+    # Relacje
+    alert = db.relationship('AlertHistory', backref='notifications')
+    
+    def __repr__(self):
+        return f'<Notification {self.channel}: {self.status}>'
