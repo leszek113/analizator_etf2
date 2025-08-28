@@ -266,9 +266,9 @@
 - **`ENABLE_DEBUG_LOGS`**: Włączanie debug logów (domyślnie: False)
 
 ### **Wersja Systemu**
-- **Aktualna wersja**: v1.9.21
+- **Aktualna wersja**: v1.9.22
 - **Status**: Gotowy do produkcji
-- **Ostatnia aktualizacja**: 2025-08-27
+- **Ostatnia aktualizacja**: 2025-08-28
 
 ### **Skrypty Zarządzania**
 - **`./scripts/manage-app.sh`**: Zarządzanie aplikacją (start/stop/restart/status)

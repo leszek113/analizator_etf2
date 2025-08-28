@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zarządzanie Alertami - ETF Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/common.css') }}" rel="stylesheet">
+    <style>
+        .tab-content {
+            padding: 20px 0;
+        }
+        .alert-card {
+            border-left: 4px solid #007bff;
+            margin-bottom: 15px;
+        }
+        .alert-card.enabled {
+            border-left-color: #28a745;
+        }
+        .alert-card.disabled {
+            border-left-color: #dc3545;
+        }
+        .status-badge {
+            font-size: 0.8em;
+        }
+        .modal-lg {
+            max-width: 800px;
+        }
+        .form-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .form-section h6 {
+            color: #495057;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1><i class="fas fa-bell"></i> Zarządzanie Alertami</h1>
+                    <div>
+                        <a href="/" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Powrót do Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="alertsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage" type="button" role="tab">
+                    <i class="fas fa-cog"></i> Zarządzanie
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">
+                    <i class="fas fa-history"></i> Historia Alertów
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab">
+                    <i class="fas fa-paper-plane"></i> Historia Powiadomień
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="documentation-tab" data-bs-toggle="tab" data-bs-target="#documentation" type="button" role="tab">
+                    <i class="fas fa-book"></i> Dokumentacja Powiadomień
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="alertsTabContent">
+            <!-- Zarządzanie Tab -->
+            <div class="tab-pane fade show active" id="manage" role="tabpanel">
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAlertModal">
+                            <i class="fas fa-plus"></i> Dodaj nową regułę
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Reguły Alertów</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="alertsList">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                        <p>Ładowanie reguł alertów...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historia Alertów Tab -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Historia Wyzwolonych Alertów</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="alertsHistory">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                        <p>Ładowanie historii alertów...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historia Powiadomień Tab -->
+            <div class="tab-pane fade" id="notifications" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Historia Wysłanych Powiadomień</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="notificationsHistory">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                        <p>Ładowanie historii powiadomień...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dokumentacja Powiadomień Tab -->
+            <div class="tab-pane fade" id="documentation" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0"><i class="fas fa-book"></i> Dokumentacja Systemu Powiadomień</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h5 class="text-primary"><i class="fas fa-clock"></i> Harmonogram Zadań</h5>
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered">
+                                                <thead class="table-dark">
+                                                    <tr>
+                                                        <th>Zadanie</th>
+                                                        <th>Czas</th>
+                                                        <th>Opis</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td><strong>Aktualizacja wszystkich ram czasowych</strong></td>
+                                                        <td><span class="badge bg-success">22:45 CET</span><br><small>poniedziałek-piątek</small></td>
+                                                        <td>Pobieranie danych 1D, 1W, 1M dla wszystkich ETF</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Sprawdzanie alertów wskaźników</strong></td>
+                                                        <td><span class="badge bg-info">23:00 CET</span><br><small>poniedziałek-piątek</small></td>
+                                                        <td>Wykrywanie przecięć Stochastic i MACD</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Wysyłanie powiadomień wskaźników</strong></td>
+                                                        <td><span class="badge bg-warning">10:00 CET</span><br><small>następny dzień</small></td>
+                                                        <td>Pakiet powiadomień Slack</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Aktualizacja cen ETF</strong></td>
+                                                        <td><span class="badge bg-primary">15:35-22:05 CET</span><br><small>co 15 min, pon-pią</small></td>
+                                                        <td>Pobieranie aktualnych cen</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Sprawdzanie alertów (ceny, logi, zadania)</strong></td>
+                                                        <td><span class="badge bg-secondary">co 10 min</span></td>
+                                                        <td>Monitorowanie w czasie rzeczywistym</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h5 class="text-success"><i class="fas fa-bell"></i> Zasady Powiadomień</h5>
+                                        <div class="alert alert-info">
+                                            <h6><i class="fas fa-info-circle"></i> Wskaźniki Techniczne</h6>
+                                            <ul class="mb-0">
+                                                <li><strong>Stochastic:</strong> 5 typów alertów (poziomy, przecięcia)</li>
+                                                <li><strong>MACD:</strong> 2 typy alertów (przecięcia bullish/bearish)</li>
+                                                <li><strong>Powiadomienia:</strong> Pakiet o 10:00 CET następnego dnia</li>
+                                            </ul>
+                                        </div>
+                                        <div class="alert alert-warning">
+                                            <h6><i class="fas fa-exclamation-triangle"></i> Alerty Cenowe</h6>
+                                            <ul class="mb-0">
+                                                <li><strong>Godziny:</strong> 9:00-21:00 CET (natychmiast)</li>
+                                                <li><strong>Poza godzinami:</strong> Czeka do rana</li>
+                                            </ul>
+                                        </div>
+                                        <div class="alert alert-danger">
+                                            <h6><i class="fas fa-exclamation-circle"></i> Alerty Logów i Schedulera</h6>
+                                            <ul class="mb-0">
+                                                <li><strong>Godziny:</strong> 9:00-21:00 CET (natychmiast)</li>
+                                                <li><strong>Poza godzinami:</strong> Czeka do rana</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <hr class="my-4">
+                                
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h5 class="text-primary"><i class="fas fa-cogs"></i> Architektura Systemu</h5>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="card border-primary">
+                                                    <div class="card-header bg-primary text-white">
+                                                        <h6 class="mb-0"><i class="fas fa-calendar"></i> Events</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <p><strong>Definicja:</strong> Zdarzenia wykrywane przez system</p>
+                                                        <ul>
+                                                            <li>Przecięcie linii Stochastic</li>
+                                                            <li>Osiągnięcie poziomu ceny</li>
+                                                            <li>Błąd w logach</li>
+                                                            <li>Problem z zadaniem w tle</li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card border-success">
+                                                    <div class="card-header bg-success text-white">
+                                                        <h6 class="mb-0"><i class="fas fa-bell"></i> Alerts</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <p><strong>Definicja:</strong> Reguły monitorowania zdarzeń</p>
+                                                        <ul>
+                                                            <li>Konfiguracja warunków</li>
+                                                            <li>Parametry wskaźników</li>
+                                                            <li>ETF do monitorowania</li>
+                                                            <li>Status włączony/wyłączony</li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card border-warning">
+                                                    <div class="card-header bg-warning text-white">
+                                                        <h6 class="mb-0"><i class="fas fa-paper-plane"></i> Notifications</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <p><strong>Definicja:</strong> Wysłane powiadomienia</p>
+                                                        <ul>
+                                                            <li>Kanał: Slack webhook</li>
+                                                            <li>Historia wysłanych</li>
+                                                            <li>Status: wysłane/błąd</li>
+                                                            <li>Timestamp wysłania</li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dodawania Alertu -->
+    <div class="modal fade" id="addAlertModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dodaj nową regułę alertu</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addAlertForm">
+                        <!-- Podstawowe informacje -->
+                        <div class="form-section">
+                            <h6><i class="fas fa-info-circle"></i> Podstawowe informacje</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="alertName" class="form-label">Nazwa reguły *</label>
+                                    <input type="text" class="form-control" id="alertName" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="alertType" class="form-label">Typ alertu *</label>
+                                    <select class="form-select" id="alertType" required>
+                                        <option value="">Wybierz typ...</option>
+                                        <option value="technical_indicator">Wskaźnik techniczny</option>
+                                        <option value="price">Cena ETF</option>
+                                        <option value="log_error">Błąd w logu</option>
+                                        <option value="scheduler">Zadanie w tle</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Konfiguracja wskaźnika technicznego -->
+                        <div class="form-section" id="technicalIndicatorSection" style="display: none;">
+                            <h6><i class="fas fa-chart-line"></i> Konfiguracja wskaźnika</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="indicator" class="form-label">Wskaźnik</label>
+                                    <select class="form-select" id="indicator">
+                                        <option value="">Wybierz wskaźnik...</option>
+                                        <option value="stochastic">Stochastic Oscillator</option>
+                                        <option value="macd">MACD</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="alertTypeIndicator" class="form-label">Typ alertu</label>
+                                    <select class="form-select" id="alertTypeIndicator">
+                                        <option value="">Wybierz typ...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <label for="etfTicker" class="form-label">ETF Ticker</label>
+                                    <select class="form-select" id="etfTicker">
+                                        <option value="">Wybierz ETF...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="timeframe" class="form-label">Ramy czasowe</label>
+                                    <select class="form-select" id="timeframe">
+                                        <option value="1D">Dzienne (1D)</option>
+                                        <option value="1W">Tygodniowe (1W)</option>
+                                        <option value="1M">Miesięczne (1M)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mt-2" id="parametersSection" style="display: none;">
+                                <div class="col-12">
+                                    <label class="form-label">Parametry wskaźnika</label>
+                                    <div id="parametersFields">
+                                        <!-- Parametry będą generowane dynamicznie -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-2" id="thresholdSection" style="display: none;">
+                                <div class="col-md-6">
+                                    <label for="threshold" class="form-label">Próg</label>
+                                    <input type="number" class="form-control" id="threshold" step="0.01" min="0" max="100">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Konfiguracja ceny -->
+                        <div class="form-section" id="priceSection" style="display: none;">
+                            <h6><i class="fas fa-dollar-sign"></i> Konfiguracja ceny</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="priceEtfTicker" class="form-label">ETF Ticker</label>
+                                    <select class="form-select" id="priceEtfTicker">
+                                        <option value="">Wybierz ETF...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="priceCondition" class="form-label">Warunek</label>
+                                    <select class="form-select" id="priceCondition">
+                                        <option value="below">Poniżej</option>
+                                        <option value="above">Powyżej</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <label for="priceThreshold" class="form-label">Cena</label>
+                                    <input type="number" class="form-control" id="priceThreshold" step="0.01" min="0">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="priceTimeframe" class="form-label">Ramy czasowe</label>
+                                    <select class="form-select" id="priceTimeframe">
+                                        <option value="1D">Dzienne (1D)</option>
+                                        <option value="1W">Tygodniowe (1W)</option>
+                                        <option value="1M">Miesięczne (1M)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                    <button type="button" class="btn btn-primary" id="saveAlertBtn">
+                        <i class="fas fa-save"></i> Zapisz regułę
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Globalne zmienne
+        let technicalIndicators = {};
+        let etfList = [];
+
+        // Inicjalizacja po załadowaniu strony
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTechnicalIndicators();
+            loadEtfList();
+            loadAlerts();
+            loadAlertsHistory();
+            loadNotificationsHistory();
+            
+            // Event listeners
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Zmiana typu alertu
+            document.getElementById('alertType').addEventListener('change', function() {
+                toggleSections();
+            });
+
+            // Zmiana wskaźnika
+            document.getElementById('indicator').addEventListener('change', function() {
+                updateAlertTypes();
+                updateParameters();
+            });
+
+            // Zmiana typu alertu wskaźnika
+            document.getElementById('alertTypeIndicator').addEventListener('change', function() {
+                updateThresholdSection();
+            });
+
+            // Zapisz alert
+            document.getElementById('saveAlertBtn').addEventListener('click', function() {
+                saveAlert();
+            });
+        }
+
+        function toggleSections() {
+            const alertType = document.getElementById('alertType').value;
+            const technicalSection = document.getElementById('technicalIndicatorSection');
+            const priceSection = document.getElementById('priceSection');
+
+            // Ukryj wszystkie sekcje
+            technicalSection.style.display = 'none';
+            priceSection.style.display = 'none';
+
+            // Pokaż odpowiednią sekcję
+            if (alertType === 'technical_indicator') {
+                technicalSection.style.display = 'block';
+            } else if (alertType === 'price') {
+                priceSection.style.display = 'block';
+            }
+        }
+
+        function updateAlertTypes() {
+            const indicator = document.getElementById('indicator').value;
+            const alertTypeSelect = document.getElementById('alertTypeIndicator');
+            
+            alertTypeSelect.innerHTML = '<option value="">Wybierz typ...</option>';
+            
+            if (indicator && technicalIndicators[indicator]) {
+                const alertTypes = technicalIndicators[indicator].alert_types;
+                for (const [key, alertType] of Object.entries(alertTypes)) {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = alertType.name;
+                    alertTypeSelect.appendChild(option);
+                }
+            }
+        }
+
+        function updateParameters() {
+            const indicator = document.getElementById('indicator').value;
+            const parametersSection = document.getElementById('parametersSection');
+            const parametersFields = document.getElementById('parametersFields');
+            
+            if (indicator === 'stochastic') {
+                parametersFields.innerHTML = `
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="form-label">Predefiniowane parametry</label>
+                            <select class="form-select" id="stochasticPreset">
+                                <option value="">Wybierz preset...</option>
+                                <option value="9,3,3">Standard (9,3,3)</option>
+                                <option value="36,12,12">Długoterminowy (36,12,12)</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                parametersSection.style.display = 'block';
+            } else if (indicator === 'macd') {
+                parametersFields.innerHTML = `
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="form-label">Predefiniowane parametry</label>
+                            <select class="form-select" id="macdPreset">
+                                <option value="">Wybierz preset...</option>
+                                <option value="12,26,9">Standard (12,26,9)</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                parametersSection.style.display = 'block';
+            } else {
+                parametersSection.style.display = 'none';
+            }
+        }
+
+        function updateThresholdSection() {
+            const alertType = document.getElementById('alertTypeIndicator').value;
+            const thresholdSection = document.getElementById('thresholdSection');
+            
+            if (alertType === 'level_below' || alertType === 'level_above') {
+                thresholdSection.style.display = 'block';
+            } else {
+                thresholdSection.style.display = 'none';
+            }
+        }
+
+        async function loadTechnicalIndicators() {
+            try {
+                const response = await fetch('/api/alerts/technical-indicators');
+                const data = await response.json();
+                
+                if (data.success) {
+                    technicalIndicators = data.indicators;
+                }
+            } catch (error) {
+                console.error('Błąd ładowania wskaźników technicznych:', error);
+            }
+        }
+
+        async function loadEtfList() {
+            try {
+                const response = await fetch('/api/etfs');
+                const data = await response.json();
+                
+                if (data.success) {
+                    etfList = data.data; // Poprawka: data.data zamiast data.etfs
+                    populateEtfDropdowns();
+                    console.log('Załadowano ETF:', etfList.length);
+                } else {
+                    console.error('Błąd API:', data.error);
+                }
+            } catch (error) {
+                console.error('Błąd ładowania listy ETF:', error);
+            }
+        }
+
+        function populateEtfDropdowns() {
+            const etfTicker = document.getElementById('etfTicker');
+            const priceEtfTicker = document.getElementById('priceEtfTicker');
+            
+            // Wyczyść dropdowny
+            etfTicker.innerHTML = '<option value="">Wybierz ETF...</option>';
+            priceEtfTicker.innerHTML = '<option value="">Wybierz ETF...</option>';
+            
+            // Dodaj opcje
+            etfList.forEach(etf => {
+                const option1 = document.createElement('option');
+                option1.value = etf.ticker;
+                option1.textContent = etf.ticker;
+                etfTicker.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = etf.ticker;
+                option2.textContent = etf.ticker;
+                priceEtfTicker.appendChild(option2);
+            });
+        }
+
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAlerts(data.configs);
+                }
+            } catch (error) {
+                console.error('Błąd ładowania alertów:', error);
+            }
+        }
+
+        function displayAlerts(alerts) {
+            const alertsList = document.getElementById('alertsList');
+            
+            if (alerts.length === 0) {
+                alertsList.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-bell-slash fa-2x"></i>
+                        <p>Brak skonfigurowanych reguł alertów</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            alerts.forEach(alert => {
+                const statusClass = alert.enabled ? 'enabled' : 'disabled';
+                const statusText = alert.enabled ? 'Włączona' : 'Wyłączona';
+                const statusBadge = alert.enabled ? 'success' : 'danger';
+                
+                html += `
+                    <div class="card alert-card ${statusClass}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6 class="card-title mb-1">${alert.name}</h6>
+                                    <p class="card-text text-muted mb-1">
+                                        <strong>Typ:</strong> ${alert.type} 
+                                        ${alert.indicator ? `| <strong>Wskaźnik:</strong> ${alert.indicator}` : ''}
+                                        ${alert.etf_ticker ? `| <strong>ETF:</strong> ${alert.etf_ticker}` : ''}
+                                    </p>
+                                    <small class="text-muted">
+                                        Utworzono: ${new Date(alert.created_at).toLocaleString('pl-PL')}
+                                    </small>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <span class="badge bg-${statusBadge} status-badge">${statusText}</span>
+                                    <div class="btn-group mt-2" role="group">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="editAlert(${alert.id})">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning" onclick="toggleAlert(${alert.id})">
+                                            <i class="fas fa-power-off"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAlert(${alert.id})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            alertsList.innerHTML = html;
+        }
+
+        async function loadAlertsHistory() {
+            try {
+                const response = await fetch('/api/alerts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAlertsHistory(data.history);
+                }
+            } catch (error) {
+                console.error('Błąd ładowania historii alertów:', error);
+            }
+        }
+
+        function displayAlertsHistory(history) {
+            const alertsHistory = document.getElementById('alertsHistory');
+            
+            if (history.length === 0) {
+                alertsHistory.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-history fa-2x"></i>
+                        <p>Brak historii alertów</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>ETF</th>
+                                <th>Wiadomość</th>
+                                <th>Status</th>
+                                <th>Priorytet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            history.forEach(alert => {
+                const severityClass = getSeverityClass(alert.severity);
+                const statusClass = getStatusClass(alert.status);
+                
+                html += `
+                    <tr>
+                        <td>${new Date(alert.triggered_at).toLocaleString('pl-PL')}</td>
+                        <td>${alert.etf_ticker || '-'}</td>
+                        <td>${alert.message}</td>
+                        <td><span class="badge bg-${severityClass}">${alert.severity}</span></td>
+                        <td><span class="badge bg-${statusClass}">${alert.status}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            alertsHistory.innerHTML = html;
+        }
+
+        async function loadNotificationsHistory() {
+            // TODO: Implementacja historii powiadomień
+            const notificationsHistory = document.getElementById('notificationsHistory');
+            notificationsHistory.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-paper-plane fa-2x"></i>
+                    <p>Historia powiadomień będzie dostępna wkrótce</p>
+                </div>
+            `;
+        }
+
+        function getSeverityClass(severity) {
+            const classes = {
+                'info': 'info',
+                'warning': 'warning',
+                'error': 'danger',
+                'critical': 'dark'
+            };
+            return classes[severity] || 'secondary';
+        }
+
+        function getStatusClass(status) {
+            const classes = {
+                'active': 'warning',
+                'resolved': 'success',
+                'dismissed': 'secondary'
+            };
+            return classes[status] || 'secondary';
+        }
+
+        async function saveAlert() {
+            const formData = collectFormData();
+            
+            if (!validateFormData(formData)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/alerts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Zamknij modal i odśwież listę
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addAlertModal'));
+                    modal.hide();
+                    
+                    // Wyczyść formularz
+                    document.getElementById('addAlertForm').reset();
+                    
+                    // Odśwież listę alertów
+                    loadAlerts();
+                    
+                    // Pokaż komunikat sukcesu
+                    showAlert('success', data.message);
+                } else {
+                    showAlert('danger', data.error);
+                }
+            } catch (error) {
+                console.error('Błąd zapisywania alertu:', error);
+                showAlert('danger', 'Wystąpił błąd podczas zapisywania alertu');
+            }
+        }
+
+        function collectFormData() {
+            const alertType = document.getElementById('alertType').value;
+            const data = {
+                name: document.getElementById('alertName').value,
+                type: alertType,
+                enabled: true
+            };
+            
+            if (alertType === 'technical_indicator') {
+                data.indicator = document.getElementById('indicator').value;
+                data.alert_type = document.getElementById('alertTypeIndicator').value;
+                data.etf_ticker = document.getElementById('etfTicker').value;
+                data.conditions = {
+                    timeframe: document.getElementById('timeframe').value
+                };
+                
+                // Dodaj parametry wskaźnika
+                if (data.indicator === 'stochastic') {
+                    const preset = document.getElementById('stochasticPreset').value;
+                    if (preset) {
+                        const [k, d, smooth] = preset.split(',').map(Number);
+                        data.conditions.parameters = { k, d, smooth };
+                    }
+                } else if (data.indicator === 'macd') {
+                    const preset = document.getElementById('macdPreset').value;
+                    if (preset) {
+                        const [fast, slow, signal] = preset.split(',').map(Number);
+                        data.conditions.parameters = { fast, slow, signal };
+                    }
+                }
+                
+                // Dodaj próg jeśli potrzebny
+                if (data.alert_type === 'level_below' || data.alert_type === 'level_above') {
+                    data.conditions.threshold = parseFloat(document.getElementById('threshold').value);
+                }
+                
+            } else if (alertType === 'price') {
+                data.etf_ticker = document.getElementById('priceEtfTicker').value;
+                data.conditions = {
+                    condition: document.getElementById('priceCondition').value,
+                    threshold: parseFloat(document.getElementById('priceThreshold').value),
+                    timeframe: document.getElementById('priceTimeframe').value
+                };
+            }
+            
+            return data;
+        }
+
+        function validateFormData(data) {
+            if (!data.name.trim()) {
+                showAlert('danger', 'Nazwa reguły jest wymagana');
+                return false;
+            }
+            
+            if (data.type === 'technical_indicator') {
+                if (!data.indicator || !data.alert_type || !data.etf_ticker) {
+                    showAlert('danger', 'Wszystkie pola dla wskaźnika technicznego są wymagane');
+                    return false;
+                }
+            } else if (data.type === 'price') {
+                if (!data.etf_ticker || !data.conditions.threshold) {
+                    showAlert('danger', 'ETF ticker i próg ceny są wymagane');
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        async function toggleAlert(alertId) {
+            try {
+                const response = await fetch(`/api/alerts/${alertId}/toggle`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadAlerts();
+                    showAlert('success', data.message);
+                } else {
+                    showAlert('danger', data.error);
+                }
+            } catch (error) {
+                console.error('Błąd przełączania alertu:', error);
+                showAlert('danger', 'Wystąpił błąd podczas przełączania alertu');
+            }
+        }
+
+        async function deleteAlert(alertId) {
+            if (!confirm('Czy na pewno chcesz usunąć tę regułę alertu?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/alerts/${alertId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadAlerts();
+                    showAlert('success', data.message);
+                } else {
+                    showAlert('danger', data.error);
+                }
+            } catch (error) {
+                console.error('Błąd usuwania alertu:', error);
+                showAlert('danger', 'Wystąpił błąd podczas usuwania alertu');
+            }
+        }
+
+        function editAlert(alertId) {
+            // TODO: Implementacja edycji alertu
+            showAlert('info', 'Funkcja edycji będzie dostępna wkrótce');
+        }
+
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // Dodaj alert na górze strony
+            const container = document.querySelector('.container-fluid');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            // Automatycznie usuń po 5 sekundach
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

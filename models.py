@@ -304,6 +304,9 @@ class AlertConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     type = db.Column(db.String(50), nullable=False)  # price, technical, scheduler, log
+    indicator = db.Column(db.String(50), nullable=True)  # stochastic, macd
+    alert_type = db.Column(db.String(50), nullable=True)  # level_below, crossover_bullish, etc.
+    etf_ticker = db.Column(db.String(20), nullable=True)  # Dla alertów ETF
     conditions = db.Column(db.JSON, nullable=False)  # Warunki w formacie JSON
     enabled = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -324,7 +327,8 @@ class AlertHistory(db.Model):
     priority = db.Column(db.Integer, default=1)
     triggered_at = db.Column(db.DateTime, default=datetime.utcnow)
     resolved_at = db.Column(db.DateTime, nullable=True)
-    status = db.Column(db.String(20), default='active')  # active, resolved, dismissed
+    status = db.Column(db.String(20), default='active')  # active, resolved, dismissed, notified
+    notified_at = db.Column(db.DateTime, nullable=True)  # Kiedy powiadomienie zostało wysłane
     
     # Relacje
     alert_config = db.relationship('AlertConfig', backref='history')

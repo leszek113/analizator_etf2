@@ -75,15 +75,21 @@
         <!-- Stats Cards -->
         <div class="row mt-3">
             <div class="col-md-3">
-                <div class="stats-card">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="mb-1">Łącznie ETF</h6>
-                            <h3 class="mb-0" id="totalEtfs">-</h3>
+                <a href="/alerts" class="text-decoration-none">
+                    <div class="stats-card">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="mb-1">🔔 Powiadomienia</h6>
+                                <div class="mb-1">
+                                    <span class="badge bg-danger me-1" id="activeAlerts">-</span>
+                                    <span class="badge bg-primary" id="totalRules">-</span>
+                                </div>
+                                <small class="text-muted">Kliknij aby zarządzać</small>
+                            </div>
+                            <i class="bi bi-bell display-6"></i>
                         </div>
-                        <i class="bi bi-collection display-6"></i>
                     </div>
-                </div>
+                </a>
             </div>
             <div class="col-md-3">
                 <div class="stats-card">
@@ -337,6 +343,9 @@
                     // Po załadowaniu wszystkich danych ETF, ładujemy stawkę podatku i przeliczamy
                     await loadTaxRate();
                     
+                    // Ładowanie statystyk alertów
+                    await loadAlertsStats();
+                    
                     // Ładowanie wersji systemu
                     await loadSystemVersion();
                 } else {
@@ -414,29 +423,7 @@
             }
         }
 
-        async function loadSystemVersion() {
-            try {
-                // Loading system version from API
-                const response = await fetch('/api/system/version');
-                const result = await response.json();
-                
-                console.log('📊 API response:', result);
-                
-                if (result.success) {
-                    const version = result.version; // Usunięto .data
-                    console.log('📊 System version loaded:', version);
-                    
-                    // Aktualizacja pola wersji systemu
-                    document.getElementById('systemVersion').textContent = `v${version}`;
-                } else {
-                    console.error('❌ Failed to load system version:', result.error);
-                    document.getElementById('systemVersion').textContent = 'N/A';
-                }
-            } catch (error) {
-                console.error('❌ Error loading system version:', error);
-                document.getElementById('systemVersion').textContent = 'N/A';
-            }
-        }
+
 
         async function updateTaxRate(newTaxRate) {
             try {
@@ -687,7 +674,10 @@
         }
 
         function updateStats() {
-            document.getElementById('totalEtfs').textContent = etfData.length;
+            console.log('🔍 updateStats() called');
+            
+            // Element totalEtfs został usunięty - pomijamy jego aktualizację
+            // document.getElementById('totalEtfs').textContent = etfData.length;
             
             const lastUpdate = etfData.length > 0 ? 
                 new Date(Math.max(...etfData.map(etf => new Date(etf.last_updated || 0)))).toLocaleString('pl-PL') : 
@@ -696,6 +686,13 @@
             
             // Update system status
             updateSystemStatus();
+            
+            console.log('🔍 Setting timeout for loadSystemVersion()');
+            // Load system version - czekamy na pełne załadowanie DOM
+            setTimeout(() => {
+                console.log('🔍 Timeout fired, calling loadSystemVersion()');
+                loadSystemVersion();
+            }, 500);
         }
 
         async function updateSystemStatus() {
@@ -709,6 +706,53 @@
                 }
             } catch (error) {
                 document.getElementById('systemStatus').textContent = 'Błąd';
+            }
+        }
+
+        async function loadSystemVersion() {
+            try {
+                console.log('🔍 loadSystemVersion() called');
+                // Opóźnienie, aby dać DOM czas na pełne załadowanie/renderowanie
+                await new Promise(resolve => setTimeout(resolve, 100)); 
+
+                let systemVersionElement = document.getElementById('systemVersion');
+                console.log('🔍 Element systemVersion (po opóźnieniu):', systemVersionElement);
+
+                if (!systemVersionElement) {
+                    console.error('❌ Element #systemVersion nie istnieje po opóźnieniu!');
+                    return;
+                }
+
+                const response = await fetch('/api/system/version');
+                const result = await response.json();
+                
+                console.log('📊 API response:', result);
+                
+                if (result.success) {
+                    console.log('✅ Version loaded:', result.version);
+                    // Ponowne sprawdzenie elementu tuż przed przypisaniem
+                    systemVersionElement = document.getElementById('systemVersion');
+                    if (systemVersionElement) {
+                        systemVersionElement.textContent = result.version;
+                        console.log('✅ Version set to element');
+                    } else {
+                        console.error('❌ Element #systemVersion zniknął przed przypisaniem!');
+                    }
+                } else {
+                    console.error('❌ API error:', result.error);
+                    systemVersionElement = document.getElementById('systemVersion');
+                    if (systemVersionElement) {
+                        systemVersionElement.textContent = 'Błąd API';
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Błąd w loadSystemVersion:', error);
+                const systemVersionElement = document.getElementById('systemVersion');
+                if (systemVersionElement) {
+                    systemVersionElement.textContent = 'Błąd sieci';
+                } else {
+                    console.error('❌ Element #systemVersion nie znaleziony podczas obsługi błędu!');
+                }
             }
         }
 
@@ -888,6 +932,36 @@
                     alert.remove();
                 }
             }, 5000);
+        }
+
+        async function loadAlertsStats() {
+            try {
+                const response = await fetch('/api/alerts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Liczba aktywnych alertów (wyzwolonych)
+                    const activeAlerts = data.history.filter(alert => alert.status === 'active').length;
+                    document.getElementById('activeAlerts').textContent = activeAlerts;
+                    
+                    // Liczba reguł alertów
+                    const totalRules = data.configs.length;
+                    document.getElementById('totalRules').textContent = totalRules;
+                    
+                    // Aktualizacja koloru badge'u aktywnych alertów
+                    const activeAlertsBadge = document.getElementById('activeAlerts');
+                    if (activeAlerts > 0) {
+                        activeAlertsBadge.className = 'badge bg-danger me-1';
+                    } else {
+                        activeAlertsBadge.className = 'badge bg-success me-1';
+                    }
+                }
+            } catch (error) {
+                console.error('Błąd ładowania statystyk alertów:', error);
+                // Ustaw domyślne wartości w przypadku błędu
+                document.getElementById('activeAlerts').textContent = '0';
+                document.getElementById('totalRules').textContent = '0';
+            }
         }
     </script>
 </body>

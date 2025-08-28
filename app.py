@@ -283,6 +283,17 @@ def create_app():
                 logger.info("Daily technical alerts check completed")
             except Exception as e:
                 logger.error(f"Error in daily alerts check: {str(e)}")
+
+    def send_technical_notifications():
+        """Zadanie schedulera do wysyłania powiadomień wskaźników technicznych o 10:00 CET"""
+        with app.app_context():
+            try:
+                from services.notification_service import NotificationService
+                notification_service = NotificationService(config)
+                notification_service.send_pending_technical_notifications()
+                logger.info("Technical notifications sent")
+            except Exception as e:
+                logger.error(f"Error in sending technical notifications: {str(e)}")
     
     def check_alerts_frequent():
         """Zadanie schedulera do sprawdzania alertów co 10 minut (ceny, logi, zadania)"""
@@ -297,38 +308,38 @@ def create_app():
             except Exception as e:
                 logger.error(f"Error in frequent alerts check: {str(e)}")
     
-    # Uruchamianie aktualizacji wszystkich ram czasowych raz dziennie o 23:50 CET (poniedziałek-piątek)
-    # Używamy UTC wewnętrznie: 23:50 CET = 22:50 UTC (zimą) lub 21:50 UTC (latem)
+    # Uruchamianie aktualizacji wszystkich ram czasowych raz dziennie o 22:45 CET (poniedziałek-piątek)
+    # Używamy UTC wewnętrznie: 22:45 CET = 21:45 UTC (zimą) lub 20:45 UTC (latem)
     scheduler.add_job(
         func=update_all_timeframes,
         trigger="cron",
         day_of_week="mon-fri",
-        hour=22,  # UTC - odpowiada 23:50 CET
-        minute=50,
+        hour=21,  # UTC - odpowiada 22:45 CET
+        minute=45,
         timezone="UTC",  # Używamy UTC wewnętrznie
         id="daily_timeframes_update"
     )
     
-    # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 13:00-23:00 CET)
-    # Używamy UTC wewnętrznie: 13:00-23:00 CET = 12:00-22:00 UTC (zimą) lub 11:00-21:00 UTC (latem)
+    # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 15:35-22:05 CET)
+    # Używamy UTC wewnętrznie: 15:35-22:05 CET = 14:35-21:05 UTC (zimą) lub 13:35-20:05 UTC (latem)
     scheduler.add_job(
         func=update_etf_prices,
         trigger="cron",
         day_of_week="mon-fri",
-        hour="12-22",  # UTC - odpowiada 13:00-23:00 CET
+        hour="14-21",  # UTC - odpowiada 15:35-22:05 CET
         minute="*/15",  # co 15 minut
         timezone="UTC",  # Używamy UTC wewnętrznie
         id="price_update_15min"
     )
     
-    # Uruchamianie sprawdzania alertów co 10 minut (ceny, logi, zadania) + raz dziennie o 10:30 CET (wskaźniki)
-    # Używamy UTC wewnętrznie: 10:30 CET = 09:30 UTC (zimą) lub 08:30 UTC (latem)
+    # Uruchamianie sprawdzania alertów wskaźników technicznych raz dziennie o 23:00 CET (poniedziałek-piątek)
+    # Używamy UTC wewnętrznie: 23:00 CET = 22:00 UTC (zimą) lub 21:00 UTC (latem)
     scheduler.add_job(
         func=check_alerts,
         trigger="cron",
         day_of_week="mon-fri",
-        hour="9",  # UTC - odpowiada 10:30 CET
-        minute="30",
+        hour=22,  # UTC - odpowiada 23:00 CET
+        minute=0,
         timezone="UTC",
         id="daily_alerts_check"
     )
@@ -340,6 +351,18 @@ def create_app():
         minutes=10,
         id="frequent_alerts_check"
     )
+
+    # Wysyłanie powiadomień wskaźników technicznych o 10:00 CET (następny dzień)
+    # Używamy UTC wewnętrznie: 10:00 CET = 09:00 UTC (zimą) lub 08:00 UTC (latem)
+    scheduler.add_job(
+        func=send_technical_notifications,
+        trigger="cron",
+        hour=9,  # UTC - odpowiada 10:00 CET
+        minute=0,
+        timezone="UTC",
+        id="technical_notifications_send"
+    )
+
     
     # Dodanie schedulera do app context
     app.scheduler = scheduler
@@ -2126,16 +2149,33 @@ def create_app():
         except Exception as e:
             logger.error(f"Error loading system status: {str(e)}")
             return render_template('error.html', error=str(e))
+
+    @app.route('/alerts')
+    def alerts_page():
+        """Strona zarządzania alertami"""
+        try:
+            return render_template('alerts.html')
+        except Exception as e:
+            logger.error(f"Error loading alerts page: {str(e)}")
+            return render_template('error.html', error=str(e))
     
     # API endpoint do pobierania wersji systemu
     @app.route('/api/system/version')
     def get_system_version():
         """Zwraca wersję systemu"""
-        return jsonify({
-            'success': True,
-            'version': __version__,
-            'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
-        })
+        try:
+            from config import __version__
+            return jsonify({
+                'success': True,
+                'version': __version__,
+                'timestamp': utc_to_cet(datetime.now(timezone.utc)).isoformat()
+            })
+        except ImportError:
+            return jsonify({
+                'success': False,
+                'error': 'Nie można zaimportować wersji systemu',
+                'version': 'Błąd'
+            }), 500
     
     # Test endpoint dla Slack webhook
     @app.route('/api/test/slack', methods=['POST'])
@@ -2189,6 +2229,255 @@ def create_app():
     
     # Ustawienie czasu startu aplikacji
     app.start_time = datetime.now(timezone.utc)
+    
+    @app.route('/api/alerts', methods=['GET'])
+    def get_alerts():
+        """Pobiera listę wszystkich alertów"""
+        try:
+            from models import AlertConfig, AlertHistory
+            from services.notification_service import NotificationService
+            from config import Config
+            
+            config = Config()
+            notification_service = NotificationService(config)
+            
+            # Pobierz konfiguracje alertów
+            alert_configs = AlertConfig.query.all()
+            configs_data = []
+            
+            for config in alert_configs:
+                configs_data.append({
+                    'id': config.id,
+                    'name': config.name,
+                    'type': config.type,
+                    'indicator': config.indicator,
+                    'alert_type': config.alert_type,
+                    'etf_ticker': config.etf_ticker,
+                    'conditions': config.conditions,
+                    'enabled': config.enabled,
+                    'created_at': config.created_at.isoformat() if config.created_at else None,
+                    'updated_at': config.updated_at.isoformat() if config.updated_at else None
+                })
+            
+            # Pobierz historię alertów
+            alert_history = AlertHistory.query.order_by(AlertHistory.triggered_at.desc()).limit(50).all()
+            history_data = []
+            
+            for alert in alert_history:
+                history_data.append({
+                    'id': alert.id,
+                    'alert_config_id': alert.alert_config_id,
+                    'etf_ticker': alert.etf_ticker,
+                    'message': alert.message,
+                    'severity': alert.severity,
+                    'priority': alert.priority,
+                    'triggered_at': alert.triggered_at.isoformat() if alert.triggered_at else None,
+                    'resolved_at': alert.resolved_at.isoformat() if alert.resolved_at else None,
+                    'status': alert.status
+                })
+            
+            return jsonify({
+                'success': True,
+                'configs': configs_data,
+                'history': history_data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting alerts: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/alerts', methods=['POST'])
+    def create_alert():
+        """Tworzy nową regułę alertu"""
+        try:
+            from models import AlertConfig, db
+            from config import Config
+            
+            data = request.get_json()
+            
+            # Walidacja danych
+            required_fields = ['name', 'type', 'conditions']
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Brak wymaganego pola: {field}'
+                    }), 400
+            
+            # Sprawdź czy nazwa już istnieje
+            existing_alert = AlertConfig.query.filter_by(name=data['name']).first()
+            if existing_alert:
+                return jsonify({
+                    'success': False,
+                    'error': f'Alert o nazwie "{data["name"]}" już istnieje'
+                }), 400
+            
+            # Utwórz nową regułę alertu
+            new_alert = AlertConfig(
+                name=data['name'],
+                type=data['type'],
+                indicator=data.get('indicator'),
+                alert_type=data.get('alert_type'),
+                etf_ticker=data.get('etf_ticker'),
+                conditions=data['conditions'],
+                enabled=data.get('enabled', True)
+            )
+            
+            db.session.add(new_alert)
+            db.session.commit()
+            
+            logger.info(f"Utworzono nową regułę alertu: {data['name']}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Reguła alertu "{data["name"]}" została utworzona',
+                'alert_id': new_alert.id
+            })
+            
+        except Exception as e:
+            logger.error(f"Error creating alert: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/alerts/<int:alert_id>', methods=['PUT'])
+    def update_alert(alert_id):
+        """Aktualizuje regułę alertu"""
+        try:
+            from models import AlertConfig, db
+            
+            alert = AlertConfig.query.get(alert_id)
+            if not alert:
+                return jsonify({
+                    'success': False,
+                    'error': f'Alert o ID {alert_id} nie został znaleziony'
+                }), 404
+            
+            data = request.get_json()
+            
+            # Aktualizuj pola
+            if 'name' in data:
+                alert.name = data['name']
+            if 'type' in data:
+                alert.type = data['type']
+            if 'indicator' in data:
+                alert.indicator = data['indicator']
+            if 'alert_type' in data:
+                alert.alert_type = data['alert_type']
+            if 'etf_ticker' in data:
+                alert.etf_ticker = data['etf_ticker']
+            if 'conditions' in data:
+                alert.conditions = data['conditions']
+            if 'enabled' in data:
+                alert.enabled = data['enabled']
+            
+            alert.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            logger.info(f"Zaktualizowano regułę alertu: {alert.name}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Reguła alertu "{alert.name}" została zaktualizowana'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error updating alert: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/alerts/<int:alert_id>', methods=['DELETE'])
+    def delete_alert(alert_id):
+        """Usuwa regułę alertu"""
+        try:
+            from models import AlertConfig, db
+            
+            alert = AlertConfig.query.get(alert_id)
+            if not alert:
+                return jsonify({
+                    'success': False,
+                    'error': f'Alert o ID {alert_id} nie został znaleziony'
+                }), 404
+            
+            alert_name = alert.name
+            db.session.delete(alert)
+            db.session.commit()
+            
+            logger.info(f"Usunięto regułę alertu: {alert_name}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Reguła alertu "{alert_name}" została usunięta'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error deleting alert: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/alerts/<int:alert_id>/toggle', methods=['POST'])
+    def toggle_alert(alert_id):
+        """Włącza/wyłącza regułę alertu"""
+        try:
+            from models import AlertConfig, db
+            
+            alert = AlertConfig.query.get(alert_id)
+            if not alert:
+                return jsonify({
+                    'success': False,
+                    'error': f'Alert o ID {alert_id} nie został znaleziony'
+                }), 404
+            
+            alert.enabled = not alert.enabled
+            alert.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            status = "włączona" if alert.enabled else "wyłączona"
+            logger.info(f"Reguła alertu {alert.name} została {status}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Reguła alertu "{alert.name}" została {status}',
+                'enabled': alert.enabled
+            })
+            
+        except Exception as e:
+            logger.error(f"Error toggling alert: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/alerts/technical-indicators', methods=['GET'])
+    def get_technical_indicators():
+        """Pobiera dostępne wskaźniki techniczne i ich typy alertów"""
+        try:
+            from config import Config
+            
+            config = Config()
+            indicators = config.TECHNICAL_INDICATORS
+            
+            return jsonify({
+                'success': True,
+                'indicators': indicators
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting technical indicators: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    # Error handlers
     
     return app
 

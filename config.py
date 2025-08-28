@@ -4,12 +4,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Wersja systemu - CENTRALNE ŹRÓDŁO PRAWDY
-__version__ = "1.9.21"
+__version__ = "1.9.22"
 
 # Informacje o wersji
 VERSION_INFO = {
     'version': __version__,
-    'release_date': '2025-08-27',
+    'release_date': '2025-08-28',
     'status': 'production_ready',
     'build': '82169fc'  # Git commit hash
 }
@@ -32,6 +32,64 @@ class Config:
     SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL')
     SLACK_CHANNEL = os.environ.get('SLACK_CHANNEL', '#etf-analyzer')
     SLACK_USERNAME = os.environ.get('SLACK_USERNAME', 'ETF Analyzer Bot')
+
+    # Technical Indicators Configuration
+    TECHNICAL_INDICATORS = {
+        'stochastic': {
+            'name': 'Stochastic Oscillator',
+            'description': 'Wskaźnik stochastyczny',
+            'preset_parameters': [
+                {'name': 'Standard (9,3,3)', 'k': 9, 'd': 3, 'smooth': 3},
+                {'name': 'Długoterminowy (36,12,12)', 'k': 36, 'd': 12, 'smooth': 12}
+            ],
+            'alert_types': {
+                'level_below': {
+                    'name': 'Poniżej poziomu',
+                    'description': 'Wskaźnik spadł poniżej określonego poziomu',
+                    'fields': ['threshold', 'timeframe']
+                },
+                'level_above': {
+                    'name': 'Powyżej poziomu', 
+                    'description': 'Wskaźnik wzrósł powyżej określonego poziomu',
+                    'fields': ['threshold', 'timeframe']
+                },
+                'crossover_in_oversold': {
+                    'name': 'Przecięcie w obszarze oversold (20%)',
+                    'description': 'Linia %K przecina linię %D w obszarze poniżej 20%',
+                    'fields': ['timeframe']
+                },
+                'crossover_in_overbought': {
+                    'name': 'Przecięcie w obszarze overbought (80%)',
+                    'description': 'Linia %K przecina linię %D w obszarze powyżej 80%',
+                    'fields': ['timeframe']
+                },
+                'crossover_general': {
+                    'name': 'Przecięcie (ogólne)',
+                    'description': 'Linia %K przecina linię %D w dowolnym obszarze',
+                    'fields': ['timeframe']
+                }
+            }
+        },
+        'macd': {
+            'name': 'MACD',
+            'description': 'Moving Average Convergence Divergence',
+            'preset_parameters': [
+                {'name': 'Standard (12,26,9)', 'fast': 12, 'slow': 26, 'signal': 9}
+            ],
+            'alert_types': {
+                'crossover_bullish': {
+                    'name': 'Przecięcie w górę (bullish)',
+                    'description': 'Linia MACD przecina linię sygnału w górę',
+                    'fields': ['timeframe']
+                },
+                'crossover_bearish': {
+                    'name': 'Przecięcie w dół (bearish)', 
+                    'description': 'Linia MACD przecina linię sygnału w dół',
+                    'fields': ['timeframe']
+                }
+            }
+        }
+    }
 
     # Base URLs
     FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3'

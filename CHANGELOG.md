@@ -2,6 +2,43 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+## [v1.9.22] - 2025-08-28
+
+### 🆕 **Dodano**
+- **Zakładka "Dokumentacja Powiadomień"** - kompletną dokumentację systemu w `/alerts`
+- **Harmonogram zadań** - szczegółowa tabela z godzinami wykonywania wszystkich zadań
+- **Zasady powiadomień** - dokumentacja typów alertów i ich zachowań czasowych
+- **Architektura systemu** - wyjaśnienie Events, Alerts i Notifications
+
+### 🔧 **Zmienione**
+- **Harmonogram zadań** - aktualizacja godzin zgodnie z wymaganiami CEO:
+  - Aktualizacja wszystkich ram czasowych: **22:45 CET** (pon-pią)
+  - Sprawdzanie alertów wskaźników: **23:00 CET** (pon-pią)
+  - Wysyłanie powiadomień wskaźników: **10:00 CET** (następny dzień)
+  - Aktualizacja cen ETF: **15:35-22:05 CET co 15 min** (pon-pią)
+  - Sprawdzanie alertów (ceny, logi, zadania): **co 10 min**
+- **Logika powiadomień** - inteligentne zarządzanie czasem wysyłania:
+  - Wskaźniki techniczne: pakiet o 10:00 CET następnego dnia
+  - Alerty cenowe: 9:00-21:00 CET (natychmiast), poza godzinami czeka do rana
+  - Alerty logów i schedulera: 9:00-21:00 CET (natychmiast), poza godzinami czeka do rana
+
+### 🐛 **Naprawione**
+- **Dashboard wersja systemu** - naprawa wyświetlania numeru wersji systemu
+- **Błąd JavaScript** - usunięcie odwołania do nieistniejącego elementu `totalEtfs`
+- **Race condition** - dodanie opóźnienia i ponownego sprawdzania elementów DOM
+- **Cache przeglądarki** - wymuszenie odświeżania JavaScript po zmianach
+
+### 📊 **Statystyki**
+- **Dodano**: 1 nowa zakładka dokumentacji z kompletnymi informacjami
+- **Poprawiono**: 1 krytyczny błąd JavaScript blokujący wyświetlanie wersji
+- **Zaktualizowano**: Harmonogram zadań zgodnie z wymaganiami CEO
+
+### 🚀 **Korzyści**
+- **Dokumentacja systemu** - jasne zasady działania powiadomień
+- **Stabilność dashboard** - wersja systemu poprawnie wyświetlana
+- **Inteligentne powiadomienia** - pakietowe wysyłanie w odpowiednich godzinach
+- **Optymalizacja czasu** - zadania wykonywane w optymalnych godzinach
+
 ## [v1.9.21] - 2025-08-27
 
 ### 🆕 **Dodano**
