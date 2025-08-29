@@ -273,6 +273,143 @@ def create_app():
                 db.session.add(job_log)
                 db.session.commit()
     
+    def scheduled_daily_price_update():
+        """Zadanie schedulera do codziennej aktualizacji cen ETF na koniec dnia (po zamknięciu rynków)"""
+        start_time = time.time()
+        with app.app_context():
+            try:
+                etfs = db_service.get_all_etfs()
+                logger.info(f"Starting scheduled daily price update for {len(etfs)} ETFs...")
+                
+                updated_count = 0
+                error_count = 0
+                
+                for etf in etfs:
+                    try:
+                        logger.info(f"Daily price update for ETF {etf.ticker}...")
+                        
+                        # Sprawdzenie czy nie przekroczyliśmy czasu (maksymalnie 15 minut)
+                        elapsed_time = time.time() - start_time
+                        if elapsed_time > 900:  # 15 minut
+                            logger.warning(f"Daily price update taking too long ({elapsed_time:.1f}s), stopping early")
+                            break
+                        
+                        # Pobieranie aktualnej ceny końcowej
+                        current_price = api_service.get_current_price(etf.ticker)
+                        
+                        if current_price:
+                            # Aktualizacja ceny w tabeli ETF
+                            db_service.update_etf_price(etf.id, current_price)
+                            
+                            # Dodanie rekordu do historii cen dziennych
+                            db_service.add_daily_price_record(etf.id, current_price)
+                            
+                            updated_count += 1
+                            logger.info(f"Successfully updated daily price for {etf.ticker}: ${current_price}")
+                        else:
+                            logger.warning(f"Failed to get daily price for {etf.ticker}")
+                            error_count += 1
+                            
+                    except Exception as e:
+                        logger.error(f"Error updating daily price for ETF {etf.ticker}: {str(e)}")
+                        error_count += 1
+                        continue
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="scheduled_daily_price_update",
+                    success=True if error_count == 0 else False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=updated_count,
+                    details=f"Codzienna aktualizacja cen: {updated_count}/{len(etfs)} ETF, błędy: {error_count}",
+                    error_message=f"Błędy API dla {error_count} ETF: problemy z pobieraniem cen końcowych" if error_count > 0 else None,
+                    metadata={
+                        'etfs_updated': updated_count,
+                        'total_etfs': len(etfs),
+                        'errors': error_count,
+                        'update_type': 'daily_end_of_day'
+                    }
+                )
+                db.session.add(job_log)
+                db.session.commit()
+                
+                logger.info(f"Daily price update completed: {updated_count} out of {len(etfs)} ETFs updated")
+                
+            except Exception as e:
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in scheduled daily price update: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="scheduled_daily_price_update",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas codziennej aktualizacji cen ETF",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
+    
+    def scheduled_log_cleanup():
+        """Zadanie schedulera do cotygodniowego czyszczenia starych logów"""
+        start_time = time.time()
+        with app.app_context():
+            try:
+                logger.info("Starting scheduled log cleanup...")
+                
+                # Czyszczenie starych logów systemowych (retencja 90 dni)
+                system_logs_deleted = db_service.cleanup_old_system_logs(retention_days=90)
+                
+                # Czyszczenie starych logów zadań (retencja 30 dni)
+                job_logs_deleted = db_service.cleanup_old_job_logs(retention_days=30)
+                
+                total_deleted = system_logs_deleted + job_logs_deleted
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="scheduled_log_cleanup",
+                    success=True,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=total_deleted,
+                    details=f"Wyczyściliśmy {total_deleted} starych logów (system: {system_logs_deleted}, zadania: {job_logs_deleted})",
+                    metadata={
+                        'system_logs_deleted': system_logs_deleted,
+                        'job_logs_deleted': job_logs_deleted,
+                        'total_deleted': total_deleted,
+                        'retention_policy': {
+                            'system_logs': '90 dni',
+                            'job_logs': '30 dni'
+                        }
+                    }
+                )
+                db.session.add(job_log)
+                db.session.commit()
+                
+                logger.info(f"Log cleanup completed: {total_deleted} logs deleted")
+                
+            except Exception as e:
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in scheduled log cleanup: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="scheduled_log_cleanup",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas czyszczenia logów",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
+    
     def check_alerts():
         """Zadanie schedulera do sprawdzania alertów wskaźników technicznych raz dziennie"""
         with app.app_context():
@@ -361,6 +498,30 @@ def create_app():
         minute=0,
         timezone="UTC",
         id="technical_notifications_send"
+    )
+
+    # Codzienna aktualizacja cen ETF na koniec dnia o 22:00 CET (po zamknięciu rynków amerykańskich)
+    # Używamy UTC wewnętrznie: 22:00 CET = 21:00 UTC (zimą) lub 20:00 UTC (latem)
+    scheduler.add_job(
+        func=scheduled_daily_price_update,
+        trigger="cron",
+        day_of_week="mon-fri",  # Tylko w dni robocze
+        hour=21,  # UTC - odpowiada 22:00 CET
+        minute=0,
+        timezone="UTC",  # Używamy UTC wewnętrznie
+        id="daily_price_update"
+    )
+
+    # Cotygodniowe czyszczenie starych logów (niedziela 02:00 CET)
+    # Używamy UTC wewnętrznie: 02:00 CET = 01:00 UTC (zimą) lub 00:00 UTC (latem)
+    scheduler.add_job(
+        func=scheduled_log_cleanup,
+        trigger="cron",
+        day_of_week="sun",  # Niedziela
+        hour=1,  # UTC - odpowiada 02:00 CET
+        minute=0,
+        timezone="UTC",  # Używamy UTC wewnętrznie
+        id="weekly_log_cleanup"
     )
 
     
@@ -505,8 +666,20 @@ def create_app():
                     'error': f'ETF {ticker} nie został znaleziony'
                 }), 404
             
-            # Sprawdzanie parametru force_update
-            force_update = request.args.get('force', 'false').lower() == 'true'
+            # Sprawdzanie parametru force_update (z body JSON lub query string)
+            data = request.get_json() or {}
+            
+            # Konwersja string "true"/"false" na boolean
+            force_from_json = data.get('force', False)
+            if isinstance(force_from_json, str):
+                force_from_json = force_from_json.lower() == 'true'
+            
+            force_update = force_from_json or request.args.get('force', 'false').lower() == 'true'
+            
+            logger.info(f"Force update for {ticker}: {force_update} (data: {data}, args: {dict(request.args)})")
+            logger.info(f"Type of force_update: {type(force_update)}, Value: {force_update}")
+            logger.info(f"JSON data type: {type(data)}, force key type: {type(data.get('force'))}")
+            logger.info(f"Force from JSON: {force_from_json}, Final force_update: {force_update}")
             
             # Aktualizacja danych ETF
             success = db_service.update_etf_data(ticker, force_update=force_update)
@@ -1181,6 +1354,135 @@ def create_app():
             
         except Exception as e:
             logger.error(f"Error getting API token status: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/system/scheduler/jobs', methods=['GET'])
+    def get_scheduler_jobs():
+        """API endpoint do pobierania listy wszystkich zadań schedulera"""
+        try:
+            if not hasattr(app, 'scheduler') or not app.scheduler:
+                return jsonify({
+                    'success': False,
+                    'error': 'Scheduler not available'
+                }), 500
+            
+            jobs = app.scheduler.get_jobs()
+            jobs_list = []
+            
+            for job in jobs:
+                # Mapowanie funkcji na czytelne nazwy
+                job_name_map = {
+                    'update_all_timeframes': 'Aktualizacja wszystkich ramów czasowych',
+                    'update_etf_prices': 'Aktualizacja cen ETF co 15 minut',
+                    'check_alerts': 'Sprawdzanie alertów wskaźników technicznych',
+                    'check_alerts_frequent': 'Częste sprawdzanie alertów',
+                    'send_technical_notifications': 'Wysyłanie powiadomień technicznych',
+                    'scheduled_daily_price_update': 'Codzienna aktualizacja cen ETF',
+                    'scheduled_log_cleanup': 'Cotygodniowe czyszczenie logów'
+                }
+                
+                # Mapowanie trigger na czytelny opis
+                trigger_description = "Nieznany"
+                try:
+                    # Sprawdź typ trigger
+                    if hasattr(job.trigger, 'fields'):
+                        fields = job.trigger.fields
+                        
+                        # Określ dni tygodnia
+                        if 'day_of_week' in fields:
+                            day_values = fields['day_of_week']
+                            if isinstance(day_values, list):
+                                if day_values == [0, 1, 2, 3, 4]:  # pon-piątek
+                                    days = "poniedziałek-piątek"
+                                elif day_values == [6]:  # niedziela
+                                    days = "niedziela"
+                                else:
+                                    days = "codziennie"
+                            else:
+                                days = "codziennie"
+                        else:
+                            days = "codziennie"
+                        
+                        # Określ godzinę i minutę
+                        if 'hour' in fields and 'minute' in fields:
+                            hour = fields['hour']
+                            minute = fields['minute']
+                            
+                            if isinstance(hour, list) and isinstance(minute, list):
+                                if hour == list(range(14, 22)) and minute == [35, 50, 5, 20, 35, 50]:
+                                    trigger_description = f"Co 15 min ({days} 15:35-22:05 CET)"
+                                else:
+                                    trigger_description = f"Co 15 min ({days})"
+                            else:
+                                # Konwersja UTC na CET
+                                cet_hour = (hour + 1) % 24  # UTC+1 dla CET
+                                trigger_description = f"{cet_hour:02d}:{minute:02d} CET ({days})"
+                    else:
+                        # Dla innych typów trigger (np. interval)
+                        trigger_description = str(job.trigger)
+                        
+                except Exception as e:
+                    logger.warning(f"Error parsing trigger for job {job.id}: {str(e)}")
+                    # Spróbuj sparsować string trigger
+                    trigger_str = str(job.trigger)
+                    if 'cron' in trigger_str:
+                        # Parsowanie cron trigger
+                        if 'day_of_week' in trigger_str and 'mon-fri' in trigger_str:
+                            days = "poniedziałek-piątek"
+                        elif 'day_of_week' in trigger_str and 'sun' in trigger_str:
+                            days = "niedziela"
+                        else:
+                            days = "codziennie"
+                        
+                        if 'hour=' in trigger_str and 'minute=' in trigger_str:
+                            if 'hour=\'14-21\'' in trigger_str and 'minute=\'*/15\'' in trigger_str:
+                                trigger_description = f"Co 15 min ({days} 15:35-22:05 CET)"
+                            else:
+                                # Wyciągnij godzinę i minutę
+                                import re
+                                hour_match = re.search(r"hour='([^']*)'", trigger_str)
+                                minute_match = re.search(r"minute='([^']*)'", trigger_str)
+                                
+                                if hour_match and minute_match:
+                                    hour_str = hour_match.group(1)
+                                    minute_str = minute_match.group(1)
+                                    
+                                    if hour_str.isdigit() and minute_str.isdigit():
+                                        # Konwersja UTC na CET
+                                        cet_hour = (int(hour_str) + 1) % 24
+                                        trigger_description = f"{cet_hour:02d}:{minute_str} CET ({days})"
+                                    else:
+                                        trigger_description = f"{hour_str}:{minute_str} UTC ({days})"
+                                else:
+                                    trigger_description = f"Cron ({days})"
+                        else:
+                            trigger_description = f"Cron ({days})"
+                    else:
+                        trigger_description = trigger_str
+                
+                # Mapowanie funkcji na czytelne nazwy
+                readable_name = job_name_map.get(job.func.__name__, job.func.__name__)
+                
+                jobs_list.append({
+                    'id': job.id,
+                    'name': readable_name,
+                    'trigger': trigger_description,
+                    'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
+                    'func_name': job.func.__name__
+                })
+            
+            return jsonify({
+                'success': True,
+                'jobs': jobs_list,
+                'total_jobs': len(jobs_list),
+                'scheduler_running': app.scheduler.running
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting scheduler jobs: {str(e)}")
             return jsonify({
                 'success': False,
                 'error': str(e)

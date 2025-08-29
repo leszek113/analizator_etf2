@@ -2,6 +2,50 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+# [1.9.23] - 2025-01-27
+
+### 🚀 **Nowa Wersja**
+- **Wersja**: 1.9.23
+- **Data**: 2025-01-27
+- **Typ**: patch bump
+- **Status**: Naprawa głównego błędu i optymalizacje
+
+### 🐛 **Naprawione Błędy**
+- **GŁÓWNY BŁĄD**: Dodano zadanie schedulera `scheduled_daily_price_update` które uruchamia się o 22:00 CET i pobiera ceny dzienne na koniec dnia
+- **Funkcja `add_daily_price_record`**: Dodano do `DatabaseService` funkcję do dodawania rekordów cen dziennych
+- **Scheduler**: Poprawiono konfigurację - nowe zadanie uruchamia się tylko w dni robocze (pon-piątek)
+
+### ✨ **Nowe Funkcjonalności**
+- **Inteligentna kolejka API**: Dodano `APIQueueManager` do optymalizacji wykorzystania tokenów API
+- **System retencji logów**: Implementacja automatycznego czyszczenia starych logów
+  - Logi systemowe: retencja 90 dni
+  - Logi zadań: retencja 30 dni
+  - Cotygodniowe czyszczenie w niedzielę o 02:00 CET
+- **Strefa czasowa CET**: Dodano konfigurację dla interfejsu użytkownika w CET
+
+### 🔧 **Ulepszenia Techniczne**
+- **Optymalizacja API**: Grupowanie zadań w partiach, priorytetyzacja, retry logic
+- **Logowanie zadań**: Wszystkie nowe zadania używają rozszerzonego systemu logowania
+- **Konfiguracja**: Dodano ustawienia strefy czasowej i polityki retencji logów
+
+### 📊 **Struktura Schedulera**
+```
+06:00 CET - Sprawdzanie dywidend (codziennie)
+22:00 CET - Aktualizacja cen dziennych (pon-piątek)
+23:00 CET - Sprawdzanie alertów (pon-piątek)
+02:00 CET - Czyszczenie logów (niedziela)
+```
+
+### 🎯 **Priorytety Zadań API**
+1. **Priorytet 1**: Aktualizacje cen w czasie rzeczywistym
+2. **Priorytet 2**: Sprawdzanie dywidend
+3. **Priorytet 3**: Historyczne dane
+4. **Priorytet 4**: Wskaźniki techniczne
+5. **Priorytet 5**: Dane pomocnicze
+
+### 📝 **Dodaj zmiany tutaj**
+- 
+
 ## [v1.9.22] - 2025-08-28
 
 ### 🆕 **Dodano**

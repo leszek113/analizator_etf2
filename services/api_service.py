@@ -11,6 +11,124 @@ from models import db
 
 logger = logging.getLogger(__name__)
 
+class APIQueueManager:
+    """
+    Inteligentny menedżer kolejki zadań API
+    Optymalizuje wykorzystanie tokenów API poprzez grupowanie i priorytetyzację zadań
+    """
+    
+    def __init__(self):
+        self.task_queue = []
+        self.processing = False
+        self.max_batch_size = 10  # Maksymalna liczba zadań w jednej partii
+        self.batch_delay = 1.0  # Opóźnienie między partiami w sekundach
+        
+    def add_task(self, task_type: str, priority: int, func, *args, **kwargs):
+        """
+        Dodaje zadanie do kolejki
+        
+        Args:
+            task_type: Typ zadania (price_update, dividend_check, etc.)
+            priority: Priorytet (1=wysoki, 5=niski)
+            func: Funkcja do wykonania
+            *args, **kwargs: Argumenty funkcji
+        """
+        task = {
+            'type': task_type,
+            'priority': priority,
+            'func': func,
+            'args': args,
+            'kwargs': kwargs,
+            'added_at': datetime.now(),
+            'retry_count': 0
+        }
+        
+        self.task_queue.append(task)
+        # Sortowanie po priorytecie (niższy = wyższy priorytet)
+        self.task_queue.sort(key=lambda x: x['priority'])
+        
+        logger.info(f"Added {task_type} task to queue (priority: {priority}, queue size: {len(self.task_queue)})")
+    
+    def process_queue(self, api_service):
+        """
+        Przetwarza kolejkę zadań w partiach
+        """
+        if self.processing or not self.task_queue:
+            return
+        
+        self.processing = True
+        logger.info(f"Processing API queue with {len(self.task_queue)} tasks")
+        
+        try:
+            while self.task_queue:
+                # Pobierz partię zadań o najwyższym priorytecie
+                batch = []
+                current_priority = self.task_queue[0]['priority']
+                
+                for task in self.task_queue[:self.max_batch_size]:
+                    if task['priority'] == current_priority:
+                        batch.append(task)
+                    else:
+                        break
+                
+                # Usuń zadania z kolejki
+                for task in batch:
+                    self.task_queue.remove(task)
+                
+                # Wykonaj partię
+                self._execute_batch(batch, api_service)
+                
+                # Krótka przerwa między partiami
+                if self.task_queue:
+                    time.sleep(self.batch_delay)
+                    
+        except Exception as e:
+            logger.error(f"Error processing API queue: {str(e)}")
+        finally:
+            self.processing = False
+            logger.info(f"API queue processing completed. Remaining tasks: {len(self.task_queue)}")
+    
+    def _execute_batch(self, batch, api_service):
+        """
+        Wykonuje partię zadań
+        """
+        logger.info(f"Executing batch of {len(batch)} tasks with priority {batch[0]['priority']}")
+        
+        for task in batch:
+            try:
+                # Sprawdź rate limit przed wykonaniem
+                if api_service._check_rate_limit('fmp'):  # Domyślnie FMP
+                    result = task['func'](*task['args'], **task['kwargs'])
+                    logger.info(f"Task {task['type']} completed successfully")
+                else:
+                    logger.warning(f"Rate limit exceeded, skipping task {task['type']}")
+                    # Dodaj z powrotem do kolejki z niższym priorytetem
+                    task['priority'] = min(task['priority'] + 1, 5)
+                    task['retry_count'] += 1
+                    if task['retry_count'] < 3:  # Maksymalnie 3 próby
+                        self.task_queue.append(task)
+                        self.task_queue.sort(key=lambda x: x['priority'])
+                    
+            except Exception as e:
+                logger.error(f"Error executing task {task['type']}: {str(e)}")
+                # Dodaj z powrotem do kolejki z niższym priorytetem
+                task['priority'] = min(task['priority'] + 1, 5)
+                task['retry_count'] += 1
+                if task['retry_count'] < 3:  # Maksymalnie 3 próby
+                    self.task_queue.append(task)
+                    self.task_queue.sort(key=lambda x: x['priority'])
+    
+    def get_queue_status(self):
+        """
+        Zwraca status kolejki
+        """
+        return {
+            'queue_size': len(self.task_queue),
+            'processing': self.processing,
+            'task_types': list(set(task['type'] for task in self.task_queue)),
+            'priorities': list(set(task['priority'] for task in self.task_queue))
+        }
+
 class APIService:
     def __init__(self):
         self.config = Config()
@@ -23,6 +141,9 @@ class APIService:
         
         self.cache = {}  # Prosty cache w pamięci
         self.cache_ttl = self.config.CACHE_TTL_SECONDS  # Z config
+        
+        # Inteligentny menedżer kolejki zadań API
+        self.queue_manager = APIQueueManager()
 
     def _load_api_limits_from_db(self) -> Dict:
         """
@@ -86,6 +207,154 @@ class APIService:
         """Zapewnia że limity API są załadowane"""
         if self.api_calls is None:
             self.api_calls = self._load_api_limits_from_db()
+
+    def get_current_price_fmp(self, ticker: str) -> Optional[float]:
+        """
+        Pobiera TYLKO aktualną cenę z FMP (oszczędza tokeny API)
+        
+        Args:
+            ticker: Ticker ETF
+            
+        Returns:
+            Aktualna cena lub None jeśli błąd
+        """
+        try:
+            if not self._check_rate_limit('fmp'):
+                logger.warning(f"FMP rate limit exceeded for {ticker}")
+                return None
+            
+            url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}"
+            params = {'apikey': self.config.FMP_API_KEY}
+            
+            response = self.session.get(url, params=params, timeout=5)
+            self._increment_api_call('fmp')
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    price = data[0].get('price')
+                    if price:
+                        logger.info(f"FMP current price for {ticker}: {price}")
+                        return float(price)
+            
+            logger.warning(f"FMP price fetch failed for {ticker}: {response.status_code}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching FMP price for {ticker}: {str(e)}")
+            return None
+
+    def get_current_price_eodhd(self, ticker: str) -> Optional[float]:
+        """
+        Pobiera TYLKO aktualną cenę z EODHD (oszczędza tokeny API)
+        
+        Args:
+            ticker: Ticker ETF
+            
+        Returns:
+            Aktualna cena lub None jeśli błąd
+        """
+        try:
+            if not self._check_rate_limit('eodhd'):
+                logger.warning(f"EODHD rate limit exceeded for {ticker}")
+                return None
+            
+            url = f"https://eodhistoricaldata.com/api/real-time/{ticker}"
+            params = {'api_token': self.config.EODHD_API_KEY, 'fmt': 'json'}
+            
+            response = self.session.get(url, params=params, timeout=5)
+            self._increment_api_call('eodhd')
+            
+            if response.status_code == 200:
+                data = response.json()
+                price = data.get('close')
+                if price:
+                    logger.info(f"EODHD current price for {ticker}: {price}")
+                    return float(price)
+            
+            logger.warning(f"EODHD price fetch failed for {ticker}: {response.status_code}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching EODHD price for {ticker}: {str(e)}")
+            return None
+
+    def get_etf_basic_info(self, ticker: str) -> Dict:
+        """
+        Pobiera TYLKO podstawowe informacje o ETF (nazwa, yield, frequency) - oszczędza tokeny API
+        
+        Args:
+            ticker: Ticker ETF
+            
+        Returns:
+            Słownik z podstawowymi informacjami lub pusty słownik jeśli błąd
+        """
+        try:
+            if not self._check_rate_limit('fmp'):
+                logger.warning(f"FMP rate limit exceeded for {ticker}")
+                return {}
+            
+            url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}"
+            params = {'apikey': self.config.FMP_API_KEY}
+            
+            response = self.session.get(url, params=params, timeout=5)
+            self._increment_api_call('fmp')
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    etf_info = data[0]
+                    basic_info = {
+                        'name': etf_info.get('companyName', ''),
+                        'current_yield': etf_info.get('lastDiv', 0.0),
+                        'frequency': etf_info.get('frequency', ''),
+                        'inception_date': etf_info.get('ipoDate', '')
+                    }
+                    logger.info(f"Got basic info for {ticker}: {basic_info}")
+                    return basic_info
+            
+            logger.warning(f"FMP basic info fetch failed for {ticker}: {response.status_code}")
+            return {}
+            
+        except Exception as e:
+            logger.error(f"Error fetching FMP basic info for {ticker}: {str(e)}")
+            return {}
+
+    def get_current_price_tiingo(self, ticker: str) -> Optional[float]:
+        """
+        Pobiera TYLKO aktualną cenę z Tiingo (oszczędza tokeny API)
+        
+        Args:
+            ticker: Ticker ETF
+            
+        Returns:
+            Aktualna cena lub None jeśli błąd
+        """
+        try:
+            if not self._check_rate_limit('tiingo'):
+                logger.warning(f"Tiingo rate limit exceeded for {ticker}")
+                return None
+            
+            url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices"
+            params = {'token': self.config.TIINGO_API_KEY, 'format': 'json'}
+            
+            response = self.session.get(url, params=params, timeout=5)
+            self._increment_api_call('tiingo')
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    price = data[0].get('close')
+                    if price:
+                        logger.info(f"Tiingo current price for {ticker}: {price}")
+                        return float(price)
+            
+            logger.warning(f"Tiingo price fetch failed for {ticker}: {response.status_code}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching Tiingo price for {ticker}: {str(e)}")
+            return None
 
     def _check_rate_limit(self, api_type: str) -> bool:
         """

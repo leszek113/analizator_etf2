@@ -1,7 +1,7 @@
-# 📊 ETF Analyzer v1.9.18
+# 📊 ETF Analyzer v1.9.23
 
-**Wersja:** v1.9.18  
-**Ostatnia aktualizacja:** 24 sierpnia 2025
+**Wersja:** v1.9.23  
+**Ostatnia aktualizacja:** 29 sierpnia 2025
 
 ## 🎯 **Główne funkcjonalności**
 
@@ -1070,7 +1070,13 @@ MIT License - zobacz plik LICENSE
 - **✅ Spójne formatowanie dat** - UTC->CET konwersja w całym systemie
 - **✅ Aktualizacja zależności** - Flask 2.3.3, Werkzeug 2.3.7, NumPy 2.0.4
 
-### **🎯 Najnowsze osiągnięcia (2025-08-23):**
+### **🎯 Najnowsze osiągnięcia (2025-08-29) - v1.9.23:**
+- **✅ Naprawiono główny błąd** - system teraz pobiera ceny dzienne na koniec dnia o 22:00 CET
+- **✅ Nowe zadanie schedulera** - `scheduled_daily_price_update` uruchamia się codziennie o 22:00 CET
+- **✅ Inteligentny menedżer kolejki API** - `APIQueueManager` optymalizuje wykorzystanie tokenów API
+- **✅ System retencji logów** - automatyczne czyszczenie starych logów (system: 90 dni, zadania: 30 dni)
+- **✅ Strefy czasowe CET/UTC** - interfejs w CET, system wewnętrznie w UTC z automatyczną konwersją
+- **✅ Dynamiczny interfejs zadań** - nowy endpoint `/api/system/scheduler/jobs` pokazuje wszystkie 8 zadań
 - **✅ Scheduler Management** - profesjonalny interfejs zarządzania zadaniami automatycznymi
 - **✅ Ujednolicone nazwy zadań** - spójne nazewnictwo w całym systemie
 - **✅ Czas CET w schedulerze** - zadania uruchamiają się według czasu polskiego
@@ -1141,6 +1147,58 @@ MIT License - zobacz plik LICENSE
 - **Interaktywne wykresy** z użyciem Chart.js
 - **Historia cen z normalizacją split** - automatyczne dostosowanie cen historycznych do aktualnych splitów
 - **Kolumna wieku ETF** - sortowalna kolumna pokazująca rzeczywisty wiek ETF na rynku
+
+## 🆕 **Najnowsze funkcjonalności (v1.9.23) - Naprawa głównego błędu i optymalizacja**
+
+### **🐛 Główny błąd - NAPRAWIONY!**
+- **Problem**: System nie pobierał cen dziennych na koniec dnia
+- **Rozwiązanie**: Dodano nowe zadanie `scheduled_daily_price_update` uruchamiające się o **22:00 CET**
+- **Rezultat**: Ceny dzienne są teraz automatycznie pobierane po zamknięciu rynków amerykańskich
+
+### **🔄 Nowe zadania schedulera**
+1. **`scheduled_daily_price_update`** - 22:00 CET (pon-piątek) - pobiera ceny końcowe wszystkich ETF
+2. **`scheduled_log_cleanup`** - 02:00 CET (niedziela) - czyści stare logi zgodnie z polityką retencji
+
+### **⚡ Inteligentny menedżer kolejki API**
+- **`APIQueueManager`** - grupowanie i priorytetyzacja zadań API
+- **Optymalizacja tokenów** - batching, retry logic, inteligentne kolejkowanie
+- **Oszczędność zasobów** - lepsze wykorzystanie darmowych limitów API
+
+### **🗂️ System retencji logów**
+- **Logi systemowe**: 90 dni retencji
+- **Logi zadań**: 30 dni retencji
+- **Automatyczne czyszczenie** - cotygodniowe zadanie niedzielą o 02:00 CET
+- **Zapobieganie wzrostowi** - logi nie rosną w nieskończoność
+
+### **🌍 Strefy czasowe CET/UTC**
+- **Interfejs użytkownika**: Wszystkie czasy wyświetlane w CET (Central European Time)
+- **System wewnętrzny**: Wszystkie operacje w UTC
+- **Automatyczna konwersja** - scheduler używa UTC, interfejs pokazuje CET
+- **Konfiguracja**: `USER_TIMEZONE = 'CET'`, `SYSTEM_TIMEZONE = 'UTC'`
+
+### **📊 Dynamiczny interfejs zadań schedulera**
+- **Nowy endpoint**: `/api/system/scheduler/jobs` - lista wszystkich aktywnych zadań
+- **JavaScript**: Automatyczne ładowanie zadań z API
+- **Czytelne opisy**: Nazwy zadań w języku polskim z czasami CET
+- **Status w czasie rzeczywistym**: Następne uruchomienia, status aktywności
+
+### **🔧 Skrypt zarządzania aplikacją**
+- **`./scripts/manage-app.sh`** - kompletne zarządzanie aplikacją
+- **Komendy**: `start`, `stop`, `restart`, `status`, `logs`
+- **Automatyzacja**: Sprawdzanie zależności, wirtualne środowisko, porty
+- **Monitoring**: Status procesu, użycie CPU/pamięci, logi
+
+### **📅 Harmonogram zadań schedulera (v1.9.23)**
+| Zadanie | Czas (CET) | Częstotliwość | Opis |
+|---------|------------|---------------|------|
+| **Sprawdzanie dywidend** | 06:00 | Codziennie | Sprawdza nowe dywidendy dla wszystkich ETF |
+| **Aktualizacja cen** | 15:35-22:05 | Co 15 min (pon-piątek) | Pobiera aktualne ceny ETF |
+| **Ceny dzienne** | 22:00 | Codziennie (pon-piątek) | ⭐ **NOWE!** Pobiera ceny końcowe na koniec dnia |
+| **Ramy czasowe** | 22:45 | Codziennie (pon-piątek) | Aktualizuje wszystkie ramy czasowe |
+| **Alerty techniczne** | 23:00 | Codziennie (pon-piątek) | Sprawdza wskaźniki techniczne |
+| **Powiadomienia** | 10:00 | Codziennie | Wysyła powiadomienia techniczne |
+| **Częste alerty** | Co 10 min | Ciągle | Szybkie sprawdzanie alertów |
+| **Czyszczenie logów** | 02:00 | Niedziela | ⭐ **NOWE!** Czyści stare logi |
 
 ## 📊 **Wiek ETF - Nowa funkcjonalność**
 

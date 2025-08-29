@@ -142,26 +142,24 @@ class DatabaseService:
                 logger.warning(f"ETF {ticker} not found in database")
                 return False
             
-            # Pobieranie aktualnych danych (FMP jako główne źródło)
-            etf_data = self.api_service.get_etf_data(ticker)
-            if not etf_data:
-                logger.error(f"Could not fetch updated data for ETF {ticker}")
-                return False
+            # Pobieranie TYLKO podstawowych informacji o ETF (oszczędzamy tokeny API)
+            # Ceny będą pobrane przez _check_new_prices
+            etf_data = {}
             
-            # Sprawdzenie czy mamy cenę do aktualizacji
-            current_price = etf_data.get('current_price')
-            if not current_price:
-                current_price = etf_data.get('eodhd_current_price')
-                if not current_price:
-                    current_price = etf_data.get('tiingo_current_price')
-                
-            if not current_price:
-                logger.error(f"No price data available for ETF {ticker} update")
-                return False
+            # Aktualizacja tylko jeśli force_update=True
+            if force_update:
+                try:
+                    # Pobieranie tylko podstawowych informacji (bez cen)
+                    basic_info = self.api_service.get_etf_basic_info(ticker)
+                    if basic_info:
+                        etf_data.update(basic_info)
+                        logger.info(f"Got basic info for {ticker}: {basic_info}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch basic info for {ticker}: {str(e)}")
+                    # Kontynuuj bez podstawowych informacji
             
-            # Aktualizacja danych
+            # Aktualizacja danych (bez ceny - będzie pobrana przez _check_new_prices)
             etf.name = etf_data.get('name', etf.name)
-            etf.current_price = current_price
             etf.current_yield = etf_data.get('current_yield', etf.current_yield)
             etf.frequency = etf_data.get('frequency', etf.frequency)
             
@@ -180,7 +178,11 @@ class DatabaseService:
             new_dividends = self._check_new_dividends(etf.id, ticker)
             
             # Sprawdzanie nowych cen
-            new_prices = self._check_new_prices(etf.id, ticker)
+            logger.info(f"Calling _check_new_prices for {ticker} with force_update={force_update}")
+            logger.info(f"Type of force_update: {type(force_update)}, Value: {force_update}")
+            logger.info(f"About to call _check_new_prices with etf.id={etf.id}, ticker={ticker}, force_update={force_update}")
+            new_prices = self._check_new_prices(etf.id, ticker, force_update)
+            logger.info(f"_check_new_prices returned: {new_prices}")
             
             # Jeśli force_update, pobierz pełną historię (15 lat)
             if force_update:
@@ -809,10 +811,11 @@ class DatabaseService:
             logger.error(f"Error fetching historical dividends for ETF {ticker}: {str(e)}")
             return False
     
-    def _check_new_prices(self, etf_id: int, ticker: str) -> bool:
+    def _check_new_prices(self, etf_id: int, ticker: str, force_update: bool = False) -> bool:
         """
         Sprawdza czy są nowe ceny do dodania - OSZCZĘDZA TOKENY API
         """
+        logger.info(f"_check_new_prices called for {ticker} with force_update={force_update}")
         try:
             # Pobieranie ostatniej ceny z bazy
             last_db_price = ETFPrice.query.filter_by(etf_id=etf_id).order_by(ETFPrice.date.desc()).first()
@@ -829,26 +832,46 @@ class DatabaseService:
                 return False
             
             # Sprawdzanie czy ostatnia cena jest z ostatnich 7 dni (tygodniowe aktualizacje)
-            days_since_last = (today - last_db_price.date).days
-            if days_since_last < 7:
-                logger.info(f"Last price for {ticker} is recent ({days_since_last} days ago), no need to check API")
-                return False
+            # Jeśli force_update=True, ignorujemy to sprawdzenie
+            if not force_update:
+                days_since_last = (today - last_db_price.date).days
+                if days_since_last < 7:
+                    logger.info(f"Last price for {ticker} is recent ({days_since_last} days ago), no need to check API")
+                    return False
             
             logger.info(f"Checking for new price for {ticker} (last price: {last_db_price.date})")
             
-            # Pobieranie aktualnej ceny (FMP jako główne źródło)
-            current_price_data = self.api_service.get_etf_data(ticker)
-            if not current_price_data:
-                return False
-                
-            # Sprawdzenie czy mamy cenę
-            current_price = current_price_data.get('current_price')
+            # Pobieranie TYLKO aktualnej ceny (oszczędzamy tokeny API)
+            current_price = None
+            
+            # Próba FMP (główne źródło)
+            try:
+                current_price = self.api_service.get_current_price_fmp(ticker)
+                if current_price:
+                    logger.info(f"Got current price from FMP for {ticker}: {current_price}")
+            except Exception as e:
+                logger.warning(f"FMP price fetch failed for {ticker}: {str(e)}")
+            
+            # Fallback: EODHD
             if not current_price:
-                current_price = current_price_data.get('eodhd_current_price')
-                if not current_price:
-                    current_price = current_price_data.get('tiingo_current_price')
-                
+                try:
+                    current_price = self.api_service.get_current_price_eodhd(ticker)
+                    if current_price:
+                        logger.info(f"Got current price from EODHD for {ticker}: {current_price}")
+                except Exception as e:
+                    logger.warning(f"EODHD price fetch failed for {ticker}: {str(e)}")
+            
+            # Fallback: Tiingo
             if not current_price:
+                try:
+                    current_price = self.api_service.get_current_price_tiingo(ticker)
+                    if current_price:
+                        logger.info(f"Got current price from Tiingo for {ticker}: {current_price}")
+                except Exception as e:
+                    logger.warning(f"Tiingo price fetch failed for {ticker}: {str(e)}")
+            
+            if not current_price:
+                logger.warning(f"No current price available for {ticker} from any source")
                 return False
             
             # Dodawanie nowej ceny
@@ -2250,6 +2273,45 @@ class DatabaseService:
             db.session.rollback()
             return False
     
+    def add_daily_price_record(self, etf_id: int, price: float) -> bool:
+        """Dodaje rekord do historii cen dziennych ETF (ETFDailyPrice)"""
+        try:
+            # Sprawdź czy już mamy cenę na dzisiaj
+            today = date.today()
+            existing_record = ETFDailyPrice.query.filter_by(
+                etf_id=etf_id,
+                date=today
+            ).first()
+            
+            if existing_record:
+                # Aktualizuj istniejący rekord
+                existing_record.close_price = price
+                existing_record.normalized_close_price = price
+                existing_record.last_updated = datetime.now(timezone.utc)
+                logger.info(f"Updated existing daily price record for ETF ID {etf_id} on {today}")
+            else:
+                # Dodaj nowy rekord
+                new_record = ETFDailyPrice(
+                    etf_id=etf_id,
+                    date=today,
+                    close_price=price,
+                    normalized_close_price=price,
+                    split_ratio_applied=1.0,
+                    year=today.year,
+                    month=today.month,
+                    day=today.day
+                )
+                db.session.add(new_record)
+                logger.info(f"Added new daily price record for ETF ID {etf_id} on {today}: ${price}")
+            
+            db.session.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding daily price record for ETF ID {etf_id}: {str(e)}")
+            db.session.rollback()
+            return False
+    
     def cleanup_old_price_history(self) -> int:
         """
         UWAGA: Ta funkcja została wyłączona ze schedulera!
@@ -2287,4 +2349,54 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error cleaning up old price history: {str(e)}")
             db.session.rollback()
+            return 0
+    
+    def cleanup_old_system_logs(self, retention_days: int = 90) -> int:
+        """
+        Czyści stare logi systemowe zgodnie z polityką retencji
+        Domyślnie zachowuje logi z ostatnich 90 dni
+        """
+        try:
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            
+            # Usuń stare logi systemowe
+            deleted_count = SystemLog.query.filter(
+                SystemLog.timestamp < cutoff_date
+            ).delete()
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} system logs older than {retention_days} days")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error in cleanup_old_system_logs: {str(e)}")
+            db.session.rollback()
+            return 0
+    
+    def cleanup_old_job_logs(self, retention_days: int = 30) -> int:
+        """
+        Czyści stare logi zadań schedulera zgodnie z polityką retencji
+        Domyślnie zachowuje logi zadań z ostatnich 30 dni
+        """
+        try:
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            
+            # Usuń stare logi zadań
+            deleted_count = SystemLog.query.filter(
+                SystemLog.job_name.isnot(None),
+                SystemLog.timestamp < cutoff_date
+            ).delete()
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} job logs older than {retention_days} days")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error in cleanup_old_job_logs: {str(e)}")
             return 0

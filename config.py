@@ -4,14 +4,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Wersja systemu - CENTRALNE ŹRÓDŁO PRAWDY
-__version__ = "1.9.22"
+__version__ = "1.9.23"
 
 # Informacje o wersji
 VERSION_INFO = {
     'version': __version__,
-    'release_date': '2025-08-28',
+    'release_date': '2025-01-27',
     'status': 'production_ready',
-    'build': '82169fc'  # Git commit hash
+    'build': 'fix-daily-prices'  # Git commit hash
 }
 
 class Config:
@@ -98,6 +98,20 @@ class Config:
 
     # Scheduler settings
     SCHEDULER_API_ENABLED = True
+    
+    # Timezone settings
+    # CET (Central European Time) dla interfejsu użytkownika
+    # UTC dla wewnętrznych operacji systemu
+    USER_TIMEZONE = 'CET'  # Strefa czasowa wyświetlana użytkownikowi
+    SYSTEM_TIMEZONE = 'UTC'  # Strefa czasowa używana wewnętrznie przez system
+    
+    # CET offset (w godzinach względem UTC)
+    # Zima: UTC+1, Lato: UTC+2 (automatycznie obsługiwane przez pytz)
+    CET_OFFSET_HOURS = 1  # Domyślny offset zimowy
+    
+    # Konwersja czasów dla interfejsu
+    # Wszystkie czasy w interfejsie są wyświetlane w CET
+    # Wszystkie czasy w bazie danych są przechowywane w UTC
     SCHEDULER_TIMEZONE = 'UTC'
 
     # Data settings

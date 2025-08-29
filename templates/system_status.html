@@ -276,23 +276,11 @@
                                 
                                 <h6>Zaplanowane zadania:</h6>
                                 <div id="scheduledJobs">
-                                    <div class="job-item mb-2 p-2 border rounded">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <strong>Poniedziałek-piątek o 5:00 CET</strong><br>
-                                                <small class="text-muted">Aktualizacja wszystkich ETF</small>
-                                            </div>
-                                            <span class="badge bg-success">Aktywne</span>
+                                    <div class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Ładowanie...</span>
                                         </div>
-                                    </div>
-                                    <div class="job-item mb-2 p-2 border rounded">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <strong>Co 15 min (pon-piątek 13:00-23:00 CET)</strong><br>
-                                                <small class="text-muted">Aktualizacja cen ETF</small>
-                                            </div>
-                                            <span class="badge bg-success">Aktywne</span>
-                                        </div>
+                                        <p class="mt-2">Ładowanie zadań schedulera...</p>
                                     </div>
                                 </div>
                             </div>
@@ -521,6 +509,65 @@
         function refreshAllJobLogs() {
             refreshUpdateAllEtfsLogs();
             refreshUpdateEtfPricesLogs();
+        }
+        
+        // Funkcja do ładowania zadań schedulera
+        function loadSchedulerJobs() {
+            console.log('🔄 Ładowanie zadań schedulera...');
+            fetch('/api/system/scheduler/jobs')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('📊 Otrzymane zadania:', data);
+                    if (data.success) {
+                        displaySchedulerJobs(data.jobs);
+                    } else {
+                        console.error('❌ Błąd ładowania zadań:', data.error);
+                        document.getElementById('scheduledJobs').innerHTML = 
+                            '<div class="alert alert-danger">Błąd ładowania zadań schedulera: ' + data.error + '</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Błąd komunikacji:', error);
+                    document.getElementById('scheduledJobs').innerHTML = 
+                        '<div class="alert alert-danger">Błąd komunikacji z serwerem</div>';
+                });
+        }
+        
+        // Funkcja do wyświetlania zadań schedulera
+        function displaySchedulerJobs(jobs) {
+            const container = document.getElementById('scheduledJobs');
+            
+            if (!jobs || jobs.length === 0) {
+                container.innerHTML = '<div class="alert alert-warning">Brak aktywnych zadań schedulera</div>';
+                return;
+            }
+            
+            let html = '';
+            jobs.forEach(job => {
+                const nextRun = job.next_run ? new Date(job.next_run).toLocaleString('pl-PL', {
+                    timeZone: 'Europe/Warsaw',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }) : 'Nie zaplanowane';
+                
+                html += `
+                    <div class="job-item mb-2 p-2 border rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${job.trigger}</strong><br>
+                                <small class="text-muted">${job.name}</small><br>
+                                <small class="text-info">Następne uruchomienie: ${nextRun}</small>
+                            </div>
+                            <span class="badge bg-success">Aktywne</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
         }
         
         function refreshUpdateAllEtfsLogs() {
@@ -766,6 +813,10 @@
             // Załaduj logi zadań przy starcie
             console.log('📊 Ładowanie logów zadań...');
             refreshAllJobLogs();
+            
+            // Załaduj zadania schedulera przy starcie
+            console.log('📅 Ładowanie zadań schedulera...');
+            loadSchedulerJobs();
         });
     </script>
 </body>
