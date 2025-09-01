@@ -1,65 +1,81 @@
-# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.17
+# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.23
 
 ## 📋 **Przegląd Wersji**
 
-**Wersja:** v1.9.18  
-**Data wydania:** 24 sierpnia 2025  
-**Typ wydania:** Minor Release (normalizacja cen 1D + poprawki)
+**Wersja:** v1.9.23  
+**Data wydania:** 27 stycznia 2025  
+**Typ wydania:** Patch Release (naprawa głównego błędu i optymalizacje)
 
-## 🆕 **Co nowego w v1.9.17**
+## 🆕 **Co nowego w v1.9.23**
 
-### **Nowe Funkcjonalności**
-- ✅ **Normalizacja cen 1D** - kolumny `normalized_close_price` i `split_ratio_applied` w tabeli `etf_daily_prices`
-- ✅ **Model `ETFDailyPrice`** - rozszerzony o kolumny year, month, day dla optymalizacji zapytań
-- ✅ **Znormalizowane ceny** - wszystkie endpointy 1D używają znormalizowanych cen z bazy danych
-- ✅ **Wskaźniki 1D** - MACD, Stochastic (36-12-12), Stochastic Short (9-3-3) dla danych dziennych
-- ✅ **Przełącznik timeframe 1D** - opcja "1D (Dzienne)" w interfejsie użytkownika
-
-### **Ulepszenia Systemu**
-- ✅ **Normalizacja splitów** - ceny 1D są teraz normalizowane tak samo jak 1W i 1M
-- ✅ **Struktura bazy danych** - dodano brakujące kolumny do modelu `ETFDailyPrice`
-- ✅ **Endpointy API** - wszystkie endpointy 1D poprawnie obsługują znormalizowane ceny
-
-### **Poprawki Techniczne**
-- ✅ **Problem z normalizacją** - wykresy 1D nie pokazują już dramatycznych skoków cen spowodowanych splitami
-- ✅ **Brakujące kolumny** - dodano kolumny `year`, `month`, `day` do tabeli `etf_daily_prices`
-- ✅ **Błędne endpointy** - naprawiono wszystkie endpointy 1D żeby używały znormalizowanych cen
-
-## 🆕 **Co nowego w v1.9.16**
+### **Naprawione Błędy**
+- ✅ **GŁÓWNY BŁĄD**: Dodano zadanie schedulera `scheduled_daily_price_update` które uruchamia się o 22:00 CET i pobiera ceny dzienne na koniec dnia
+- ✅ **Funkcja `add_daily_price_record`**: Dodano do `DatabaseService` funkcję do dodawania rekordów cen dziennych
+- ✅ **Scheduler**: Poprawiono konfigurację - nowe zadanie uruchamia się tylko w dni robocze (pon-piątek)
 
 ### **Nowe Funkcjonalności**
-- ✅ **Dane dzienne (1D)** - nowa tabela `etf_daily_prices` z rolling window 365 dni
-- ✅ **Nowe zadanie schedulera** - `update_all_timeframes()` zastępuje `update_all_etfs()`
-- ✅ **API endpointy 1D** - `/api/etfs/<ticker>/daily-prices` i `/api/etfs/<ticker>/add-daily-prices`
-- ✅ **Priorytet źródeł API dla 1D** - EODHD → FMP → Tiingo (EODHD lepszy dla cen dziennych)
-- ✅ **Automatyczny cleanup** - usuwanie cen dziennych starszych niż 365 dni
+- ✅ **Inteligentna kolejka API**: Dodano `APIQueueManager` do optymalizacji wykorzystania tokenów API
+- ✅ **System retencji logów**: Implementacja automatycznego czyszczenia starych logów
+  - Logi systemowe: retencja 90 dni
+  - Logi zadań: retencja 30 dni
+  - Cotygodniowe czyszczenie w niedzielę o 02:00 CET
+- ✅ **Strefa czasowa CET**: Dodano konfigurację dla interfejsu użytkownika w CET
 
-### **Ulepszenia Systemu**
-- ✅ **Harmonogram schedulera** - zmieniony z 5:00 CET na 23:50 CET
-- ✅ **Logika kompletności** - sprawdzanie wszystkich ram czasowych (1M, 1W, 1D)
-- ✅ **System status** - aktualizacja opisów i nazw zadań
+### **Ulepszenia Techniczne**
+- ✅ **Optymalizacja API**: Grupowanie zadań w partiach, priorytetyzacja, retry logic
+- ✅ **Logowanie zadań**: Wszystkie nowe zadania używają rozszerzonego systemu logowania
+- ✅ **Konfiguracja**: Dodano ustawienia strefy czasowej i polityki retencji logów
 
-### **Poprawki Techniczne**
-- ✅ **Rozszerzenie `smart_history_completion`** - obsługa danych 1D wraz z 1M i 1W
-- ✅ **Relacje modeli** - dodano relację `daily_prices` w modelu ETF
-- ✅ **Funkcje konwersji** - dodano `_convert_*_prices_to_daily` dla wszystkich źródeł API
+### **Struktura Schedulera**
+```
+06:00 CET - Sprawdzanie dywidend (codziennie)
+22:00 CET - Aktualizacja cen dziennych (pon-piątek)
+23:00 CET - Sprawdzanie alertów (pon-piątek)
+02:00 CET - Czyszczenie logów (niedziela)
+```
 
-## 🔧 **Co zostało naprawione w v1.9.11**
+### **Priorytety Zadań API**
+1. **Priorytet 1**: Aktualizacje cen w czasie rzeczywistym
+2. **Priorytet 2**: Sprawdzanie dywidend
+3. **Priorytet 3**: Historyczne dane
+4. **Priorytet 4**: Wskaźniki techniczne
+5. **Priorytet 5**: Dane pomocnicze
 
-### **Krytyczne Poprawki**
-- ✅ **Walidacja inputów** - sprawdzanie poprawności ticker (regex: A-Z, 0-9, max 20 znaków)
-- ✅ **Spójność formatowania dat** - wszystkie modele używają UTC->CET konwersji
-- ✅ **Aktualizacja zależności** - Flask 2.3.3, Werkzeug 2.3.7, NumPy 2.0.4
+## 🆕 **Co nowego w v1.9.22**
 
-### **Nowe Funkcjonalności**
-- ✅ **Testy jednostkowe** - pokrycie kodu testami dla kluczowych funkcji
-- ✅ **Wspólny CSS** - uniwersalne style dla całej aplikacji
-- ✅ **Lepsze logowanie błędów** - szczegółowe komunikaty dla problemów z walidacją
+### **Dodano**
+- ✅ **Zakładka "Dokumentacja Powiadomień"** - kompletną dokumentację systemu w `/alerts`
+- ✅ **Harmonogram zadań** - szczegółowa tabela z godzinami wykonywania wszystkich zadań
+- ✅ **Zasady powiadomień** - dokumentacja typów alertów i ich zachowań czasowych
+- ✅ **Architektura systemu** - wyjaśnienie Events, Alerts i Notifications
 
-### **Ulepszenia Jakości**
-- ✅ **Refaktoryzacja CSS** - usunięcie duplikatów, lepsza organizacja
-- ✅ **Poprawione nazewnictwo** - usunięcie mylących aliasów w API service
-- ✅ **Dokumentacja** - szczegółowy changelog z wszystkimi zmianami
+### **Zmienione**
+- ✅ **Harmonogram zadań** - aktualizacja godzin zgodnie z wymaganiami CEO:
+  - Aktualizacja wszystkich ram czasowych: **22:45 CET** (pon-pią)
+  - Sprawdzanie alertów wskaźników: **23:00 CET** (pon-pią)
+  - Wysyłanie powiadomień wskaźników: **10:00 CET** (następny dzień)
+  - Aktualizacja cen ETF: **15:35-22:05 CET co 15 min** (pon-pią)
+  - Sprawdzanie alertów (ceny, logi, zadania): **co 10 min**
+
+### **Naprawione**
+- ✅ **Dashboard wersja systemu** - naprawa wyświetlania numeru wersji systemu
+- ✅ **Błąd JavaScript** - usunięcie odwołania do nieistniejącego elementu `totalEtfs`
+- ✅ **Race condition** - dodanie opóźnienia i ponownego sprawdzania elementów DOM
+- ✅ **Cache przeglądarki** - wymuszenie odświeżania JavaScript po zmianach
+
+## 🆕 **Co nowego w v1.9.21**
+
+### **Dodano**
+- ✅ **System powiadomień Slack** - pełna infrastruktura alertów i powiadomień
+- ✅ **Modele bazy danych** - `AlertConfig`, `AlertHistory`, `Notification` dla systemu alertów
+- ✅ **Serwis powiadomień** - `NotificationService` z logiką sprawdzania alertów
+- ✅ **Integracja ze schedulerem** - sprawdzanie alertów co 10 min + raz dziennie o 10:30 CET
+- ✅ **Slack webhook** - powiadomienia na telefon przez aplikację Slack
+
+### **Zmienione**
+- ✅ **Optymalizacja schedulera** - timeout API zmniejszony z 10s do 5s, limit czasu 10 min
+- ✅ **Konfiguracja Slack** - `SLACK_WEBHOOK_URL`, `SLACK_CHANNEL`, `SLACK_USERNAME`
+- ✅ **Endpoint testowy** - `/api/test/slack` do testowania webhook
 
 ## 🛠️ **Wymagania Systemowe**
 
@@ -163,7 +179,7 @@ python3 app.py
 
 ```bash
 # Budowanie obrazu Docker
-docker build -t etf-analyzer:v1.9.11 .
+docker build -t etf-analyzer:v1.9.23 .
 
 # Sprawdzenie utworzonego obrazu
 docker images | grep etf-analyzer
@@ -203,8 +219,8 @@ curl http://localhost:5005/api/system/version
 # Oczekiwana odpowiedź:
 {
   "success": true,
-  "version": "1.9.11",
-  "timestamp": "2025-08-24T..."
+  "version": "1.9.23",
+  "timestamp": "2025-01-27T..."
 }
 ```
 
@@ -309,7 +325,7 @@ top -p $(pgrep -f "python.*app.py")
 ./scripts/manage-app.sh stop
 
 # Przełączenie na poprzedni tag
-git checkout v1.9.10
+git checkout v1.9.22
 
 # Ponowne uruchomienie
 ./scripts/manage-app.sh start
@@ -322,7 +338,7 @@ git checkout v1.9.10
 docker-compose down
 
 # Uruchomienie poprzedniej wersji
-docker run -p 5005:5005 etf-analyzer:v1.9.10
+docker run -p 5005:5005 etf-analyzer:v1.9.22
 ```
 
 ## 📞 **Wsparcie**
@@ -342,4 +358,4 @@ docker run -p 5005:5005 etf-analyzer:v1.9.10
 
 ---
 
-**🎉 Gratulacje! ETF Analyzer v1.9.11 został pomyślnie wdrożony!**
+**🎉 Gratulacje! ETF Analyzer v1.9.23 został pomyślnie wdrożony!**

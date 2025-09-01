@@ -93,6 +93,9 @@ def create_app():
     scheduler = BackgroundScheduler()
     scheduler.start()
     
+    # Konfiguracja dla zadań schedulera
+    scheduler_config = Config()
+    
     # Dodawanie zadań do schedulera
     def update_all_timeframes():
         """Zadanie schedulera do codziennej aktualizacji wszystkich ETF (1M, 1W, 1D) - Aktualizacja wszystkich ram czasowych"""
@@ -274,19 +277,21 @@ def create_app():
                 db.session.commit()
     
     def scheduled_daily_price_update():
-        """Zadanie schedulera do codziennej aktualizacji cen ETF na koniec dnia (po zamknięciu rynków)"""
+        """Inteligentna aktualizacja cen dziennych ETF - sprawdza braki i uzupełnia dane"""
         start_time = time.time()
         with app.app_context():
             try:
                 etfs = db_service.get_all_etfs()
-                logger.info(f"Starting scheduled daily price update for {len(etfs)} ETFs...")
+                logger.info(f"Starting intelligent daily price update for {len(etfs)} ETFs...")
                 
-                updated_count = 0
+                total_updated = 0
+                total_added = 0
+                total_cleaned = 0
                 error_count = 0
                 
                 for etf in etfs:
                     try:
-                        logger.info(f"Daily price update for ETF {etf.ticker}...")
+                        logger.info(f"Processing ETF {etf.ticker}...")
                         
                         # Sprawdzenie czy nie przekroczyliśmy czasu (maksymalnie 15 minut)
                         elapsed_time = time.time() - start_time
@@ -294,26 +299,69 @@ def create_app():
                             logger.warning(f"Daily price update taking too long ({elapsed_time:.1f}s), stopping early")
                             break
                         
-                        # Pobieranie aktualnej ceny końcowej
-                        current_price = api_service.get_current_price(etf.ticker)
+                        # 1. Sprawdź jakie ceny dzienne mamy w bazie
+                        missing_dates = db_service.get_missing_daily_prices(etf.id, days_back=250)
                         
-                        if current_price:
-                            # Aktualizacja ceny w tabeli ETF
-                            db_service.update_etf_price(etf.id, current_price)
+                        if missing_dates:
+                            logger.info(f"Found {len(missing_dates)} missing dates for {etf.ticker}")
                             
-                            # Dodanie rekordu do historii cen dziennych
-                            db_service.add_daily_price_record(etf.id, current_price)
+                                                    # 2. Pobierz brakujące ceny historyczne inteligentnie
+                        try:
+                            logger.info(f"Pobieram brakujące ceny historyczne dla {etf.ticker}...")
+                            historical_data = db_service.get_historical_daily_prices_intelligent(etf.ticker, days=250)
                             
-                            updated_count += 1
-                            logger.info(f"Successfully updated daily price for {etf.ticker}: ${current_price}")
+                            if historical_data:
+                                logger.info(f"Pobrano {len(historical_data)} cen historycznych dla {etf.ticker}")
+                                
+                                # Dodaj brakujące ceny
+                                for missing_date in missing_dates:
+                                    price_for_date = None
+                                    for price_data in historical_data:
+                                        if price_data['date'] == missing_date:
+                                            price_for_date = price_data['close']
+                                            break
+                                    
+                                    if price_for_date:
+                                        db_service.add_daily_price_record(etf.id, price_for_date)
+                                        total_added += 1
+                                        logger.info(f"Added missing price for {etf.ticker} {missing_date}: ${price_for_date}")
+                                    else:
+                                        logger.warning(f"Price not found in API for {etf.ticker} {missing_date}")
+                            else:
+                                logger.warning(f"Failed to get historical data for {etf.ticker} from all API sources")
+                                
+                        except Exception as e:
+                            logger.error(f"Error fetching historical prices for {etf.ticker}: {str(e)}")
+                            continue
                         else:
-                            logger.warning(f"Failed to get daily price for {etf.ticker}")
+                            logger.info(f"All daily prices are up to date for {etf.ticker}")
+                        
+                        # 3. Pobierz aktualną cenę i zaktualizuj
+                        current_price = api_service.get_current_price(etf.ticker)
+                        if current_price:
+                            db_service.update_etf_price(etf.id, current_price)
+                            db_service.add_daily_price_record(etf.id, current_price)
+                            total_updated += 1
+                            logger.info(f"Updated current price for {etf.ticker}: ${current_price}")
+                        else:
+                            logger.warning(f"Failed to get current price for {etf.ticker}")
                             error_count += 1
                             
                     except Exception as e:
-                        logger.error(f"Error updating daily price for ETF {etf.ticker}: {str(e)}")
+                        logger.error(f"Error processing ETF {etf.ticker}: {str(e)}")
                         error_count += 1
                         continue
+                
+                # 4. Wyczyść stare ceny dzienne (starsze niż 250 dni roboczych)
+                logger.info("Cleaning up old daily prices...")
+                for etf in etfs:
+                    try:
+                        cleaned_count = db_service.cleanup_old_daily_prices(days_back=250)
+                        total_cleaned += cleaned_count
+                        if cleaned_count > 0:
+                            logger.info(f"Cleaned {cleaned_count} old prices for {etf.ticker}")
+                    except Exception as e:
+                        logger.error(f"Error cleaning up prices for {etf.ticker}: {str(e)}")
                 
                 execution_time_ms = int((time.time() - start_time) * 1000)
                 
@@ -322,24 +370,26 @@ def create_app():
                     job_name="scheduled_daily_price_update",
                     success=True if error_count == 0 else False,
                     execution_time_ms=execution_time_ms,
-                    records_processed=updated_count,
-                    details=f"Codzienna aktualizacja cen: {updated_count}/{len(etfs)} ETF, błędy: {error_count}",
-                    error_message=f"Błędy API dla {error_count} ETF: problemy z pobieraniem cen końcowych" if error_count > 0 else None,
+                    records_processed=total_updated + total_added,
+                    details=f"Intelligent daily price update: {total_updated} updated, {total_added} added, {total_cleaned} cleaned, {error_count} errors",
+                    error_message=f"API errors for {error_count} ETFs" if error_count > 0 else None,
                     metadata={
-                        'etfs_updated': updated_count,
+                        'etfs_updated': total_updated,
+                        'prices_added': total_added,
+                        'prices_cleaned': total_cleaned,
                         'total_etfs': len(etfs),
                         'errors': error_count,
-                        'update_type': 'daily_end_of_day'
+                        'update_type': 'intelligent_daily_sync'
                     }
                 )
                 db.session.add(job_log)
                 db.session.commit()
                 
-                logger.info(f"Daily price update completed: {updated_count} out of {len(etfs)} ETFs updated")
+                logger.info(f"Intelligent daily price update completed: {total_updated} updated, {total_added} added, {total_cleaned} cleaned")
                 
             except Exception as e:
                 execution_time_ms = int((time.time() - start_time) * 1000)
-                error_msg = f"Error in scheduled daily price update: {str(e)}"
+                error_msg = f"Error in intelligent daily price update: {str(e)}"
                 logger.error(error_msg)
                 
                 # Logowanie błędu zadania
@@ -348,7 +398,7 @@ def create_app():
                     success=False,
                     execution_time_ms=execution_time_ms,
                     records_processed=0,
-                    details="Błąd podczas codziennej aktualizacji cen ETF",
+                    details="Error during intelligent daily price update",
                     error_message=error_msg
                 )
                 db.session.add(job_log)
@@ -412,38 +462,125 @@ def create_app():
     
     def check_alerts():
         """Zadanie schedulera do sprawdzania alertów wskaźników technicznych raz dziennie"""
+        start_time = time.time()
         with app.app_context():
             try:
                 from services.notification_service import NotificationService
-                notification_service = NotificationService(config)
+                notification_service = NotificationService(scheduler_config)
                 notification_service.check_technical_alerts()
-                logger.info("Daily technical alerts check completed")
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"Daily technical alerts check completed in {execution_time_ms}ms")
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="check_alerts",
+                    success=True,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Sprawdzanie alertów wskaźników technicznych zakończone pomyślnie"
+                )
+                db.session.add(job_log)
+                db.session.commit()
+                
             except Exception as e:
-                logger.error(f"Error in daily alerts check: {str(e)}")
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in daily alerts check: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="check_alerts",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas sprawdzania alertów wskaźników technicznych",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
 
     def send_technical_notifications():
         """Zadanie schedulera do wysyłania powiadomień wskaźników technicznych o 10:00 CET"""
+        start_time = time.time()
         with app.app_context():
             try:
                 from services.notification_service import NotificationService
-                notification_service = NotificationService(config)
+                notification_service = NotificationService(scheduler_config)
                 notification_service.send_pending_technical_notifications()
-                logger.info("Technical notifications sent")
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"Technical notifications sent in {execution_time_ms}ms")
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="send_technical_notifications",
+                    success=True,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Wysyłanie powiadomień wskaźników technicznych zakończone pomyślnie"
+                )
+                db.session.add(job_log)
+                db.session.commit()
+                
             except Exception as e:
-                logger.error(f"Error in sending technical notifications: {str(e)}")
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in sending technical notifications: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="send_technical_notifications",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas wysyłania powiadomień wskaźników technicznych",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
     
     def check_alerts_frequent():
         """Zadanie schedulera do sprawdzania alertów co 10 minut (ceny, logi, zadania)"""
+        start_time = time.time()
         with app.app_context():
             try:
                 from services.notification_service import NotificationService
-                notification_service = NotificationService(config)
+                notification_service = NotificationService(scheduler_config)
                 notification_service.check_price_alerts()
                 notification_service.check_scheduler_alerts()
                 notification_service.check_log_alerts()
-                logger.info("Frequent alerts check completed")
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"Frequent alerts check completed in {execution_time_ms}ms")
+                
+                # Logowanie sukcesu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="check_alerts_frequent",
+                    success=True,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Sprawdzanie alertów co 10 minut zakończone pomyślnie"
+                )
+                db.session.add(job_log)
+                db.session.commit()
+                
             except Exception as e:
-                logger.error(f"Error in frequent alerts check: {str(e)}")
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                error_msg = f"Error in frequent alerts check: {str(e)}"
+                logger.error(error_msg)
+                
+                # Logowanie błędu zadania
+                job_log = SystemLog.create_job_log(
+                    job_name="check_alerts_frequent",
+                    success=False,
+                    execution_time_ms=execution_time_ms,
+                    records_processed=0,
+                    details="Błąd podczas sprawdzania alertów co 10 minut",
+                    error_message=error_msg
+                )
+                db.session.add(job_log)
+                db.session.commit()
     
     # Uruchamianie aktualizacji wszystkich ram czasowych raz dziennie o 22:45 CET (poniedziałek-piątek)
     # Używamy UTC wewnętrznie: 22:45 CET = 21:45 UTC (zimą) lub 20:45 UTC (latem)
@@ -454,7 +591,9 @@ def create_app():
         hour=21,  # UTC - odpowiada 22:45 CET
         minute=45,
         timezone="UTC",  # Używamy UTC wewnętrznie
-        id="daily_timeframes_update"
+        id="daily_timeframes_update",
+        max_instances=1,
+        misfire_grace_time=3600  # 1 godzina tolerancji na opóźnienia
     )
     
     # Uruchamianie aktualizacji cen co 15 minut w dni robocze (pon-piątek 15:35-22:05 CET)
@@ -466,7 +605,9 @@ def create_app():
         hour="14-21",  # UTC - odpowiada 15:35-22:05 CET
         minute="*/15",  # co 15 minut
         timezone="UTC",  # Używamy UTC wewnętrznie
-        id="price_update_15min"
+        id="price_update_15min",
+        max_instances=1,
+        misfire_grace_time=900  # 15 minut tolerancji na opóźnienia
     )
     
     # Uruchamianie sprawdzania alertów wskaźników technicznych raz dziennie o 23:00 CET (poniedziałek-piątek)
@@ -478,7 +619,9 @@ def create_app():
         hour=22,  # UTC - odpowiada 23:00 CET
         minute=0,
         timezone="UTC",
-        id="daily_alerts_check"
+        id="daily_alerts_check",
+        max_instances=1,
+        misfire_grace_time=3600  # 1 godzina tolerancji na opóźnienia
     )
     
     # Sprawdzanie alertów co 10 minut (ceny, logi, zadania)
@@ -486,7 +629,10 @@ def create_app():
         func=check_alerts_frequent,
         trigger="interval",
         minutes=10,
-        id="frequent_alerts_check"
+        id="frequent_alerts_check",
+        max_instances=1,  # Tylko jedna instancja na raz
+        coalesce=True,    # Grupuj opóźnione uruchomienia
+        misfire_grace_time=300  # 5 minut tolerancji na opóźnienia
     )
 
     # Wysyłanie powiadomień wskaźników technicznych o 10:00 CET (następny dzień)
@@ -497,7 +643,9 @@ def create_app():
         hour=9,  # UTC - odpowiada 10:00 CET
         minute=0,
         timezone="UTC",
-        id="technical_notifications_send"
+        id="technical_notifications_send",
+        max_instances=1,
+        misfire_grace_time=3600  # 1 godzina tolerancji na opóźnienia
     )
 
     # Codzienna aktualizacja cen ETF na koniec dnia o 22:00 CET (po zamknięciu rynków amerykańskich)
@@ -509,7 +657,9 @@ def create_app():
         hour=21,  # UTC - odpowiada 22:00 CET
         minute=0,
         timezone="UTC",  # Używamy UTC wewnętrznie
-        id="daily_price_update"
+        id="daily_price_update",
+        max_instances=1,
+        misfire_grace_time=3600  # 1 godzina tolerancji na opóźnienia
     )
 
     # Cotygodniowe czyszczenie starych logów (niedziela 02:00 CET)
@@ -521,7 +671,9 @@ def create_app():
         hour=1,  # UTC - odpowiada 02:00 CET
         minute=0,
         timezone="UTC",  # Używamy UTC wewnętrznie
-        id="weekly_log_cleanup"
+        id="weekly_log_cleanup",
+        max_instances=1,
+        misfire_grace_time=7200  # 2 godziny tolerancji na opóźnienia
     )
 
     
@@ -1384,84 +1536,38 @@ def create_app():
                     'scheduled_log_cleanup': 'Cotygodniowe czyszczenie logów'
                 }
                 
-                # Mapowanie trigger na czytelny opis
+                # Uproszczone mapowanie trigger na czytelny opis
                 trigger_description = "Nieznany"
                 try:
-                    # Sprawdź typ trigger
-                    if hasattr(job.trigger, 'fields'):
-                        fields = job.trigger.fields
-                        
-                        # Określ dni tygodnia
-                        if 'day_of_week' in fields:
-                            day_values = fields['day_of_week']
-                            if isinstance(day_values, list):
-                                if day_values == [0, 1, 2, 3, 4]:  # pon-piątek
-                                    days = "poniedziałek-piątek"
-                                elif day_values == [6]:  # niedziela
-                                    days = "niedziela"
-                                else:
-                                    days = "codziennie"
-                            else:
-                                days = "codziennie"
-                        else:
-                            days = "codziennie"
-                        
-                        # Określ godzinę i minutę
-                        if 'hour' in fields and 'minute' in fields:
-                            hour = fields['hour']
-                            minute = fields['minute']
-                            
-                            if isinstance(hour, list) and isinstance(minute, list):
-                                if hour == list(range(14, 22)) and minute == [35, 50, 5, 20, 35, 50]:
-                                    trigger_description = f"Co 15 min ({days} 15:35-22:05 CET)"
-                                else:
-                                    trigger_description = f"Co 15 min ({days})"
-                            else:
-                                # Konwersja UTC na CET
-                                cet_hour = (hour + 1) % 24  # UTC+1 dla CET
-                                trigger_description = f"{cet_hour:02d}:{minute:02d} CET ({days})"
+                    trigger_str = str(job.trigger)
+                    
+                    # Mapowanie dla znanych zadań
+                    if job.id == "frequent_alerts_check":
+                        trigger_description = "Co 10 minut (codziennie)"
+                    elif job.id == "price_update_15min":
+                        trigger_description = "Co 15 min (poniedziałek-piątek 15:35-22:05 CET)"
+                    elif job.id == "daily_price_update":
+                        trigger_description = "22:00 CET (poniedziałek-piątek)"
+                    elif job.id == "daily_timeframes_update":
+                        trigger_description = "22:45 CET (poniedziałek-piątek)"
+                    elif job.id == "daily_alerts_check":
+                        trigger_description = "23:00 CET (poniedziałek-piątek)"
+                    elif job.id == "technical_notifications_send":
+                        trigger_description = "10:00 CET (codziennie)"
+                    elif job.id == "weekly_log_cleanup":
+                        trigger_description = "02:00 CET (niedziela)"
                     else:
-                        # Dla innych typów trigger (np. interval)
-                        trigger_description = str(job.trigger)
-                        
+                        # Fallback dla nieznanych zadań
+                        if 'interval' in trigger_str:
+                            trigger_description = f"Co {job.trigger.interval} {job.trigger.interval_length}"
+                        elif 'cron' in trigger_str:
+                            trigger_description = f"Cron ({trigger_str})"
+                        else:
+                            trigger_description = trigger_str
+                            
                 except Exception as e:
                     logger.warning(f"Error parsing trigger for job {job.id}: {str(e)}")
-                    # Spróbuj sparsować string trigger
-                    trigger_str = str(job.trigger)
-                    if 'cron' in trigger_str:
-                        # Parsowanie cron trigger
-                        if 'day_of_week' in trigger_str and 'mon-fri' in trigger_str:
-                            days = "poniedziałek-piątek"
-                        elif 'day_of_week' in trigger_str and 'sun' in trigger_str:
-                            days = "niedziela"
-                        else:
-                            days = "codziennie"
-                        
-                        if 'hour=' in trigger_str and 'minute=' in trigger_str:
-                            if 'hour=\'14-21\'' in trigger_str and 'minute=\'*/15\'' in trigger_str:
-                                trigger_description = f"Co 15 min ({days} 15:35-22:05 CET)"
-                            else:
-                                # Wyciągnij godzinę i minutę
-                                import re
-                                hour_match = re.search(r"hour='([^']*)'", trigger_str)
-                                minute_match = re.search(r"minute='([^']*)'", trigger_str)
-                                
-                                if hour_match and minute_match:
-                                    hour_str = hour_match.group(1)
-                                    minute_str = minute_match.group(1)
-                                    
-                                    if hour_str.isdigit() and minute_str.isdigit():
-                                        # Konwersja UTC na CET
-                                        cet_hour = (int(hour_str) + 1) % 24
-                                        trigger_description = f"{cet_hour:02d}:{minute_str} CET ({days})"
-                                    else:
-                                        trigger_description = f"{hour_str}:{minute_str} UTC ({days})"
-                                else:
-                                    trigger_description = f"Cron ({days})"
-                        else:
-                            trigger_description = f"Cron ({days})"
-                    else:
-                        trigger_description = trigger_str
+                    trigger_description = str(job.trigger)
                 
                 # Mapowanie funkcji na czytelne nazwy
                 readable_name = job_name_map.get(job.func.__name__, job.func.__name__)
@@ -2502,7 +2608,7 @@ def create_app():
             return jsonify({
                 'success': True,
                 'message': 'Test powiadomienia Slack wysłany',
-                'timestamp': datetime.utcnow().isoformat()
+                'timestamp': datetime.now(timezone.utc).isoformat()
             })
             
         except Exception as e:
@@ -2677,7 +2783,7 @@ def create_app():
             if 'enabled' in data:
                 alert.enabled = data['enabled']
             
-            alert.updated_at = datetime.utcnow()
+            alert.updated_at = datetime.now(timezone.utc)
             db.session.commit()
             
             logger.info(f"Zaktualizowano regułę alertu: {alert.name}")
@@ -2739,7 +2845,7 @@ def create_app():
                 }), 404
             
             alert.enabled = not alert.enabled
-            alert.updated_at = datetime.utcnow()
+            alert.updated_at = datetime.now(timezone.utc)
             db.session.commit()
             
             status = "włączona" if alert.enabled else "wyłączona"

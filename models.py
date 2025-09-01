@@ -309,8 +309,8 @@ class AlertConfig(db.Model):
     etf_ticker = db.Column(db.String(20), nullable=True)  # Dla alertów ETF
     conditions = db.Column(db.JSON, nullable=False)  # Warunki w formacie JSON
     enabled = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     def __repr__(self):
         return f'<AlertConfig {self.name}: {self.type}>'
@@ -325,7 +325,7 @@ class AlertHistory(db.Model):
     message = db.Column(db.Text, nullable=False)
     severity = db.Column(db.String(20), default='info')  # info, warning, error, critical
     priority = db.Column(db.Integer, default=1)
-    triggered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    triggered_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     resolved_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default='active')  # active, resolved, dismissed, notified
     notified_at = db.Column(db.DateTime, nullable=True)  # Kiedy powiadomienie zostało wysłane
@@ -343,7 +343,7 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     alert_id = db.Column(db.Integer, db.ForeignKey('alerts_history.id'), nullable=False)
     channel = db.Column(db.String(50), nullable=False)  # slack, email, sms
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     status = db.Column(db.String(20), default='sent')  # sent, failed, pending
     error_message = db.Column(db.Text, nullable=True)
     

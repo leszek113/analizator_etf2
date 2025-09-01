@@ -2400,3 +2400,185 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error in cleanup_old_job_logs: {str(e)}")
             return 0
+
+    def get_missing_daily_prices(self, etf_id: int, days_back: int = 250) -> List[str]:
+        """Sprawdza jakie daty cen dziennych brakują dla danego ETF w ostatnich 250 dniach roboczych"""
+        try:
+            from datetime import date, timedelta
+            
+            # Oblicz datę początkową (250 dni roboczych wstecz)
+            end_date = date.today()
+            start_date = end_date - timedelta(days=days_back)
+            
+            # Pobierz istniejące daty z bazy
+            existing_dates = db.session.query(ETFDailyPrice.date).filter(
+                ETFDailyPrice.etf_id == etf_id,
+                ETFDailyPrice.date >= start_date,
+                ETFDailyPrice.date <= end_date
+            ).all()
+            
+            existing_dates_set = {d[0] for d in existing_dates}
+            
+            # Zamiast generować wszystkie "dni robocze", sprawdź tylko te które mają sens
+            # Pobierz daty z ostatnich 250 dni i sprawdź które brakują
+            missing_dates = []
+            
+            # Sprawdź każdy dzień w zakresie
+            current_date = start_date
+            while current_date <= end_date:
+                # Sprawdź czy to dzień roboczy (poniedziałek = 0, piątek = 4)
+                if current_date.weekday() < 5:  # 0-4 to poniedziałek-piątek
+                    if current_date not in existing_dates_set:
+                        # Dodaj tylko jeśli to nie weekend
+                        missing_dates.append(current_date.strftime('%Y-%m-%d'))
+                current_date += timedelta(days=1)
+            
+            logger.info(f"ETF ID {etf_id}: znaleziono {len(missing_dates)} potencjalnie brakujących dat cen dziennych (250 dni)")
+            return missing_dates
+            
+        except Exception as e:
+            logger.error(f"Błąd podczas sprawdzania brakujących cen dziennych: {str(e)}")
+            return []
+
+    def cleanup_old_daily_prices(self, days_back: int = 250) -> int:
+        """Usuwa ceny dzienne starsze niż 250 dni roboczych"""
+        try:
+            from datetime import date, timedelta
+            
+            cutoff_date = date.today() - timedelta(days=days_back)
+            deleted_count = ETFDailyPrice.query.filter(
+                ETFDailyPrice.date < cutoff_date
+            ).delete()
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                logger.info(f"Usunięto {deleted_count} starych cen dziennych (starszych niż {days_back} dni roboczych)")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Błąd podczas czyszczenia starych cen dziennych: {str(e)}")
+            db.session.rollback()
+            return 0
+
+    def get_historical_daily_prices_intelligent(self, ticker: str, days: int = 250) -> List[Dict]:
+        """Inteligentnie pobiera ceny historyczne z różnych API z fallbackami i ZAPISUJE je w bazie"""
+        try:
+            from services.api_service import APIService
+            from models import ETF
+            
+            api_service = APIService()
+            
+            # Znajdź ETF w bazie
+            etf = ETF.query.filter_by(ticker=ticker).first()
+            if not etf:
+                logger.error(f"ETF {ticker} nie został znaleziony w bazie")
+                return []
+            
+            # Próba 1: FMP API (najlepsze dane, 5/min, 500/dzień)
+            try:
+                if api_service._check_rate_limit('fmp'):
+                    logger.info(f"Pobieram ceny historyczne z FMP API dla {ticker}")
+                    fmp_data = api_service.get_historical_daily_prices(ticker, days=days, normalize_splits=True)
+                    if fmp_data:
+                        logger.info(f"✅ FMP API: pobrano {len(fmp_data)} cen dla {ticker}")
+                        
+                        # ZAPISZ pobrane ceny w bazie!
+                        added_count = self._save_historical_prices_to_db(etf.id, fmp_data)
+                        logger.info(f"💾 Zapisano {added_count} nowych cen historycznych w bazie dla {ticker}")
+                        
+                        return fmp_data
+                else:
+                    logger.warning(f"FMP API limit osiągnięty dla {ticker}")
+            except Exception as e:
+                logger.warning(f"FMP API błąd dla {ticker}: {str(e)}")
+            
+            # Próba 2: EODHD API (100/dzień)
+            try:
+                if api_service._check_rate_limit('eodhd'):
+                    logger.info(f"Fallback na EODHD API dla {ticker}")
+                    # EODHD ma inną strukturę - muszę dostosować
+                    eodhd_data = api_service._get_eodhd_historical_prices(ticker, days=days)
+                    if eodhd_data:
+                        logger.info(f"✅ EODHD API: pobrano {len(eodhd_data)} cen dla {ticker}")
+                        
+                        # ZAPISZ pobrane ceny w bazie!
+                        added_count = self._save_historical_prices_to_db(etf.id, eodhd_data)
+                        logger.info(f"💾 Zapisano {added_count} nowych cen historycznych w bazie dla {ticker}")
+                        
+                        return eodhd_data
+                else:
+                    logger.warning(f"EODHD API limit osiągnięty dla {ticker}")
+            except Exception as e:
+                logger.warning(f"EODHD API błąd dla {ticker}: {str(e)}")
+            
+            # Próba 3: Tiingo API (50/dzień)
+            try:
+                if api_service._check_rate_limit('tiingo'):
+                    logger.info(f"Fallback na Tiingo API dla {ticker}")
+                    tiingo_data = api_service._get_tiingo_historical_prices(ticker, days=days)
+                    if tiingo_data:
+                        logger.info(f"✅ Tiingo API: pobrano {len(tiingo_data)} cen dla {ticker}")
+                        
+                        # ZAPISZ pobrane ceny w bazie!
+                        added_count = self._save_historical_prices_to_db(etf.id, tiingo_data)
+                        logger.info(f"💾 Zapisano {added_count} nowych cen historycznych w bazie dla {ticker}")
+                        
+                        return tiingo_data
+                else:
+                    logger.warning(f"Tiingo API limit osiągnięty dla {ticker}")
+            except Exception as e:
+                logger.warning(f"Tiingo API błąd dla {ticker}: {str(e)}")
+            
+            logger.error(f"❌ Wszystkie API nieudane dla {ticker}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Błąd w inteligentnym pobieraniu cen historycznych dla {ticker}: {str(e)}")
+            return []
+
+    def _save_historical_prices_to_db(self, etf_id: int, historical_data: List[Dict]) -> int:
+        """Zapisuje pobrane ceny historyczne w bazie danych"""
+        try:
+            added_count = 0
+            
+            for price_data in historical_data:
+                try:
+                    # Sprawdź typ daty - może być string lub datetime.date
+                    from datetime import datetime, date
+                    price_date = price_data['date']
+                    if isinstance(price_date, str):
+                        # Konwertuj string na datetime.date
+                        price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
+                    elif isinstance(price_date, date):
+                        # To już datetime.date - użyj bezpośrednio
+                        pass
+                    else:
+                        logger.warning(f"Nieznany format daty: {price_date} (typ: {type(price_date)})")
+                        continue
+                    
+                    # Sprawdź czy cena już istnieje
+                    existing_price = ETFDailyPrice.query.filter_by(
+                        etf_id=etf_id,
+                        date=price_date
+                    ).first()
+                    
+                    if not existing_price:
+                        # Dodaj nową cenę
+                        self.add_daily_price_record(etf_id, price_data['close'])
+                        added_count += 1
+                        logger.debug(f"Dodano cenę historyczną: {price_date} - ${price_data['close']}")
+                    else:
+                        logger.debug(f"Cena już istnieje: {price_date} - ${price_data['close']}")
+                        
+                except Exception as e:
+                    logger.warning(f"Błąd podczas zapisywania ceny {price_data['date']}: {str(e)}")
+                    continue
+            
+            logger.info(f"Zapisano {added_count} nowych cen historycznych w bazie dla ETF ID {etf_id}")
+            return added_count
+            
+        except Exception as e:
+            logger.error(f"Błąd podczas zapisywania cen historycznych w bazie: {str(e)}")
+            return 0

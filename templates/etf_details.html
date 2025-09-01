@@ -976,6 +976,22 @@
             }
         }
         
+        // Funkcja pomocnicza do bezpiecznego formatowania dat w tooltipach
+        function formatDateForTooltip(dateString) {
+            if (dateString && typeof dateString === 'string') {
+                // Sprawdź czy data jest w formacie YYYY-MM-DD
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                    return dateString.replace(/-/g, '.');
+                }
+                // Jeśli nie, spróbuj utworzyć Date i sformatować
+                const date = new Date(dateString);
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0].replace(/-/g, '.');
+                }
+            }
+            return dateString || 'Nieznana data';
+        }
+
         // Funkcja do tworzenia wykresu cen tygodniowych
         function createWeeklyPriceChart(ticker) {
             // Tworzenie wykresu cen tygodniowych dla ${ticker}
@@ -1036,9 +1052,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const price = context.parsed.y;
@@ -1218,9 +1233,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -1801,9 +1815,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -1962,9 +1975,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -2153,9 +2165,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const price = context.parsed.y;
@@ -2299,9 +2310,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -2442,9 +2452,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -2585,9 +2594,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -2678,8 +2686,10 @@
                         const ctx = canvasElement.getContext('2d');
                         
                         // Przygotowanie danych dla Chart.js
-                        const labels = data.data.daily_prices.map(p => p.date);
-                        const prices = data.data.daily_prices.map(p => p.close);
+                        // Dane z API są sortowane od najnowszych do najstarszych
+                        // Musimy je odwrócić aby wykres pokazywał chronologicznie (od lewej do prawej)
+                        const labels = data.data.daily_prices.map(p => p.date).reverse();
+                        const prices = data.data.daily_prices.map(p => p.close).reverse();
                         
                         console.log(`📊 Przygotowane dane dzienne: ${labels.length} etykiet, ${prices.length} cen`);
                         
@@ -2716,9 +2726,20 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                const dateString = context[0].label;
+                                                if (dateString && typeof dateString === 'string') {
+                                                    // Sprawdź czy data jest w formacie YYYY-MM-DD
+                                                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                                                        return dateString.replace(/-/g, '.');
+                                                    }
+                                                    // Jeśli nie, spróbuj utworzyć Date i sformatować
+                                                    const date = new Date(dateString);
+                                                    if (!isNaN(date.getTime())) {
+                                                        return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                    }
+                                                }
+                                                return dateString || 'Nieznana data';
                                             },
                                             label: function(context) {
                                                 const price = context.parsed.y;
@@ -2861,9 +2882,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -3004,9 +3024,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
@@ -3151,9 +3170,8 @@
                                     tooltip: {
                                         callbacks: {
                                             title: function(context) {
-                                                // Format daty: YYYY.MM.DD
-                                                const date = new Date(context[0].label);
-                                                return date.toISOString().split('T')[0].replace(/-/g, '.');
+                                                // Format daty: YYYY.MM.DD - bezpieczne formatowanie
+                                                return formatDateForTooltip(context[0].label);
                                             },
                                             label: function(context) {
                                                 const value = context.parsed.y;
