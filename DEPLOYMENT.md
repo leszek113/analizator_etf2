@@ -1,45 +1,47 @@
-# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.23
+# 🚀 ETF Analyzer - Instrukcje Wdrażania v1.9.24
 
 ## 📋 **Przegląd Wersji**
 
-**Wersja:** v1.9.23  
-**Data wydania:** 27 stycznia 2025  
-**Typ wydania:** Patch Release (naprawa głównego błędu i optymalizacje)
+**Wersja:** v1.9.24  
+**Data wydania:** 1 września 2025  
+**Typ wydania:** Feature Release (ulepszenie zadania aktualizacji cen dziennych)
 
-## 🆕 **Co nowego w v1.9.23**
+## 🆕 **Co nowego w v1.9.24**
 
-### **Naprawione Błędy**
-- ✅ **GŁÓWNY BŁĄD**: Dodano zadanie schedulera `scheduled_daily_price_update` które uruchamia się o 22:00 CET i pobiera ceny dzienne na koniec dnia
-- ✅ **Funkcja `add_daily_price_record`**: Dodano do `DatabaseService` funkcję do dodawania rekordów cen dziennych
-- ✅ **Scheduler**: Poprawiono konfigurację - nowe zadanie uruchamia się tylko w dni robocze (pon-piątek)
+### **Ulepszenia Zadania Aktualizacji Cen Dziennych**
+- ✅ **Rozszerzenie zakresu sprawdzania**: Zwiększono z 250 do 365 dni roboczych dla lepszej kompletności danych
+- ✅ **Nowa funkcja `check_historical_completeness()`**: Mierzy i raportuje kompletność danych historycznych
+- ✅ **Naprawiona funkcja `_save_historical_prices_to_db()`**: Poprawnie zapisuje ceny historyczne z odpowiednimi datami
+- ✅ **Ulepszone logowanie kompletności**: Szczegółowe raporty o kompletności danych przed i po aktualizacji
+- ✅ **Inteligentne uzupełnianie braków**: Automatyczne pobieranie brakujących cen historycznych z różnych API
 
 ### **Nowe Funkcjonalności**
-- ✅ **Inteligentna kolejka API**: Dodano `APIQueueManager` do optymalizacji wykorzystania tokenów API
-- ✅ **System retencji logów**: Implementacja automatycznego czyszczenia starych logów
-  - Logi systemowe: retencja 90 dni
-  - Logi zadań: retencja 30 dni
-  - Cotygodniowe czyszczenie w niedzielę o 02:00 CET
-- ✅ **Strefa czasowa CET**: Dodano konfigurację dla interfejsu użytkownika w CET
+- ✅ **Pomiar kompletności danych**: System automatycznie mierzy kompletność danych historycznych
+- ✅ **Raportowanie ulepszeń**: Szczegółowe logi pokazujące ile cen zostało dodanych i jak poprawiła się kompletność
+- ✅ **Rozszerzone zarządzanie API**: Lepsze wykorzystanie limitów API z fallbackami (FMP → EODHD → Tiingo)
 
 ### **Ulepszenia Techniczne**
-- ✅ **Optymalizacja API**: Grupowanie zadań w partiach, priorytetyzacja, retry logic
-- ✅ **Logowanie zadań**: Wszystkie nowe zadania używają rozszerzonego systemu logowania
-- ✅ **Konfiguracja**: Dodano ustawienia strefy czasowej i polityki retencji logów
+- ✅ **Optymalizacja zapisywania danych**: Bezpośrednie tworzenie rekordów ETFDailyPrice z odpowiednimi datami
+- ✅ **Lepsze zarządzanie błędami**: Obsługa limitów API i inteligentne fallbacki
+- ✅ **Automatyczne czyszczenie**: Usuwanie cen starszych niż 250 dni roboczych
+
+## 🆕 **Co nowego w v1.9.23**
 
 ### **Struktura Schedulera**
 ```
 06:00 CET - Sprawdzanie dywidend (codziennie)
-22:00 CET - Aktualizacja cen dziennych (pon-piątek)
+18:00 CET - Aktualizacja cen dziennych z uzupełnianiem historii (pon-piątek)
 23:00 CET - Sprawdzanie alertów (pon-piątek)
 02:00 CET - Czyszczenie logów (niedziela)
 ```
 
 ### **Priorytety Zadań API**
 1. **Priorytet 1**: Aktualizacje cen w czasie rzeczywistym
-2. **Priorytet 2**: Sprawdzanie dywidend
-3. **Priorytet 3**: Historyczne dane
-4. **Priorytet 4**: Wskaźniki techniczne
-5. **Priorytet 5**: Dane pomocnicze
+2. **Priorytet 2**: Uzupełnianie brakujących cen historycznych
+3. **Priorytet 3**: Sprawdzanie dywidend
+4. **Priorytet 4**: Historyczne dane
+5. **Priorytet 5**: Wskaźniki techniczne
+6. **Priorytet 6**: Dane pomocnicze
 
 ## 🆕 **Co nowego w v1.9.22**
 

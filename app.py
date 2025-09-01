@@ -287,6 +287,7 @@ def create_app():
                 total_updated = 0
                 total_added = 0
                 total_cleaned = 0
+                total_completeness_improved = 0
                 error_count = 0
                 
                 for etf in etfs:
@@ -299,42 +300,55 @@ def create_app():
                             logger.warning(f"Daily price update taking too long ({elapsed_time:.1f}s), stopping early")
                             break
                         
-                        # 1. Sprawdź jakie ceny dzienne mamy w bazie
-                        missing_dates = db_service.get_missing_daily_prices(etf.id, days_back=250)
+                        # Sprawdź kompletność danych przed aktualizacją
+                        completeness_before = db_service.check_historical_completeness(etf.id, days_back=365)
+                        if completeness_before:
+                            logger.info(f"Kompletność {etf.ticker} przed aktualizacją: {completeness_before['completeness_percentage']:.1f}% ({completeness_before['actual_business_days']}/{completeness_before['expected_business_days']})")
+                        
+                        # 1. Sprawdź jakie ceny dzienne mamy w bazie (rozszerzone do 365 dni)
+                        missing_dates = db_service.get_missing_daily_prices(etf.id, days_back=365)
                         
                         if missing_dates:
                             logger.info(f"Found {len(missing_dates)} missing dates for {etf.ticker}")
                             
-                                                    # 2. Pobierz brakujące ceny historyczne inteligentnie
-                        try:
-                            logger.info(f"Pobieram brakujące ceny historyczne dla {etf.ticker}...")
-                            historical_data = db_service.get_historical_daily_prices_intelligent(etf.ticker, days=250)
-                            
-                            if historical_data:
-                                logger.info(f"Pobrano {len(historical_data)} cen historycznych dla {etf.ticker}")
+                            # 2. Pobierz brakujące ceny historyczne inteligentnie (rozszerzone do 365 dni)
+                            try:
+                                logger.info(f"Pobieram brakujące ceny historyczne dla {etf.ticker} (365 dni)...")
+                                historical_data = db_service.get_historical_daily_prices_intelligent(etf.ticker, days=365)
                                 
-                                # Dodaj brakujące ceny
-                                for missing_date in missing_dates:
-                                    price_for_date = None
-                                    for price_data in historical_data:
-                                        if price_data['date'] == missing_date:
-                                            price_for_date = price_data['close']
-                                            break
+                                if historical_data:
+                                    logger.info(f"Pobrano {len(historical_data)} cen historycznych dla {etf.ticker}")
                                     
-                                    if price_for_date:
-                                        db_service.add_daily_price_record(etf.id, price_for_date)
-                                        total_added += 1
-                                        logger.info(f"Added missing price for {etf.ticker} {missing_date}: ${price_for_date}")
-                                    else:
-                                        logger.warning(f"Price not found in API for {etf.ticker} {missing_date}")
-                            else:
-                                logger.warning(f"Failed to get historical data for {etf.ticker} from all API sources")
-                                
-                        except Exception as e:
-                            logger.error(f"Error fetching historical prices for {etf.ticker}: {str(e)}")
-                            continue
+                                    # Dodaj brakujące ceny
+                                    for missing_date in missing_dates:
+                                        price_for_date = None
+                                        for price_data in historical_data:
+                                            if price_data['date'] == missing_date:
+                                                price_for_date = price_data['close']
+                                                break
+                                        
+                                        if price_for_date:
+                                            db_service.add_daily_price_record(etf.id, price_for_date)
+                                            total_added += 1
+                                            logger.info(f"Added missing price for {etf.ticker} {missing_date}: ${price_for_date}")
+                                        else:
+                                            logger.warning(f"Price not found in API for {etf.ticker} {missing_date}")
+                                else:
+                                    logger.warning(f"Failed to get historical data for {etf.ticker} from all API sources")
+                                    
+                            except Exception as e:
+                                logger.error(f"Error fetching historical prices for {etf.ticker}: {str(e)}")
+                                continue
                         else:
                             logger.info(f"All daily prices are up to date for {etf.ticker}")
+                        
+                        # Sprawdź kompletność danych po aktualizacji
+                        completeness_after = db_service.check_historical_completeness(etf.id, days_back=365)
+                        if completeness_after and completeness_before:
+                            improvement = completeness_after['completeness_percentage'] - completeness_before['completeness_percentage']
+                            if improvement > 0:
+                                total_completeness_improved += 1
+                                logger.info(f"✅ Kompletność {etf.ticker} poprawiona o {improvement:.1f}%: {completeness_after['completeness_percentage']:.1f}%")
                         
                         # 3. Pobierz aktualną cenę i zaktualizuj
                         current_price = api_service.get_current_price(etf.ticker)
@@ -371,21 +385,22 @@ def create_app():
                     success=True if error_count == 0 else False,
                     execution_time_ms=execution_time_ms,
                     records_processed=total_updated + total_added,
-                    details=f"Intelligent daily price update: {total_updated} updated, {total_added} added, {total_cleaned} cleaned, {error_count} errors",
+                    details=f"Intelligent daily price update: {total_updated} updated, {total_added} added, {total_cleaned} cleaned, {total_completeness_improved} ETFs improved, {error_count} errors",
                     error_message=f"API errors for {error_count} ETFs" if error_count > 0 else None,
                     metadata={
                         'etfs_updated': total_updated,
                         'prices_added': total_added,
                         'prices_cleaned': total_cleaned,
+                        'completeness_improved': total_completeness_improved,
                         'total_etfs': len(etfs),
                         'errors': error_count,
-                        'update_type': 'intelligent_daily_sync'
+                        'update_type': 'intelligent_daily_sync_with_backfill'
                     }
                 )
                 db.session.add(job_log)
                 db.session.commit()
                 
-                logger.info(f"Intelligent daily price update completed: {total_updated} updated, {total_added} added, {total_cleaned} cleaned")
+                logger.info(f"Intelligent daily price update completed: {total_updated} updated, {total_added} added, {total_cleaned} cleaned, {total_completeness_improved} ETFs improved")
                 
             except Exception as e:
                 execution_time_ms = int((time.time() - start_time) * 1000)

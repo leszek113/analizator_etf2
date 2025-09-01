@@ -2,13 +2,57 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
-# [1.9.23] - 2025-01-27
+# [1.9.24] - 2025-09-01
 
 ### 🚀 **Nowa Wersja**
-- **Wersja**: 1.9.23
-- **Data**: 2025-01-27
-- **Typ**: patch bump
-- **Status**: Naprawa głównego błędu i optymalizacje
+- **Wersja**: 1.9.24
+- **Data**: 2025-09-01
+- **Typ**: feature bump
+- **Status**: Ulepszenie zadania aktualizacji cen dziennych
+
+### ✨ **Ulepszenia Zadania Aktualizacji Cen Dziennych**
+- **Rozszerzenie zakresu sprawdzania**: Zwiększono z 250 do 365 dni roboczych dla lepszej kompletności danych
+- **Nowa funkcja `check_historical_completeness()`**: Mierzy i raportuje kompletność danych historycznych
+- **Naprawiona funkcja `_save_historical_prices_to_db()`**: Poprawnie zapisuje ceny historyczne z odpowiednimi datami
+- **Ulepszone logowanie kompletności**: Szczegółowe raporty o kompletności danych przed i po aktualizacji
+- **Inteligentne uzupełnianie braków**: Automatyczne pobieranie brakujących cen historycznych z różnych API
+
+### 🆕 **Nowe Funkcjonalności**
+- **Pomiar kompletności danych**: System automatycznie mierzy kompletność danych historycznych
+- **Raportowanie ulepszeń**: Szczegółowe logi pokazujące ile cen zostało dodanych i jak poprawiła się kompletność
+- **Rozszerzone zarządzanie API**: Lepsze wykorzystanie limitów API z fallbackami (FMP → EODHD → Tiingo)
+
+### 🔧 **Ulepszenia Techniczne**
+- **Optymalizacja zapisywania danych**: Bezpośrednie tworzenie rekordów ETFDailyPrice z odpowiednimi datami
+- **Lepsze zarządzanie błędami**: Obsługa limitów API i inteligentne fallbacki
+- **Automatyczne czyszczenie**: Usuwanie cen starszych niż 250 dni roboczych
+
+### 📊 **Struktura Schedulera**
+```
+06:00 CET - Sprawdzanie dywidend (codziennie)
+18:00 CET - Aktualizacja cen dziennych z uzupełnianiem historii (pon-piątek)
+23:00 CET - Sprawdzanie alertów (pon-piątek)
+02:00 CET - Czyszczenie logów (niedziela)
+```
+
+### 🎯 **Priorytety Zadań API**
+1. **Priorytet 1**: Aktualizacje cen w czasie rzeczywistym
+2. **Priorytet 2**: Uzupełnianie brakujących cen historycznych
+3. **Priorytet 3**: Sprawdzanie dywidend
+4. **Priorytet 4**: Historyczne dane
+5. **Priorytet 5**: Wskaźniki techniczne
+6. **Priorytet 6**: Dane pomocnicze
+
+### 📈 **Wyniki Testów**
+- **Przed**: 1494 cen dziennych (średnio 166 na ETF)
+- **Po**: 1530 cen dziennych (średnio 170 na ETF)
+- **Dodano**: 36 nowych cen historycznych
+- **Kompletność**: Poprawiona z 66% do 68% dla ostatnich 250 dni roboczych
+
+### 📝 **Dodaj zmiany tutaj**
+- 
+
+## [1.9.23] - 2025-01-27
 
 ### 🐛 **Naprawione Błędy**
 - **GŁÓWNY BŁĄD**: Dodano zadanie schedulera `scheduled_daily_price_update` które uruchamia się o 22:00 CET i pobiera ceny dzienne na koniec dnia

@@ -2402,11 +2402,11 @@ class DatabaseService:
             return 0
 
     def get_missing_daily_prices(self, etf_id: int, days_back: int = 250) -> List[str]:
-        """Sprawdza jakie daty cen dziennych brakują dla danego ETF w ostatnich 250 dniach roboczych"""
+        """Sprawdza jakie daty cen dziennych brakują dla danego ETF w ostatnich X dniach roboczych"""
         try:
             from datetime import date, timedelta
             
-            # Oblicz datę początkową (250 dni roboczych wstecz)
+            # Oblicz datę początkową (X dni roboczych wstecz)
             end_date = date.today()
             start_date = end_date - timedelta(days=days_back)
             
@@ -2419,12 +2419,10 @@ class DatabaseService:
             
             existing_dates_set = {d[0] for d in existing_dates}
             
-            # Zamiast generować wszystkie "dni robocze", sprawdź tylko te które mają sens
-            # Pobierz daty z ostatnich 250 dni i sprawdź które brakują
-            missing_dates = []
-            
             # Sprawdź każdy dzień w zakresie
+            missing_dates = []
             current_date = start_date
+            
             while current_date <= end_date:
                 # Sprawdź czy to dzień roboczy (poniedziałek = 0, piątek = 4)
                 if current_date.weekday() < 5:  # 0-4 to poniedziałek-piątek
@@ -2433,12 +2431,62 @@ class DatabaseService:
                         missing_dates.append(current_date.strftime('%Y-%m-%d'))
                 current_date += timedelta(days=1)
             
-            logger.info(f"ETF ID {etf_id}: znaleziono {len(missing_dates)} potencjalnie brakujących dat cen dziennych (250 dni)")
+            logger.info(f"ETF ID {etf_id}: znaleziono {len(missing_dates)} potencjalnie brakujących dat cen dziennych ({days_back} dni)")
             return missing_dates
             
         except Exception as e:
             logger.error(f"Błąd podczas sprawdzania brakujących cen dziennych: {str(e)}")
             return []
+
+    def check_historical_completeness(self, etf_id: int, days_back: int = 365) -> Dict:
+        """Sprawdza kompletność danych historycznych dla danego ETF"""
+        try:
+            from datetime import date, timedelta
+            
+            # Oblicz datę początkową
+            end_date = date.today()
+            start_date = end_date - timedelta(days=days_back)
+            
+            # Pobierz istniejące daty z bazy
+            existing_dates = db.session.query(ETFDailyPrice.date).filter(
+                ETFDailyPrice.etf_id == etf_id,
+                ETFDailyPrice.date >= start_date,
+                ETFDailyPrice.date <= end_date
+            ).all()
+            
+            existing_dates_set = {d[0] for d in existing_dates}
+            
+            # Oblicz oczekiwane dni robocze
+            expected_business_days = 0
+            current_date = start_date
+            while current_date <= end_date:
+                if current_date.weekday() < 5:  # 0-4 to poniedziałek-piątek
+                    expected_business_days += 1
+                current_date += timedelta(days=1)
+            
+            # Oblicz rzeczywiste dni robocze w bazie
+            actual_business_days = len([d for d in existing_dates_set if d.weekday() < 5])
+            
+            # Oblicz kompletność
+            completeness = (actual_business_days / expected_business_days * 100) if expected_business_days > 0 else 0
+            
+            # Znajdź najstarszą i najnowszą datę
+            oldest_date = min(existing_dates_set) if existing_dates_set else None
+            newest_date = max(existing_dates_set) if existing_dates_set else None
+            
+            return {
+                'expected_business_days': expected_business_days,
+                'actual_business_days': actual_business_days,
+                'completeness_percentage': completeness,
+                'missing_days': expected_business_days - actual_business_days,
+                'oldest_date': oldest_date,
+                'newest_date': newest_date,
+                'date_range': f"{start_date} to {end_date}"
+            }
+            
+        except Exception as e:
+            logger.error(f"Błąd podczas sprawdzania kompletności danych: {str(e)}")
+            return {}
 
     def cleanup_old_daily_prices(self, days_back: int = 250) -> int:
         """Usuwa ceny dzienne starsze niż 250 dni roboczych"""
@@ -2565,8 +2613,18 @@ class DatabaseService:
                     ).first()
                     
                     if not existing_price:
-                        # Dodaj nową cenę
-                        self.add_daily_price_record(etf_id, price_data['close'])
+                        # Dodaj nową cenę historyczną bezpośrednio
+                        new_record = ETFDailyPrice(
+                            etf_id=etf_id,
+                            date=price_date,
+                            close_price=price_data['close'],
+                            normalized_close_price=price_data['close'],
+                            split_ratio_applied=1.0,
+                            year=price_date.year,
+                            month=price_date.month,
+                            day=price_date.day
+                        )
+                        db.session.add(new_record)
                         added_count += 1
                         logger.debug(f"Dodano cenę historyczną: {price_date} - ${price_data['close']}")
                     else:
@@ -2576,6 +2634,8 @@ class DatabaseService:
                     logger.warning(f"Błąd podczas zapisywania ceny {price_data['date']}: {str(e)}")
                     continue
             
+            # Commit wszystkich zmian
+            db.session.commit()
             logger.info(f"Zapisano {added_count} nowych cen historycznych w bazie dla ETF ID {etf_id}")
             return added_count
             
