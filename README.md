@@ -1,14 +1,32 @@
-# 📊 ETF Analyzer v1.9.23
+# 📊 ETF Analyzer v1.9.25
 
-**Wersja:** v1.9.23  
-**Ostatnia aktualizacja:** 29 sierpnia 2025
+**Wersja:** v1.9.25  
+**Ostatnia aktualizacja:** 3 września 2025
+
+## 🚨 **NAJNOWSZE NAPRAWY (v1.9.25) - System Splitów ETF**
+
+### **🐛 Krytyczne naprawy systemu normalizacji splitów:**
+- **GŁÓWNY BŁĄD NAPRAWIONY**: Błąd logiczny w `_calculate_cumulative_split_ratio` - zmieniono `target_date < split.split_date` na `target_date <= split.split_date`
+- **Problem z cenami dziennymi**: Cena z dnia splitu (np. 2024-10-10 dla SCHG) nie była normalizowana
+- **Problem z cenami tygodniowymi**: Ceny tygodniowe przed splitem nie były normalizowane
+- **Niespójność API**: API zwracało `normalized_close_price` zamiast `close_price` dla spójności z cenami po splicie
+
+### **✅ Rezultaty napraw:**
+- **SCHG 4:1 split (2024-10-10)**: Cena dzienna: 105.35 → 26.34 ✅, Cena tygodniowa: 6.505 → 26.02 ✅
+- **Spójność cen**: Wszystkie timeframes (1D, 1W, 1M) pokazują spójne ceny po splicie
+- **Automatyczna normalizacja**: System automatycznie normalizuje wszystkie historyczne dane
+
+### **🔧 Nowe funkcjonalności:**
+- **Nowy endpoint**: `/api/etfs/<ticker>/check-splits` do ręcznego sprawdzania i normalizacji splitów
+- **Ulepszona funkcja `force_split_detection`**: Ponownie normalizuje dane nawet gdy split już istnieje
+- **Naprawione skrypty zarządzania**: `manage-app.sh` i `bump-version.sh` używają virtual environment
 
 ## 🎯 **Główne funkcjonalności**
 
 ✅ **Analiza ETF** - szczegółowe informacje o funduszach ETF
 ✅ **Historia dywidend** - kompletna historia wypłat dywidend z ostatnich 15 lat
 ✅ **Tabela dywidend** - macierz miesięczna/kwartalna z sumami rocznymi
-✅ **Normalizacja splitów** - automatyczne dostosowanie historycznych danych do splitów akcji
+✅ **Normalizacja splitów** - automatyczne dostosowanie historycznych danych do splitów akcji (NAPRAWIONE w v1.9.25)
 ✅ **Wykres cen miesięcznych** - interaktywny wykres cen zamknięcia z ostatnich 15 lat
 ✅ **Wykres cen tygodniowych** - nowy wykres cen tygodniowych z ostatnich 15 lat
 ✅ **Wykres cen dziennych** - nowy wykres cen dziennych z rolling window 365 dni (znormalizowane ceny)

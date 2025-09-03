@@ -105,7 +105,13 @@ fi
 
 # Pobranie aktualnej wersji
 print_step "Pobieranie aktualnej wersji..."
-CURRENT_VERSION=$(python3 -c "from config import __version__; print(__version__)" 2>/dev/null)
+
+# Sprawdź czy virtual environment istnieje i użyj go
+if [ -f "venv/bin/python" ]; then
+    CURRENT_VERSION=$("venv/bin/python" -c "from config import __version__; print(__version__)" 2>/dev/null)
+else
+    CURRENT_VERSION=$(python3 -c "from config import __version__; print(__version__)" 2>/dev/null)
+fi
 
 if [ $? -ne 0 ] || [ -z "$CURRENT_VERSION" ]; then
     print_error "Nie można odczytać aktualnej wersji z config.py"

@@ -4,14 +4,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Wersja systemu - CENTRALNE ŹRÓDŁO PRAWDY
-__version__ = "1.9.23"
+__version__ = "1.9.25"
 
 # Informacje o wersji
 VERSION_INFO = {
     'version': __version__,
-    'release_date': '2025-01-27',
+    'release_date': '2025-09-03',
     'status': 'production_ready',
-    'build': 'fix-daily-prices'  # Git commit hash
+    'build': 'fix-split-normalization'  # Git commit hash
 }
 
 class Config:
@@ -141,6 +141,13 @@ class Config:
                 'date': '2024-10-11',
                 'ratio': 3.0,
                 'description': '3:1 Stock Split'
+            }
+        ],
+        'SCHG': [
+            {
+                'date': '2024-10-10',
+                'ratio': 4.0,
+                'description': '4:1 Stock Split'
             }
         ]
         # Dodaj więcej ETF z splitami tutaj

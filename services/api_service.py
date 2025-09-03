@@ -1431,7 +1431,7 @@ class APIService:
         
         for split in splits:
             split_date = datetime.strptime(split.get('date', ''), '%Y-%m-%d').date()
-            if target_date < split_date:
+            if target_date <= split_date:
                 # Dywidenda/cena była przed splitem - normalizujemy
                 cumulative_ratio *= float(split.get('ratio', 1.0))
         

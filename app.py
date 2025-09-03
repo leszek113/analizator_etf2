@@ -13,14 +13,8 @@ from config import __version__, VERSION_INFO
 from config import Config
 import pytz
 
-def utc_to_cet(utc_datetime):
-    """Konwertuje datetime UTC na CET/CEST"""
-    if utc_datetime is None:
-        return None
-    if utc_datetime.tzinfo is None:
-        utc_datetime = utc_datetime.replace(tzinfo=timezone.utc)
-    cet_tz = pytz.timezone('Europe/Warsaw')
-    return utc_datetime.astimezone(cet_tz)
+# Import funkcji utc_to_cet z wspólnego modułu
+from utils import utc_to_cet
 from models import db, SystemLog
 from services.database_service import DatabaseService
 from services.api_service import APIService
@@ -868,6 +862,38 @@ def create_app():
                 'error': str(e)
             }), 500
     
+    @app.route('/api/etfs/<ticker>/check-splits', methods=['POST'])
+    def check_etf_splits(ticker):
+        """API endpoint do ręcznego sprawdzania splitów ETF"""
+        try:
+            # Sprawdzanie czy ETF istnieje
+            etf = db_service.get_etf_by_ticker(ticker)
+            if not etf:
+                return jsonify({
+                    'success': False,
+                    'error': f'ETF {ticker} nie został znaleziony'
+                }), 404
+            
+            # Wymuszenie sprawdzenia splitów
+            success = db_service.force_split_detection(ticker)
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to check splits for ETF {ticker}'
+                }), 500
+            
+            return jsonify({
+                'success': True,
+                'message': f'Splits checked and normalized for ETF {ticker}'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error checking splits for ETF {ticker}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
     @app.route('/api/etfs/<ticker>', methods=['DELETE'])
     def delete_etf(ticker):
         """API endpoint do usuwania ETF wraz z wszystkimi danymi"""
@@ -976,7 +1002,7 @@ def create_app():
             for price in weekly_prices:
                 formatted_prices.append({
                     'date': price.date.strftime('%Y-%m-%d'),
-                    'close_price': price.normalized_close_price,
+                    'close_price': price.close_price,
                     'volume': price.volume if hasattr(price, 'volume') else None
                 })
             

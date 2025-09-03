@@ -2,6 +2,44 @@
 
 Wszystkie istotne zmiany w projekcie ETF Analyzer będą dokumentowane w tym pliku.
 
+# [1.9.25] - 2025-09-03
+
+### 🚀 **Nowa Wersja**
+- **Wersja**: 1.9.25
+- **Data**: 2025-09-03
+- **Typ**: patch bump
+- **Status**: Naprawa systemu normalizacji splitów ETF
+
+### 🐛 **Krytyczne Naprawy Systemu Splitów**
+- **GŁÓWNY BŁĄD**: Naprawiono błąd logiczny w `_calculate_cumulative_split_ratio` - zmieniono `target_date < split.split_date` na `target_date <= split.split_date`
+- **Problem z cenami dziennymi**: Cena z dnia splitu (np. 2024-10-10 dla SCHG) nie była normalizowana
+- **Problem z cenami tygodniowymi**: Ceny tygodniowe przed splitem nie były normalizowane
+- **Niespójność API**: API zwracało `normalized_close_price` zamiast `close_price` dla spójności z cenami po splicie
+
+### ✨ **Ulepszenia Systemu Splitów**
+- **Automatyczna normalizacja**: Wszystkie ceny przed splitem są teraz poprawnie normalizowane
+- **Spójność timeframe'ów**: Wszystkie timeframes (1D, 1W, 1M) mają spójne ceny po splicie
+- **Nowy endpoint**: `/api/etfs/<ticker>/check-splits` do ręcznego sprawdzania i normalizacji splitów
+- **Ulepszona funkcja `force_split_detection`**: Ponownie normalizuje dane nawet gdy split już istnieje
+
+### 🔧 **Naprawy Techniczne**
+- **Naprawiono `database_service.py`**: Poprawiono logikę `_calculate_cumulative_split_ratio`
+- **Naprawiono `api_service.py`**: Poprawiono logikę `calculate_cumulative_split_ratio`
+- **Naprawiono `app.py`**: API cen tygodniowych zwraca `close_price` zamiast `normalized_close_price`
+- **Naprawiono skrypty zarządzania**: `manage-app.sh` i `bump-version.sh` używają virtual environment do pobierania wersji
+
+### 📊 **Rezultaty Napraw**
+- **SCHG 4:1 split (2024-10-10)**: 
+  - Cena dzienna: 105.35 → 26.34 ✅
+  - Cena tygodniowa: 6.505 → 26.02 ✅
+- **Spójność cen**: Wszystkie timeframes pokazują spójne ceny po splicie
+- **Automatyczna normalizacja**: System automatycznie normalizuje wszystkie historyczne dane
+
+### 🎯 **Przykład Naprawy SCHG**
+- **Przed naprawą**: 2024-10-10 = 105.35 (błędna), 2024-10-04 = 6.505 (błędna)
+- **Po naprawie**: 2024-10-10 = 26.34 ✅, 2024-10-04 = 26.02 ✅
+- **Spójność**: 2024-10-09 = 26.32, 2024-10-10 = 26.34, 2024-10-11 = 26.42
+
 # [1.9.24] - 2025-09-01
 
 ### 🚀 **Nowa Wersja**

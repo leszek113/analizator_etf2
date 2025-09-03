@@ -1064,17 +1064,35 @@ class DatabaseService:
                 dividend.normalized_amount = dividend.amount / split_ratio
                 dividend.split_ratio_applied = split_ratio
             
-            # Aktualizacja cen ETF
+            # Aktualizacja cen miesięcznych ETF
             prices = ETFPrice.query.filter_by(etf_id=etf_id).all()
             for price in prices:
                 split_ratio = self._calculate_cumulative_split_ratio(all_splits, price.date)
                 price.normalized_close_price = price.close_price / split_ratio
                 price.split_ratio_applied = split_ratio
             
-            logger.info(f"Re-normalized {len(dividends)} dividends and {len(prices)} prices for {ticker}")
+            # Aktualizacja cen tygodniowych ETF
+            weekly_prices = ETFWeeklyPrice.query.filter_by(etf_id=etf_id).all()
+            for price in weekly_prices:
+                split_ratio = self._calculate_cumulative_split_ratio(all_splits, price.date)
+                price.normalized_close_price = price.close_price / split_ratio
+                price.split_ratio_applied = split_ratio
+            
+            # Aktualizacja cen dziennych ETF
+            daily_prices = ETFDailyPrice.query.filter_by(etf_id=etf_id).all()
+            for price in daily_prices:
+                split_ratio = self._calculate_cumulative_split_ratio(all_splits, price.date)
+                price.normalized_close_price = price.close_price / split_ratio
+                price.split_ratio_applied = split_ratio
+            
+            # Zatwierdzenie zmian
+            db.session.commit()
+            
+            logger.info(f"Re-normalized {len(dividends)} dividends, {len(prices)} monthly prices, {len(weekly_prices)} weekly prices, and {len(daily_prices)} daily prices for {ticker}")
             
         except Exception as e:
             logger.error(f"Error re-normalizing data for ETF {ticker}: {str(e)}")
+            db.session.rollback()
 
     def _calculate_cumulative_split_ratio(self, splits: List[ETFSplit], target_date: date) -> float:
         """
@@ -1083,11 +1101,71 @@ class DatabaseService:
         cumulative_ratio = 1.0
         
         for split in splits:
-            if target_date < split.split_date:
+            if target_date <= split.split_date:
                 cumulative_ratio *= split.split_ratio
         
         return cumulative_ratio
     
+    def force_split_detection(self, ticker: str) -> bool:
+        """
+        Wymusza sprawdzenie splitów dla danego ETF (ignoruje cache)
+        """
+        try:
+            etf = ETF.query.filter_by(ticker=ticker.upper()).first()
+            if not etf:
+                logger.error(f"ETF {ticker} not found")
+                return False
+            
+            logger.info(f"Force checking splits for {ticker}")
+            
+            # Pobieranie splitów z API (ignoruje cache)
+            splits_data = self.api_service.get_stock_splits(ticker)
+            if not splits_data:
+                logger.info(f"No splits found for {ticker}")
+                return False
+            
+            # Sprawdzanie wszystkich splitów (nie tylko nowych)
+            existing_splits = ETFSplit.query.filter_by(etf_id=etf.id).all()
+            existing_split_dates = {split.split_date for split in existing_splits}
+            new_splits = []
+            
+            for split_data in splits_data:
+                split_date = datetime.strptime(split_data['date'], '%Y-%m-%d').date()
+                if split_date not in existing_split_dates:
+                    new_splits.append(split_data)
+            
+            if not new_splits:
+                logger.info(f"No new splits found for {ticker}, but re-normalizing existing data")
+                # Nawet jeśli nie ma nowych splitów, ponownie normalizujemy dane
+                # (może zostały zmienione współczynniki normalizacji)
+                self._renormalize_all_data(etf.id, ticker)
+                db.session.commit()
+                return True
+            
+            # Dodawanie nowych splitów
+            for split_data in new_splits:
+                split = ETFSplit(
+                    etf_id=etf.id,
+                    split_date=datetime.strptime(split_data['date'], '%Y-%m-%d').date(),
+                    split_ratio=float(split_data['ratio']),
+                    description=split_data.get('description', f"{split_data['ratio']}:1 Stock Split")
+                )
+                db.session.add(split)
+                logger.info(f"Added new split for {ticker}: {split_data['ratio']}:1 on {split_data['date']}")
+            
+            # Po dodaniu nowego splitu, musimy ponownie znormalizować wszystkie historyczne dane
+            if new_splits:
+                logger.info(f"Re-normalizing all historical data for {ticker} due to new splits")
+                self._renormalize_all_data(etf.id, ticker)
+            
+            db.session.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error force checking splits for ETF {ticker}: {str(e)}")
+            db.session.rollback()
+            return False
+
     def _log_action(self, action: str, details: str, level: str = 'INFO') -> None:
         """
         Loguje akcje systemu

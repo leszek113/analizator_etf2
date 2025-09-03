@@ -168,7 +168,7 @@ class TestUtilityFunctions(unittest.TestCase):
     
     def test_utc_to_cet_conversion(self):
         """Test konwersji UTC na CET"""
-        from models import utc_to_cet
+        from utils import utc_to_cet
         from datetime import datetime, timezone
         
         # Test konwersji - używamy czasu zimowego (CET = UTC+1)

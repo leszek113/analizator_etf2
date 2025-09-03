@@ -49,14 +49,20 @@ PYTHON_CMD="python3"
 # Dynamiczne pobieranie wersji z config.py
 get_app_version() {
     if [ -f "config.py" ]; then
-        VERSION=$(python3 -c "from config import __version__; print(__version__)" 2>/dev/null)
+        # Sprawdź czy virtual environment istnieje i użyj go
+        if [ -f "$VENV_DIR/bin/python" ]; then
+            VERSION=$("$VENV_DIR/bin/python" -c "from config import __version__; print(__version__)" 2>/dev/null)
+        else
+            VERSION=$(python3 -c "from config import __version__; print(__version__)" 2>/dev/null)
+        fi
+        
         if [ $? -eq 0 ] && [ ! -z "$VERSION" ]; then
             echo "v$VERSION"
         else
-            echo "v1.9.19"  # Fallback
+            echo "v1.9.24"  # Fallback
         fi
     else
-        echo "v1.9.19"  # Fallback
+        echo "v1.9.24"  # Fallback
     fi
 }
 
@@ -302,8 +308,8 @@ show_status() {
         
         # Informacje o procesie
         if ps -p $PID > /dev/null 2>&1; then
-            CPU=$(ps -p $PID -o %cpu --no-headers)
-            MEM=$(ps -p $PID -o %mem --no-headers)
+            CPU=$(ps -p $PID -o %cpu | tail -1 | tr -d ' ')
+            MEM=$(ps -p $PID -o %mem | tail -1 | tr -d ' ')
             print_info "Użycie CPU: ${CPU}%, Pamięć: ${MEM}%"
         fi
         
